@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ResilientEco Guardian</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        .header h1 { font-size: 28px; }
+        .header p { opacity: 0.8; margin-top: 5px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card.full { grid-column: 1 / -1; }
+        .card.half { grid-column: span 2; }
+        #map { height: 450px; border-radius: 10px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        input[type="text"] { flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+        button { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        button:hover { background: #5568d3; }
+        button.green { background: #34a853; }
+        button.green:hover { background: #2d8e47; }
+        button.small { padding: 6px 12px; font-size: 12px; }
+        #chatMessages { height: 320px; overflow-y: auto; border: 1px solid #e0e0e0; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; }
+        .message { margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; max-width: 85%; line-height: 1.5; }
+        .message.user { background: #667eea; color: white; margin-left: auto; text-align: right; }
+        .message.agent { background: #f1f8e9; border: 1px solid #c8e6c9; }
+        .location-item { padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .location-item:hover { background: #e9ecef; }
+        .alert-item { padding: 10px; margin: 5px 0; border-left: 4px solid; border-radius: 5px; }
+        .alert-item.flood { border-color: #2196f3; background: #e3f2fd; }
+        .alert-item.drought { border-color: #ff9800; background: #fff3e0; }
+        .alert-item.heatwave { border-color: #f44336; background: #ffebee; }
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 5px; }
+        .badge.high { background: #f44336; color: white; }
+        .badge.medium { background: #ff9800; color: white; }
+        .badge.low { background: #4caf50; color: white; }
+        .weather-card { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .weather-stat { background: #f8f9fa; padding: 10px 15px; border-radius: 8px; text-align: center; flex: 1; min-width: 80px; }
+        .weather-stat .value { font-size: 22px; font-weight: bold; color: #667eea; }
+        .weather-stat .label { font-size: 11px; color: #666; margin-top: 3px; }
+        .info-bar { background: #e8f4fd; padding: 8px 12px; border-radius: 5px; font-size: 13px; color: #1565c0; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>🌍 ResilientEco Guardian</h1>
+            <p>Real-time Climate Risk Monitoring for Kenya</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+
+            <!-- MAP -->
+            <div class="card half">
+                <h2>📍 Live Climate Map</h2>
+                <div id="map"></div>
+                <div class="input-group" style="margin-top: 15px;">
+                    <input type="text" id="locationName" placeholder="Name this location (e.g., Home, Farm)" />
+                    <button class="green" onclick="saveCurrentLocation()">💾 Save Location</button>
+                </div>
+                <div class="info-bar" id="mapInfo">📍 Click map to select a location or allow location access</div>
+            </div>
+
+            <!-- SAVED LOCATIONS + WEATHER -->
+            <div class="card">
+                <h2>📌 Saved Locations</h2>
+                <div id="locationList" style="max-height: 180px; overflow-y: auto;">
+                    <p style="color: #999; font-size: 14px;">No locations saved yet</p>
+                </div>
+                <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+                <h3 style="margin-bottom: 10px;">🌤️ Weather at Selected Location</h3>
+                <div class="weather-card" id="weatherStats">
+                    <p style="color: #999; font-size: 13px;">Click a location or map pin to see weather</p>
+                </div>
+            </div>
+
+            <!-- CHAT -->
+            <div class="card half">
+                <h2>💬 Live Climate Chat</h2>
+                <div id="chatMessages">
+                    <div class="message agent">
+                        <strong>🌍 Agent:</strong> Hello! I'm ResilientEco Guardian. Ask me about climate risks, rainfall, floods, or droughts in any Kenyan city.
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="chatInput" placeholder="e.g. Is it raining in Mombasa? Flood risk in Kisumu?" />
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+
+            <!-- ALERTS -->
+            <div class="card">
+                <h2>🚨 Recent Alerts</h2>
+                <div id="alertList" style="max-height: 320px; overflow-y: auto;">
+                    <p style="color: #999; font-size: 14px;">No alerts yet</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // State
+        let selectedLat = null;
+        let selectedLon = null;
+        let currentMarker = null;
+
+        // Initialize map centered on Kenya
+        const map = L.map('map').setView([-0.0236, 37.9062], 6);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Kenya major cities
+        const cities = {
+            'Nairobi': [-1.2921, 36.8219],
+            'Mombasa': [-4.0435, 39.6682],
+            'Kisumu': [-0.0917, 34.7680],
+            'Nakuru': [-0.3031, 36.0800],
+            'Eldoret': [0.5143, 35.2698],
+            'Kakamega': [0.2827, 34.7519],
+            'Kitale': [1.0157, 35.0062],
+            'Thika': [-1.0332, 37.0690],
+            'Malindi': [-3.2167, 40.1167],
+            'Kisii': [-0.6817, 34.7667],
+            'Nyeri': [-0.4167, 36.9500],
+        };
+
+        // Add city markers
+        Object.entries(cities).forEach(([name, [lat, lon]]) => {
+            L.marker([lat, lon])
+                .bindPopup(`
+                    <strong>📍 ${name}</strong><br>
+                    <small>${lat.toFixed(4)}, ${lon.toFixed(4)}</small><br><br>
+                    <button onclick="selectCity('${name}', ${lat}, ${lon})"
+                        style="background:#667eea;color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;margin-right:5px;">
+                        📌 Select
+                    </button>
+                    <button onclick="askAboutCity('${name}')"
+                        style="background:#34a853;color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;">
+                        🌦️ Check Climate
+                    </button>
+                `)
+                .addTo(map);
+        });
+
+        // Load live rain radar
+        async function loadRainRadar() {
+            try {
+                const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                const data = await response.json();
+                const latest = data.radar.past[data.radar.past.length - 1].path;
+                const radarLayer = L.tileLayer(
+                    `https://tilecache.rainviewer.com${latest}/256/{z}/{x}/{y}/2/1_1.png`,
+                    { opacity: 0.5, attribution: '© RainViewer' }
+                );
+                L.control.layers(null, { "🌧️ Live Rain Radar": radarLayer }).addTo(map);
+            } catch(e) {
+                console.log('Radar unavailable:', e);
+            }
+        }
+        loadRainRadar();
+
+        // Select city from popup
+        function selectCity(name, lat, lon) {
+            selectedLat = lat;
+            selectedLon = lon;
+            map.closePopup();
+            if (currentMarker) map.removeLayer(currentMarker);
+            currentMarker = L.marker([lat, lon])
+                .bindPopup(`📍 Selected: ${name}`)
+                .addTo(map).openPopup();
+            document.getElementById('mapInfo').textContent =
+                `📍 Selected: ${name} (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+            document.getElementById('locationName').value = name;
+            loadWeatherForLocation(lat, lon, name);
+        }
+
+        // Click map to select custom location
+        map.on('click', function(e) {
+            selectedLat = e.latlng.lat;
+            selectedLon = e.latlng.lng;
+            if (currentMarker) map.removeLayer(currentMarker);
+            currentMarker = L.marker([selectedLat, selectedLon])
+                .bindPopup(`📍 Selected: ${selectedLat.toFixed(4)}, ${selectedLon.toFixed(4)}`)
+                .addTo(map).openPopup();
+            document.getElementById('mapInfo').textContent =
+                `📍 Selected: ${selectedLat.toFixed(4)}, ${selectedLon.toFixed(4)}`;
+            loadWeatherForLocation(selectedLat, selectedLon, 'Selected Location');
+        });
+
+        // Auto-detect user location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                selectedLat = pos.coords.latitude;
+                selectedLon = pos.coords.longitude;
+                map.setView([selectedLat, selectedLon], 11);
+                if (currentMarker) map.removeLayer(currentMarker);
+                currentMarker = L.marker([selectedLat, selectedLon])
+                    .bindPopup('📍 Your current location')
+                    .addTo(map).openPopup();
+                document.getElementById('mapInfo').textContent =
+                    `📍 Your location: ${selectedLat.toFixed(4)}, ${selectedLon.toFixed(4)}`;
+                loadWeatherForLocation(selectedLat, selectedLon, 'Your Location');
+            }, function() {
+                document.getElementById('mapInfo').textContent =
+                    '📍 Click map to select a location';
+            });
+        }
+
+        // Load weather for selected location
+        async function loadWeatherForLocation(lat, lon, name) {
+            try {
+                const response = await fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,rain,relative_humidity_2m,weather_code&timezone=Africa/Nairobi`
+                );
+                const data = await response.json();
+                const c = data.current;
+                const isRaining = c.precipitation > 0;
+                document.getElementById('weatherStats').innerHTML = `
+                    <div style="width:100%;margin-bottom:8px;font-weight:600;color:#333;">${name}</div>
+                    <div class="weather-stat">
+                        <div class="value">${c.temperature_2m}°C</div>
+                        <div class="label">🌡️ Temp</div>
+                    </div>
+                    <div class="weather-stat">
+                        <div class="value">${c.precipitation}mm</div>
+                        <div class="label">🌧️ Rain</div>
+                    </div>
+                    <div class="weather-stat">
+                        <div class="value">${c.relative_humidity_2m}%</div>
+                        <div class="label">💧 Humidity</div>
+                    </div>
+                    <div style="width:100%;margin-top:8px;padding:8px;background:${isRaining ? '#e3f2fd' : '#f1f8e9'};border-radius:5px;font-size:13px;">
+                        ${isRaining ? '🌧️ Currently raining' : '☀️ No rain currently'}
+                    </div>
+                `;
+            } catch(e) {
+                document.getElementById('weatherStats').innerHTML =
+                    '<p style="color:#999;font-size:13px;">Could not load weather data</p>';
+            }
+        }
+
+        // Ask agent about city
+        function askAboutCity(cityName) {
+            document.getElementById('chatInput').value =
+                `What is the current climate risk and weather in ${cityName}?`;
+            sendMessage();
+        }
+
+        // Load saved locations
+        async function loadLocations() {
+            const response = await fetch('/api/get-locations/');
+            const data = await response.json();
+            const list = document.getElementById('locationList');
+
+            if (data.locations.length === 0) {
+                list.innerHTML = '<p style="color:#999;font-size:14px;">No locations saved yet</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            data.locations.forEach(loc => {
+                const div = document.createElement('div');
+                div.className = 'location-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${loc.name}</strong><br>
+                        <small style="color:#666">${parseFloat(loc.latitude).toFixed(4)}, ${parseFloat(loc.longitude).toFixed(4)}</small>
+                    </div>
+                    <button class="small" onclick="viewSavedLocation(${loc.latitude}, ${loc.longitude}, '${loc.name}')">View</button>
+                `;
+                list.appendChild(div);
+
+                // Add saved location marker
+                L.marker([loc.latitude, loc.longitude])
+                    .bindPopup(`<strong>📌 ${loc.name}</strong>`)
+                    .addTo(map);
+            });
+        }
+
+        function viewSavedLocation(lat, lon, name) {
+            map.setView([lat, lon], 12);
+            selectedLat = lat;
+            selectedLon = lon;
+            loadWeatherForLocation(lat, lon, name);
+        }
+
+        // Save current location
+        async function saveCurrentLocation() {
+            const name = document.getElementById('locationName').value.trim();
+
+            if (!name) {
+                alert('Please enter a location name');
+                return;
+            }
+
+            if (selectedLat === null || selectedLon === null) {
+                alert('Please click on the map or select a city first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('lat', selectedLat);
+            formData.append('lon', selectedLon);
+
+            const response = await fetch('/api/save-location/', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                document.getElementById('locationName').value = '';
+                document.getElementById('mapInfo').textContent =
+                    `✅ "${name}" saved at ${selectedLat.toFixed(4)}, ${selectedLon.toFixed(4)}`;
+                loadLocations();
+            }
+        }
+
+        // Load alerts
+        async function loadAlerts() {
+            const response = await fetch('/api/get-alerts/');
+            const data = await response.json();
+            const list = document.getElementById('alertList');
+
+            if (data.alerts.length === 0) {
+                list.innerHTML = '<p style="color:#999;font-size:14px;">No alerts yet</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            data.alerts.forEach(alert => {
+                const level = alert.risk_level > 70 ? 'high' : alert.risk_level > 40 ? 'medium' : 'low';
+                const div = document.createElement('div');
+                div.className = `alert-item ${alert.risk_type}`;
+                div.innerHTML = `
+                    <strong>${alert.risk_type.toUpperCase()}</strong>
+                    <span class="badge ${level}">${alert.risk_level}%</span>
+                    <p style="margin:5px 0;font-size:13px;">${alert.message}</p>
+                    <small style="color:#666">${new Date(alert.timestamp).toLocaleString()}</small>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // WebSocket chat
+        const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            addMessage('agent', data.message);
+        };
+
+        chatSocket.onclose = function() {
+            addMessage('agent', '⚠️ Connection lost. Please refresh the page.');
+        };
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            addMessage('user', message);
+            chatSocket.send(JSON.stringify({ 'message': message }));
+            input.value = '';
+        }
+
+        function addMessage(sender, text) {
+            const div = document.getElementById('chatMessages');
+            const msg = document.createElement('div');
+            msg.className = `message ${sender}`;
+            msg.innerHTML = `<strong>${sender === 'user' ? 'You' : '🌍 Agent'}:</strong> ${text}`;
+            div.appendChild(msg);
+            div.scrollTop = div.scrollHeight;
+        }
+
+        document.getElementById('chatInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initialize
+        loadLocations();
+        loadAlerts();
+        setInterval(loadAlerts, 30000);
+    </script>
+</body>
+</html>
