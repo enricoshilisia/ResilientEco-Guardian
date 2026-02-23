@@ -1,24 +1,24 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-import asyncio
-from guardian.agents.core_agents import (
-    monitor_agent, predict_agent, decision_agent, 
-    action_agent, governance_agent, build_workflow
-)
+import unittest
+from guardian.agents.core_agents import run_all_agents
 
-async def test():
-    workflow = build_workflow()
-    
-    result = await workflow.run(
-        message="Location: Nairobi (lat:-1.2921, lon:36.8219)\nQuery: flood risk in nairobi",
-        stream=False
-    )
-    
-    outputs = result.get_outputs()
-    print(f"Total outputs: {len(outputs)}")
-    for i, output in enumerate(outputs):
-        print(f"\n--- Output {i} ---")
-        print(output.text[:300] if hasattr(output, 'text') else str(output)[:300])
+class TestFullWorkflow(unittest.TestCase):
+    def test_run_all_agents(self):
+        results = run_all_agents(
+            user_query="flood risk in nairobi",
+            lat=-1.2921,
+            lon=36.8219,
+            city_name="Nairobi",
+        )
+        self.assertIsInstance(results, dict)
+        self.assertIn("monitor", results)
+        self.assertIn("predict", results)
+        self.assertIn("decision", results)
+        self.assertIn("action", results)
+        self.assertIn("governance", results)
+        self.assertIn("session_id", results)
 
-asyncio.run(test())
+if __name__ == "__main__":
+    unittest.main()
