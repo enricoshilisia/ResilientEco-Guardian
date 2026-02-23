@@ -131,12 +131,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install --pre -r requirements.txt
 
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: .
+    - name: Deploy to Azure Web App via Zip Deploy
+      run: |
+        zip -r app.zip . \
+          --exclude "*.git*" \
+          --exclude "__pycache__/*" \
+          --exclude "*.pyc" \
+          --exclude ".env"
+        
+        SCM_USER=$(echo '${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}' | grep -oP 'userName="\K[^"]+' | head -1)
+        SCM_PASS=$(echo '${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}' | grep -oP 'userPWD="\K[^"]+' | head -1)
+        
+        curl -X POST \
+          "https://resilienteco-guardian-app.scm.azurewebsites.net/api/zipdeploy" \
+          -u "$SCM_USER:$SCM_PASS" \
+          --data-binary @app.zip \
+          -H "Content-Type: application/octet-stream" \
+          --fail \
+          --verbose
 
     - name: Post-deployment health check
       run: |
