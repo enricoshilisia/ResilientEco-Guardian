@@ -51,7 +51,8 @@ cbor2==5.8.0
 certifi==2026.1.4
 cffi==2.0.0
 channels==4.3.2
-channelscolorama==0.4.6
+channels_redis==4.3.0
+colorama==0.4.6
 constantly==23.10.4
 cryptography==46.0.5
 daphne==4.2.1
