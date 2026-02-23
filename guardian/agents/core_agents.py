@@ -1,211 +1,440 @@
+"""
+ResilientEco Guardian - Core Multi-Agent System
+Upgraded to:
+  - Route all LLM calls through Azure AI Foundry (model routing, RAI filters, observability)
+  - True A2A (Agent-to-Agent) messaging via shared AgentMessage envelope
+  - MCP tool calls for autonomous Azure resource management
+  - Structured output passing between agents (not just text)
+"""
+
 import os
-import asyncio
-from dotenv import load_dotenv
-load_dotenv()
+import time
+import logging
+from dataclasses import dataclass, field, asdict
+from typing import Optional
+from datetime import datetime, timezone
 
-from azure.identity import DefaultAzureCredential
-from agent_framework import Agent, tool, WorkflowBuilder
-from agent_framework_azure_ai import AzureAIClient
-from guardian.services.weather_service import assess_flood_risk
-from typing import Annotated
-from pydantic import Field
+from .foundry_client import foundry
+from ..mcp.azure_mcp import mcp
 
-credential = DefaultAzureCredential()
-ai_client = AzureAIClient(
-    project_endpoint=os.getenv('AZURE_AI_PROJECT_ENDPOINT'),
-    credential=credential,
-    model_deployment_name=os.getenv('FOUNDRY_DEPLOYMENT')
+logger = logging.getLogger(__name__)
+
+# ─── SHARED JSON INSTRUCTION ───────────────────────────────────────────────────
+_JSON_ONLY = (
+    "Output ONLY a raw JSON object — no markdown, no code fences, no backticks, "
+    "no explanation, no preamble. Start your response with { and end with }."
 )
 
-# ─── TOOLS ────────────────────────────────────────────────────────────────────
 
-@tool
-def fetch_weather(
-    lat: Annotated[float, Field(description="Latitude of location")],
-    lon: Annotated[float, Field(description="Longitude of location")]
-) -> str:
-    """Fetch real-time weather data for a location"""
-    try:
-        data = assess_flood_risk(lat, lon)
-        if not data:
-            return "Weather data unavailable"
-        current = data.get('current', {})
-        hourly = data.get('hourly', {})
-        precip_history = [p for p in hourly.get('precipitation', [])[-24:] if p is not None]
-        total_24h = round(sum(precip_history), 2)
-        return (
-            f"Temperature: {current.get('temperature_2m', 'N/A')}°C | "
-            f"Precipitation: {current.get('precipitation', 0)}mm | "
-            f"Rain: {current.get('rain', 0)}mm | "
-            f"Humidity: {current.get('relative_humidity_2m', 'N/A')}% | "
-            f"Total rain last 24h: {total_24h}mm"
+# ─── A2A MESSAGE ENVELOPE ──────────────────────────────────────────────────────
+
+@dataclass
+class AgentMessage:
+    session_id: str
+    location: str
+    lat: float
+    lon: float
+    user_query: str
+    weather_data: dict = field(default_factory=dict)
+    risk_assessment: dict = field(default_factory=dict)
+    decision: dict = field(default_factory=dict)
+    action_plan: dict = field(default_factory=dict)
+    governance_review: dict = field(default_factory=dict)
+    mcp_actions: list = field(default_factory=list)
+    agent_chain: list = field(default_factory=list)
+    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def log_step(self, agent: str, status: str, latency_ms: int, model: str = "", source: str = ""):
+        self.agent_chain.append({
+            "agent": agent,
+            "status": status,
+            "latency_ms": latency_ms,
+            "model": model,
+            "source": source,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
+
+# ─── BASE AGENT ────────────────────────────────────────────────────────────────
+
+class BaseAgent:
+    agent_type: str = "base"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        raise NotImplementedError
+
+    def _complete(self, system: str, user: str, temperature: float = 0.4) -> dict:
+        return foundry.complete(
+            agent_type=self.agent_type,
+            system_prompt=system,
+            user_prompt=user,
+            temperature=temperature,
         )
-    except Exception as e:
-        return f"Weather fetch error: {str(e)}"
 
-@tool
-def create_alert(
-    risk_type: Annotated[str, Field(description="Type: flood/drought/heatwave")],
-    risk_level: Annotated[int, Field(description="Risk level 0-100")],
-    message: Annotated[str, Field(description="Alert message for communities")]
-) -> str:
-    """Create and save an alert to database"""
+    @staticmethod
+    def _parse_json(text: str) -> dict:
+        import json, re
+        # Strip markdown code fences if model ignores instructions
+        text = re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=re.IGNORECASE)
+        text = re.sub(r'\s*```$', '', text.strip())
+        try:
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            return json.loads(json_match.group()) if json_match else {}
+        except Exception:
+            return {"raw": text}
+
+
+# ─── MONITOR AGENT ─────────────────────────────────────────────────────────────
+
+class MonitorAgent(BaseAgent):
+    agent_type = "monitor"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        start = time.time()
+
+        infra = mcp.execute("get_infrastructure_health", {})
+        msg.mcp_actions.append({"agent": "monitor", "mcp_call": "get_infrastructure_health", "result": infra})
+
+        history = mcp.execute("get_cosmos_agent_state", {
+            "container": "risk_history",
+            "location_id": msg.location,
+            "hours_back": 72,
+        })
+        msg.mcp_actions.append({"agent": "monitor", "mcp_call": "get_cosmos_agent_state", "result": history})
+
+        w = msg.weather_data or {}
+
+        system = f"""You are the Monitor Agent in the ResilientEco Guardian climate intelligence system.
+Your role: Analyze real-time weather sensor data and forecast data for anomalies and environmental signals.
+{_JSON_ONLY}
+Required keys:
+  temperature_c (number),
+  precipitation_mm (number, current),
+  rain_24h_mm (number, last 24h total),
+  humidity_pct (number),
+  anomalies (list of strings),
+  alert_signals (list of objects with: risk_level (integer 0-100), status (string)),
+  data_quality_score (integer 0-100),
+  today_evening_forecast (object with: precip_mm, precip_prob_pct, conditions),
+  tomorrow_forecast (object with: precip_mm, temp_max, temp_min, conditions, precip_prob_pct)"""
+
+        user = f"""Location: {msg.location} ({msg.lat}, {msg.lon})
+User query: {msg.user_query}
+Current weather & forecast data: {w}
+Recent risk history (last 72h): {history.get('items', [])}
+Infrastructure health: {infra.get('services', {})}
+
+Analyze all data including today/tomorrow forecast and return JSON only."""
+
+        result = self._complete(system, user, temperature=0.2)
+        latency_ms = int((time.time() - start) * 1000)
+
+        text = result["text"]
+        parsed = self._parse_json(text)
+
+        msg.weather_data["monitor_analysis"] = parsed
+        msg.weather_data["monitor_text"] = text
+        msg.log_step("monitor", "completed", latency_ms, result["model"], result["source"])
+        return msg
+
+
+# ─── PREDICT AGENT ─────────────────────────────────────────────────────────────
+
+class PredictAgent(BaseAgent):
+    agent_type = "predict"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        start = time.time()
+
+        monitor_output = msg.weather_data.get("monitor_analysis", {})
+        w = msg.weather_data
+
+        system = f"""You are the Predict Agent in ResilientEco Guardian.
+Your role: Use weather anomalies and forecast data from the Monitor Agent to forecast climate risks.
+Consider time-of-day forecasts (morning/afternoon/evening/night) when answering time-specific queries.
+{_JSON_ONLY}
+Required keys:
+  flood_risk (integer 0-100),
+  drought_risk (integer 0-100),
+  heatwave_risk (integer 0-100),
+  overall_risk_level (string: low/medium/high/critical),
+  confidence_pct (integer 0-100),
+  primary_risk (string),
+  reasoning (string, max 3 sentences, plain text)"""
+
+        user = f"""Location: {msg.location}
+User query: {msg.user_query}
+Monitor Agent analysis: {monitor_output}
+Raw weather & forecast data: {w}
+
+Return JSON risk assessment only."""
+
+        result = self._complete(system, user, temperature=0.3)
+        latency_ms = int((time.time() - start) * 1000)
+
+        text = result["text"]
+        parsed = self._parse_json(text)
+        parsed["text"] = text
+
+        msg.risk_assessment = parsed
+        msg.log_step("predict", "completed", latency_ms, result["model"], result["source"])
+        return msg
+
+
+# ─── DECISION AGENT ────────────────────────────────────────────────────────────
+
+class DecisionAgent(BaseAgent):
+    agent_type = "decision"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        start = time.time()
+
+        risk = msg.risk_assessment
+        flood_risk = risk.get("flood_risk", 0)
+
+        if isinstance(flood_risk, (int, float)) and flood_risk >= 70:
+            scale_result = mcp.execute("scale_aks_nodepool", {
+                "resource_group": os.getenv("AZURE_RESOURCE_GROUP", "resilienteco-rg"),
+                "cluster_name": os.getenv("AKS_CLUSTER_NAME", "resilienteco-aks"),
+                "nodepool_name": "agentpool",
+                "node_count": 5,
+                "reason": f"High flood risk ({flood_risk}%) detected for {msg.location}",
+            })
+            msg.mcp_actions.append({
+                "agent": "decision",
+                "mcp_call": "scale_aks_nodepool",
+                "trigger": f"flood_risk={flood_risk}%",
+                "result": scale_result,
+            })
+            logger.info(f"[Decision] Auto-scaled AKS due to flood_risk={flood_risk}% in {msg.location}")
+
+        system = f"""You are the Decision Agent in ResilientEco Guardian.
+Your role: Given risk predictions, decide the alert level and response actions.
+{_JSON_ONLY}
+Required keys:
+  alert_level (string: GREEN/YELLOW/ORANGE/RED),
+  immediate_action_required (boolean),
+  recommended_actions (list of strings),
+  notify_groups (list of strings),
+  priority (string: low/medium/high/critical),
+  estimated_affected_population (integer),
+  response_timeline_hours (integer)"""
+
+        user = f"""Location: {msg.location}
+User query: {msg.user_query}
+Risk assessment from Predict Agent: {risk}
+Monitor analysis: {msg.weather_data.get('monitor_analysis', {})}
+Azure infrastructure actions taken: {msg.mcp_actions}
+
+Return JSON decision only."""
+
+        result = self._complete(system, user, temperature=0.4)
+        latency_ms = int((time.time() - start) * 1000)
+
+        text = result["text"]
+        parsed = self._parse_json(text)
+        parsed["text"] = text
+
+        msg.decision = parsed
+        msg.log_step("decision", "completed", latency_ms, result["model"], result["source"])
+        return msg
+
+
+# ─── ACTION AGENT ──────────────────────────────────────────────────────────────
+
+class ActionAgent(BaseAgent):
+    agent_type = "action"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        start = time.time()
+
+        decision = msg.decision
+        risk = msg.risk_assessment
+        alert_level = decision.get("alert_level", "GREEN")
+
+        if alert_level in ("ORANGE", "RED"):
+            func_result = mcp.execute("trigger_azure_function", {
+                "function_url": os.getenv("AZURE_ALERT_FUNCTION_URL", ""),
+                "payload": {
+                    "location": msg.location,
+                    "alert_level": alert_level,
+                    "risk_type": risk.get("primary_risk", "flood"),
+                    "risk_level": risk.get("flood_risk", 0),
+                    "message": decision.get("recommended_actions", []),
+                    "session_id": msg.session_id,
+                }
+            })
+            msg.mcp_actions.append({
+                "agent": "action",
+                "mcp_call": "trigger_azure_function",
+                "trigger": f"alert_level={alert_level}",
+                "result": func_result,
+            })
+
+        cosmos_result = mcp.execute("write_cosmos_risk_event", {
+            "location": msg.location,
+            "risk_type": risk.get("primary_risk", "unknown"),
+            "risk_level": risk.get("flood_risk", 0),
+            "agent_chain": [s["agent"] for s in msg.agent_chain],
+            "metadata": {
+                "session_id": msg.session_id,
+                "alert_level": alert_level,
+                "lat": msg.lat,
+                "lon": msg.lon,
+            }
+        })
+        msg.mcp_actions.append({
+            "agent": "action",
+            "mcp_call": "write_cosmos_risk_event",
+            "result": cosmos_result,
+        })
+
+        system = f"""You are the Action Agent in ResilientEco Guardian.
+Your role: Generate concrete, actionable alert messages and response protocols.
+{_JSON_ONLY}
+Required keys:
+  alert_message (string, public-facing, max 2 sentences),
+  sms_message (string, max 160 chars),
+  risk_type (string),
+  risk_level (integer 0-100),
+  immediate_steps (list of strings),
+  resources_needed (list of strings)"""
+
+        user = f"""Location: {msg.location}
+User query: {msg.user_query}
+Decision from Decision Agent: {decision}
+Risk from Predict Agent: {risk}
+Azure actions already taken: {[a['mcp_call'] for a in msg.mcp_actions]}
+
+Generate alert content. Return JSON only."""
+
+        result = self._complete(system, user, temperature=0.5)
+        latency_ms = int((time.time() - start) * 1000)
+
+        text = result["text"]
+        parsed = self._parse_json(text)
+        parsed["text"] = text
+
+        msg.action_plan = parsed
+        msg.log_step("action", "completed", latency_ms, result["model"], result["source"])
+        return msg
+
+
+# ─── GOVERNANCE AGENT ──────────────────────────────────────────────────────────
+
+class GovernanceAgent(BaseAgent):
+    agent_type = "governance"
+
+    def run(self, msg: AgentMessage) -> AgentMessage:
+        start = time.time()
+
+        monitor_logs = mcp.execute("query_azure_monitor", {
+            "workspace_id": os.getenv("AZURE_LOG_WORKSPACE_ID", ""),
+            "query": f"AppTraces | where Properties.location == '{msg.location}' | take 5",
+            "hours_back": 1,
+        })
+        msg.mcp_actions.append({
+            "agent": "governance",
+            "mcp_call": "query_azure_monitor",
+            "result": monitor_logs,
+        })
+
+        system = f"""You are the Governance Agent in ResilientEco Guardian — the responsible AI oversight layer.
+Your role: Review the full agent chain output for accuracy, bias, proportionality, and responsible AI compliance.
+Apply UN SDG principles (Climate Action, Reduced Inequalities).
+{_JSON_ONLY}
+Required keys:
+  approved (boolean),
+  issues (list of strings),
+  rai_flags (list of strings),
+  final_recommendation (string, max 2 sentences),
+  confidence_in_chain (integer 0-100),
+  sdg_alignment (list of strings)"""
+
+        user = f"""Full agent chain review for {msg.location}:
+User query: {msg.user_query}
+Monitor analysis: {msg.weather_data.get('monitor_analysis', {})}
+Risk assessment: {msg.risk_assessment}
+Decision: {msg.decision}
+Action plan: {msg.action_plan}
+MCP Azure actions taken: {[a['mcp_call'] for a in msg.mcp_actions]}
+Azure Monitor logs: {monitor_logs.get('rows', [])}
+Agent chain audit: {msg.agent_chain}
+
+Review for RAI compliance, proportionality, and SDG alignment. Return JSON only."""
+
+        result = self._complete(system, user, temperature=0.3)
+        latency_ms = int((time.time() - start) * 1000)
+
+        text = result["text"]
+        parsed = self._parse_json(text)
+        parsed["text"] = text
+
+        msg.governance_review = parsed
+        msg.log_step("governance", "completed", latency_ms, result["model"], result["source"])
+        return msg
+
+
+# ─── ORCHESTRATOR ──────────────────────────────────────────────────────────────
+
+def run_all_agents(user_query: str, lat: float, lon: float, city_name: str) -> dict:
+    import uuid
+    from ..services.weather_service import get_weather_summary
+
+    session_id = str(uuid.uuid4())[:8]
+
     try:
-        from guardian.models import AlertLog
-        AlertLog.objects.create(
-            user=None,
-            location=None,
-            risk_type=risk_type,
-            risk_level=risk_level,
-            message=message,
-            weather_data={'auto_generated': True}
-        )
-        return f"Alert saved: {risk_type} at {risk_level}% - {message}"
+        weather = get_weather_summary(lat, lon, city_name)
     except Exception as e:
-        return f"Alert noted: {risk_type} at {risk_level}% - {message}"
+        logger.error(f"Weather fetch failed: {e}")
+        weather = {}
 
-# ─── AGENTS (no tools in workflow agents) ─────────────────────────────────────
-
-monitor_agent = Agent(
-    client=ai_client,
-    name="MonitorAgent",
-    instructions="""You are the Monitor Agent for ResilientEco Guardian Kenya.
-Analyze the weather data provided and summarize:
-- Current conditions (temp, rain, humidity)
-- Last 24h rainfall total
-- Any anomalies detected (heavy rain, drought, extreme heat)
-Be factual and concise."""
-)
-
-predict_agent = Agent(
-    client=ai_client,
-    name="PredictAgent",
-    instructions="""You are the Predict Agent for ResilientEco Guardian Kenya.
-Based on monitor data output EXACTLY:
-- Flood risk: X% (low/medium/high)
-- Drought risk: X% (low/medium/high)
-- Heatwave risk: X% (low/medium/high)
-- Overall risk: low/medium/high
-- Confidence: X%"""
-)
-
-decision_agent = Agent(
-    client=ai_client,
-    name="DecisionAgent",
-    instructions="""You are the Decision Agent for ResilientEco Guardian Kenya.
-Based on predictions output EXACTLY:
-- Alert level: GREEN/YELLOW/ORANGE/RED
-- Immediate actions: yes/no
-- Recommended actions: (numbered list)
-- Who to notify: (list)
-- Priority: low/medium/high/critical"""
-)
-
-action_agent = Agent(
-    client=ai_client,
-    name="ActionAgent",
-    instructions="""You are the Action Agent for ResilientEco Guardian Kenya.
-Based on decisions output EXACTLY:
-ALERT_MESSAGE: <clear community message>
-SMS_MESSAGE: <under 160 chars>
-RISK_TYPE: <flood or drought or heatwave>
-RISK_LEVEL: <number 0-100>"""
-)
-
-governance_agent = Agent(
-    client=ai_client,
-    name="GovernanceAgent",
-    instructions="""You are the Governance Agent for ResilientEco Guardian Kenya.
-Review all previous outputs for accuracy, bias, responsible AI compliance.
-Output EXACTLY:
-- Approved: yes/no
-- Issues: (list or none)
-- Final recommendation: (one clear sentence for the user)"""
-)
-
-# ─── WORKFLOW ─────────────────────────────────────────────────────────────────
-
-def build_workflow():
-    builder = WorkflowBuilder(
-        start_executor=monitor_agent,
-        output_executors=[
-            monitor_agent,
-            predict_agent,
-            decision_agent,
-            action_agent,
-            governance_agent
-        ]
+    msg = AgentMessage(
+        session_id=session_id,
+        location=city_name,
+        lat=lat,
+        lon=lon,
+        user_query=user_query,
+        weather_data=weather,
     )
-    builder.add_edge(monitor_agent, predict_agent)
-    builder.add_edge(predict_agent, decision_agent)
-    builder.add_edge(decision_agent, action_agent)
-    builder.add_edge(action_agent, governance_agent)
-    return builder.build()
 
-async def run_workflow_async(query: str, lat: float = -1.2921,
-                              lon: float = 36.8219,
-                              location_name: str = "Nairobi") -> dict:
-    """Run 5-agent workflow - fetch weather first, then pass to workflow"""
+    agents = [
+        ("monitor",    MonitorAgent()),
+        ("predict",    PredictAgent()),
+        ("decision",   DecisionAgent()),
+        ("action",     ActionAgent()),
+        ("governance", GovernanceAgent()),
+    ]
 
-    # Step 1: Fetch real weather data separately
-    weather_info = fetch_weather(lat=lat, lon=lon)
-
-    # Step 2: Build enriched query with weather data
-    full_query = f"""Location: {location_name} (lat:{lat}, lon:{lon})
-Query: {query}
-
-REAL-TIME WEATHER DATA:
-{weather_info}
-
-Analyze this data and assess climate risks."""
-
-    # Step 3: Run workflow (no tools needed - data already included)
-    workflow = build_workflow()
-    result = await workflow.run(message=full_query, stream=False)
-    outputs = result.get_outputs()
-
-    agent_names = ['monitor', 'predict', 'decision', 'action', 'governance']
     results = {}
 
-    for i, output in enumerate(outputs):
-        if i < len(agent_names):
-            key = agent_names[i]
-            results[key] = output.text if hasattr(output, 'text') else str(output)
+    for name, agent in agents:
+        try:
+            msg = agent.run(msg)
+            if name == "monitor":
+                results[name] = msg.weather_data.get("monitor_text", "Monitor complete.")
+            elif name == "predict":
+                results[name] = msg.risk_assessment.get("text", "Predict complete.")
+            elif name == "decision":
+                results[name] = msg.decision.get("text", "Decision complete.")
+            elif name == "action":
+                results[name] = msg.action_plan.get("text", "Action complete.")
+            elif name == "governance":
+                results[name] = msg.governance_review.get("text", "Governance complete.")
+        except Exception as e:
+            logger.exception(f"Agent {name} failed")
+            results[name] = f"⚠️ {name} agent error: {str(e)}"
 
-    # Step 4: Save alert from action agent
-    if 'action' in results:
-        await save_action_alert(results['action'])
+    if msg.mcp_actions:
+        mcp_summary = []
+        mcp_initialized = mcp._mgmt_client is not None
+        for action in msg.mcp_actions:
+            simulated = action.get("result", {}).get("simulated", True)
+            tag = "[LIVE]" if (not simulated or mcp_initialized) else "[SIM]"
+            mcp_summary.append(f"  {tag} {action['agent'].upper()} → {action['mcp_call']}")
+        results["mcp_actions"] = "\n".join(mcp_summary)
 
-    return results if results else {'error': 'No outputs from workflow'}
+    results["agent_chain"] = msg.agent_chain
+    results["session_id"] = session_id
 
-async def save_action_alert(action_text: str):
-    """Parse and save alert from action agent output"""
-    import re
-    try:
-        risk_type_match = re.search(r'RISK_TYPE:\s*(\w+)', action_text)
-        risk_level_match = re.search(r'RISK_LEVEL:\s*(\d+)', action_text)
-        alert_msg_match = re.search(r'ALERT_MESSAGE:\s*(.+?)(?=SMS_MESSAGE:|$)', action_text, re.DOTALL)
-
-        if risk_type_match and risk_level_match and alert_msg_match:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: create_alert(
-                    risk_type=risk_type_match.group(1).strip(),
-                    risk_level=int(risk_level_match.group(1)),
-                    message=alert_msg_match.group(1).strip()
-                )
-            )
-    except Exception as e:
-        print(f"Alert save error: {e}")
-
-def run_all_agents(query: str, lat: float = -1.2921,
-                   lon: float = 36.8219,
-                   location_name: str = "Nairobi") -> dict:
-    """Sync wrapper for async workflow"""
-    try:
-        return asyncio.run(
-            run_workflow_async(query, lat, lon, location_name)
-        )
-    except Exception as e:
-        print(f"Workflow error: {e}")
-        return {'error': str(e)}
+    return results
