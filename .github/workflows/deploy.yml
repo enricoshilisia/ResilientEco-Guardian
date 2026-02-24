@@ -66,7 +66,6 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    # FIX 1: Use 'antenv' not 'venv' to match startup.sh
     - name: Create virtual environment and install dependencies
       run: |
         python -m venv antenv
@@ -85,7 +84,6 @@ jobs:
         source antenv/bin/activate
         python manage.py collectstatic --noinput || true
 
-    # FIX 2: Include startup.sh in the artifact, exclude unnecessary venv clutter
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
@@ -105,7 +103,6 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     steps:
-    # FIX 3: Remove the extra 'checkout' step — it was overwriting the build artifact
     - name: Download build artifact
       uses: actions/download-artifact@v4
       with:
@@ -116,14 +113,13 @@ jobs:
       with:
         creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-    # FIX 4: Tell Azure to use startup.sh and NOT run Oryx build (venv already built)
     - name: Configure Azure App Settings
       uses: azure/CLI@v1
       with:
         inlineScript: |
           az webapp config appsettings set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-group <rg-resilienteco-guardian> \
+            --resource-group rg-resilienteco-guardian \
             --settings \
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
               WEBSITE_RUN_FROM_PACKAGE=0
