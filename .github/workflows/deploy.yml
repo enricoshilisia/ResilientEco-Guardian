@@ -113,10 +113,15 @@ jobs:
       with:
         creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-    - name: Configure Azure App Settings
+    - name: Configure Azure App Settings and Startup Command
       uses: azure/CLI@v1
       with:
         inlineScript: |
+          az webapp config set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group rg-resilienteco-guardian \
+            --startup-file "bash /home/site/wwwroot/startup.sh"
+
           az webapp config appsettings set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group rg-resilienteco-guardian \
@@ -131,7 +136,6 @@ jobs:
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: .
-        startup-command: "bash /home/site/wwwroot/startup.sh"
 
     - name: Post-deployment health check
       run: |
