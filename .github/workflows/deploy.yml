@@ -15,21 +15,15 @@ jobs:
   test:
     name: 🧪 Run Tests
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install --pre -r requirements.txt
-
     - name: Run Django checks and tests
       env:
         AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
@@ -48,28 +42,15 @@ jobs:
     name: 🔒 Security Scan
     runs-on: ubuntu-latest
     needs: test
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Install security tools
-      run: |
-        pip install bandit safety
-
-    - name: Run Bandit security scan
-      run: bandit -r guardian/ -f json -o bandit-report.json || true
-
-    - name: Check dependencies for vulnerabilities
-      run: safety check --full-report || true
-
-    - name: Upload security report
-      uses: actions/upload-artifact@v4
+    - run: pip install bandit safety
+    - run: bandit -r guardian/ -f json -o bandit-report.json || true
+    - run: safety check --full-report || true
+    - uses: actions/upload-artifact@v4
       with:
         name: security-report
         path: bandit-report.json
@@ -79,20 +60,17 @@ jobs:
     name: 🔨 Build & Package
     runs-on: ubuntu-latest
     needs: [test, security]
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
+    # FIX 1: Use 'antenv' not 'venv' to match startup.sh
     - name: Create virtual environment and install dependencies
       run: |
-        python -m venv venv
-        source venv/bin/activate
+        python -m venv antenv
+        source antenv/bin/activate
         python -m pip install --upgrade pip
         pip install --pre -r requirements.txt
 
@@ -104,20 +82,21 @@ jobs:
         AZURE_AI_PROJECT_ENDPOINT: placeholder
         DJANGO_SETTINGS_MODULE: resilienteco.settings
       run: |
-        source venv/bin/activate
+        source antenv/bin/activate
         python manage.py collectstatic --noinput || true
 
-    - name: Upload build artifact (including venv)
+    # FIX 2: Include startup.sh in the artifact, exclude unnecessary venv clutter
+    - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: app-build
         path: |
           .
-          !venv/**/__pycache__/*
-          !venv/**/pip*
-          !venv/**/setuptools*
-          !venv/**/dist-info/*
-          !venv/**/wheel*
+          !antenv/**/__pycache__/*
+          !antenv/**/pip*
+          !antenv/**/setuptools*
+          !antenv/**/dist-info/*
+          !antenv/**/wheel*
 
   # ─── JOB 4: DEPLOY ──────────────────────────────────────────────
   deploy:
@@ -125,11 +104,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
+    # FIX 3: Remove the extra 'checkout' step — it was overwriting the build artifact
     - name: Download build artifact
       uses: actions/download-artifact@v4
       with:
@@ -140,11 +116,24 @@ jobs:
       with:
         creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
+    # FIX 4: Tell Azure to use startup.sh and NOT run Oryx build (venv already built)
+    - name: Configure Azure App Settings
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az webapp config appsettings set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group <YOUR_RESOURCE_GROUP> \
+            --settings \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              WEBSITE_RUN_FROM_PACKAGE=0
+
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: .
+        startup-command: "bash /home/site/wwwroot/startup.sh"
 
     - name: Post-deployment health check
       run: |

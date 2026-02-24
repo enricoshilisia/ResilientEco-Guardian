@@ -87,9 +87,3 @@ urlpatterns = [
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-def health_check(request):
-    return HttpResponse("OK", status=200)
-
-urlpatterns += [
-    path('health/', health_check),
-]

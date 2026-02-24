@@ -64,7 +64,7 @@ class AzureMCPClient:
         except Exception as e:
             logger.warning(f"Azure MCP setup failed: {e} — MCP in simulation mode")
 
-    # ─── MCP TOOL REGISTRY ────────────────────────────────────────────────────
+    ## ─── MCP TOOL REGISTRY ────────────────────────────────────────────────────
 
     def tools(self) -> list[dict]:
         """
