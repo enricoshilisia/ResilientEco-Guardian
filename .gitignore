@@ -6,4 +6,5 @@ __pycache__/
 db.sqlite3
 *.log
 .DS_Store
-node_modules/
+node_modules/app.zip
+*.zip
