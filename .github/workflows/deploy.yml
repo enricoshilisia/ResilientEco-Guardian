@@ -82,7 +82,10 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-build
-        path: .
+        path: |
+          .
+          !antenv/**
+          !antenv.tar.gz
 
   # ─── JOB 4: DEPLOY ──────────────────────────────────────────────
   deploy:
