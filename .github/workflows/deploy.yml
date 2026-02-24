@@ -123,7 +123,8 @@ jobs:
             --settings \
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
               WEBSITE_RUN_FROM_PACKAGE=0 \
-              ENABLE_ORYX_BUILD=false
+              ENABLE_ORYX_BUILD=false \
+              WEBSITES_PORT=8181
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
