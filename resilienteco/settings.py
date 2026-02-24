@@ -29,8 +29,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     'resilienteco-guardian-app.azurewebsites.net',
+    'resilienteco-guardian-app.scm.azurewebsites.net',  # Kudu / SCM site
     'localhost',
     '127.0.0.1',
+    '.azurewebsites.net',  # wildcard for internal probes
 ]
 
 # Application definition
@@ -84,6 +86,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'resilienteco.wsgi.application'
 
+STATIC_ROOT = '/home/site/wwwroot/staticfiles'
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",  # your source static files
+]
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
