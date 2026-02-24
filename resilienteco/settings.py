@@ -27,8 +27,11 @@ SECRET_KEY = 'django-insecure-1+8l_jag3s^vlxw64_dw5pxp#2+xk5mj&^@$kc+19n^ig77*+^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    'resilienteco-guardian-app.azurewebsites.net',
+    'localhost',
+    '127.0.0.1',
+]
 
 # Application definition
 
