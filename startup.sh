@@ -3,28 +3,26 @@
 set -e
 
 echo "Current directory: $(pwd)"
-echo "Looking for antenv..."
 
-# Activate whichever antenv Oryx found (it sets PYTHONPATH already)
-# Just install deps and run — Oryx handles the venv path
-if [ -f "antenv/bin/activate" ]; then
+# Oryx extracts antenv to /antenv
+if [ -f "/antenv/bin/activate" ]; then
+    source /antenv/bin/activate
+    echo "Activated /antenv"
+elif [ -f "antenv/bin/activate" ]; then
     source antenv/bin/activate
-elif [ -f "/home/site/wwwroot/antenv/bin/activate" ]; then
-    source /home/site/wwwroot/antenv/bin/activate
+    echo "Activated ./antenv"
 else
-    echo "No antenv found, installing to system pip..."
+    echo "ERROR: No antenv found!"
+    exit 1
 fi
-
-echo "Installing dependencies..."
-pip install --no-cache-dir --pre -r requirements.txt || echo "pip install failed"
 
 echo "Running Django commands..."
 export DJANGO_SETTINGS_MODULE=resilienteco.settings
 python manage.py migrate --noinput || echo "Migrations failed (non-fatal)"
 python manage.py collectstatic --noinput --clear || echo "collectstatic failed (non-fatal)"
 
-echo "Starting Uvicorn..."
+echo "Starting Uvicorn on port ${PORT:-8000}..."
 exec uvicorn resilienteco.asgi:application \
     --host 0.0.0.0 \
     --port "${PORT:-8000}" \
-    --workers 4
+    --workers 2
