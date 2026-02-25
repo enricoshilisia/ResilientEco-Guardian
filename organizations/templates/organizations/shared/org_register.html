@@ -1,0 +1,730 @@
+{% extends "guardian/base.html" %}
+
+{% block title %}Register Organization · ResilientEco Guardian{% endblock %}
+{% block nav_register %}active{% endblock %}
+
+{% block page_styles %}
+<style>
+    body { background: var(--slate-100); }
+
+    .reg-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #312e81 100%);
+        padding: 36px 0 32px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .reg-header::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%234f46e5' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .reg-header-inner { position: relative; z-index: 1; }
+    .reg-header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.03em; }
+    .reg-header p { font-size: 13px; opacity: .7; margin-top: 4px; }
+
+    .wizard-wrap { max-width: 800px; margin: 0 auto; padding: 36px 20px 72px; }
+
+    /* Progress */
+    .progress { display: flex; align-items: flex-start; margin-bottom: 32px; }
+    .step-wrap { display: flex; flex-direction: column; align-items: center; }
+    .step-dot {
+        width: 36px; height: 36px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 14px; transition: all .25s;
+        flex-shrink: 0;
+    }
+    .step-dot.active  { background: var(--indigo); color: white; box-shadow: 0 0 0 4px rgba(79,70,229,.2); }
+    .step-dot.done    { background: var(--emerald); color: white; }
+    .step-dot.pending { background: var(--slate-200); color: var(--slate-400); }
+    .step-line { flex: 1; height: 3px; background: var(--slate-200); margin: 0 8px; margin-top: 17px; transition: background .25s; }
+    .step-line.done { background: var(--emerald); }
+    .step-label { font-size: 11px; color: var(--slate-500); margin-top: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* Card */
+    .wiz-card {
+        background: white; border-radius: 18px; padding: 36px;
+        box-shadow: 0 4px 24px rgba(0,0,0,.08);
+        border: 1px solid var(--slate-200);
+    }
+    .wiz-card h2 { font-size: 22px; font-weight: 700; color: var(--slate-900); letter-spacing: -.02em; margin-bottom: 4px; }
+    .wiz-card .sub { color: var(--slate-500); font-size: 14px; margin-bottom: 28px; }
+
+    /* Org type grid */
+    .org-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+    .org-card {
+        border: 2px solid var(--slate-200); border-radius: 12px; padding: 18px;
+        cursor: pointer; transition: all .15s; position: relative;
+        background: white;
+    }
+    .org-card:hover { border-color: var(--indigo); background: var(--indigo-lt); }
+    .org-card.selected { border-color: var(--indigo); background: var(--indigo-lt); }
+    .org-card .icon { font-size: 30px; margin-bottom: 8px; }
+    .org-card .name { font-weight: 700; font-size: 13px; color: var(--slate-900); margin-bottom: 3px; }
+    .org-card .desc { font-size: 11px; color: var(--slate-500); line-height: 1.5; }
+    .org-card .check {
+        position: absolute; top: 12px; right: 12px;
+        width: 20px; height: 20px; border-radius: 50%;
+        background: var(--indigo); color: white;
+        display: none; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700;
+    }
+    .org-card.selected .check { display: flex; }
+
+    /* Form */
+    .field { margin-bottom: 16px; }
+    .field label {
+        display: block; font-size: 12px; font-weight: 700;
+        color: var(--slate-600); letter-spacing: .04em;
+        text-transform: uppercase; margin-bottom: 7px;
+    }
+    .field input, .field select, .field textarea {
+        width: 100%; padding: 10px 14px;
+        border: 2px solid var(--slate-200); border-radius: 10px;
+        font-size: 14px; font-family: var(--font-body);
+        color: var(--slate-900); outline: none;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+        border-color: var(--indigo);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.10);
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .req { color: var(--rose); }
+
+    /* Toggle chips */
+    .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .chip {
+        padding: 6px 14px; border: 2px solid var(--slate-200); border-radius: 99px;
+        font-size: 13px; cursor: pointer; transition: all .15s; color: var(--slate-600);
+        font-weight: 500;
+    }
+    .chip:hover { border-color: var(--indigo); color: var(--indigo); }
+    .chip.selected { border-color: var(--indigo); background: var(--indigo); color: white; }
+
+    /* Alert type cards */
+    .alert-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 8px; }
+    .alert-card {
+        border: 2px solid var(--slate-200); border-radius: 10px; padding: 12px;
+        cursor: pointer; text-align: center; transition: all .15s;
+    }
+    .alert-card:hover { border-color: var(--indigo); }
+    .alert-card.selected { border-color: var(--indigo); background: var(--indigo-lt); }
+    .alert-card .a-icon { font-size: 22px; margin-bottom: 4px; }
+    .alert-card .a-name { font-size: 11px; font-weight: 700; color: var(--slate-700); }
+
+    /* Channels */
+    .channel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .channel-card {
+        border: 2px solid var(--slate-200); border-radius: 10px; padding: 14px;
+        cursor: pointer; transition: all .15s;
+        display: flex; align-items: center; gap: 10px;
+    }
+    .channel-card:hover { border-color: var(--indigo); }
+    .channel-card.selected { border-color: var(--indigo); background: var(--indigo-lt); }
+    .c-icon { font-size: 20px; }
+    .c-name { font-size: 13px; font-weight: 700; color: var(--slate-800); }
+    .c-desc { font-size: 11px; color: var(--slate-500); }
+
+    /* Use cases */
+    .usecase-wrap { background: var(--slate-50); border-radius: 10px; padding: 16px; margin-bottom: 4px; border: 1px solid var(--slate-100); }
+    .usecase-opt {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 13px; color: var(--slate-700); cursor: pointer;
+        padding: 8px 10px; border-radius: 8px; transition: background .15s;
+    }
+    .usecase-opt:hover { background: var(--indigo-lt); }
+    .usecase-opt input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--indigo); flex-shrink: 0; }
+
+    /* Tier */
+    .tier-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .tier-card {
+        border: 2px solid var(--slate-200); border-radius: 10px; padding: 14px;
+        cursor: pointer; transition: all .15s; text-align: center;
+    }
+    .tier-card:hover { border-color: var(--indigo); }
+    .tier-card.selected { border-color: var(--indigo); background: var(--indigo-lt); }
+    .t-name { font-weight: 700; font-size: 14px; color: var(--slate-900); margin-bottom: 4px; }
+    .t-limit { font-size: 11px; color: var(--slate-500); }
+    .t-price { font-size: 13px; font-weight: 700; color: var(--indigo); margin-top: 6px; }
+
+    /* Members */
+    .member-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+    .member-row input { flex: 1; }
+    .member-row select { width: 130px; }
+    .member-row .remove {
+        background: #fee2e2; color: var(--rose); border: none;
+        border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 12px;
+    }
+    .add-member {
+        background: none; border: 2px dashed var(--slate-300); color: var(--slate-500);
+        border-radius: 8px; padding: 10px; width: 100%; cursor: pointer;
+        font-size: 13px; margin-top: 4px; transition: all .15s; font-family: var(--font-body);
+    }
+    .add-member:hover { border-color: var(--indigo); color: var(--indigo); }
+
+    /* API key */
+    .api-box { background: var(--slate-900); border-radius: 10px; padding: 16px; margin-top: 10px; }
+    .api-label { font-size: 10px; color: var(--slate-400); margin-bottom: 8px; font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .api-key-row { display: flex; align-items: center; gap: 10px; }
+    .api-key-val { font-family: var(--font-mono); font-size: 13px; color: #86efac; flex: 1; word-break: break-all; }
+    .copy-btn {
+        background: var(--slate-700); color: var(--slate-300); border: none;
+        border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; white-space: nowrap;
+    }
+    .copy-btn:hover { background: var(--slate-600); }
+
+    /* Buttons */
+    .btn-row { display: flex; justify-content: space-between; margin-top: 28px; gap: 12px; }
+    .submit-btn {
+        padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 700;
+        cursor: pointer; border: none; transition: all .15s; font-family: var(--font-body);
+        background: linear-gradient(135deg, var(--indigo), var(--violet)); color: white;
+        box-shadow: 0 4px 14px rgba(79,70,229,.25);
+        display: inline-flex; align-items: center; gap: 8px;
+    }
+    .submit-btn:hover { opacity: .92; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .back-btn {
+        padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 600;
+        cursor: pointer; border: 1.5px solid var(--slate-200); background: white; color: var(--slate-600);
+        transition: all .15s; font-family: var(--font-body);
+    }
+    .back-btn:hover { border-color: var(--slate-400); color: var(--slate-900); }
+
+    /* Info banner */
+    .info-banner {
+        background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+        padding: 10px 14px; font-size: 13px; color: #1e40af; margin-bottom: 20px;
+    }
+
+    /* Error */
+    .error-box {
+        background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3;
+        border-radius: 8px; padding: 10px 14px; font-size: 13px;
+        margin-top: 16px; display: none;
+    }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--slate-100); margin: 20px 0; }
+
+    /* Success */
+    .success-wrap { text-align: center; padding: 20px 0 10px; }
+    .success-icon { font-size: 64px; margin-bottom: 16px; display: block; }
+    .success-wrap h2 { font-size: 26px; color: var(--slate-900); margin-bottom: 8px; }
+    .success-wrap p { color: var(--slate-500); font-size: 15px; margin-bottom: 28px; }
+    .success-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .spinner {
+        display: inline-block; width: 15px; height: 15px;
+        border: 2px solid rgba(255,255,255,.3); border-top-color: white;
+        border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="reg-header">
+    <div class="container reg-header-inner">
+        <h1>🏢 Register your organization</h1>
+        <p>Set up your team, configure alerts, and start monitoring climate risk in 3 steps.</p>
+    </div>
+</div>
+
+<div class="wizard-wrap">
+
+    <!-- Progress bar -->
+    <div class="progress">
+        <div class="step-wrap">
+            <div class="step-dot active" id="dot1">1</div>
+            <div class="step-label">Organization</div>
+        </div>
+        <div class="step-line" id="line1"></div>
+        <div class="step-wrap">
+            <div class="step-dot pending" id="dot2">2</div>
+            <div class="step-label">Configuration</div>
+        </div>
+        <div class="step-line" id="line2"></div>
+        <div class="step-wrap">
+            <div class="step-dot pending" id="dot3">3</div>
+            <div class="step-label">Team & Access</div>
+        </div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="wiz-card" id="step1">
+        <h2>Tell us about your organization</h2>
+        <p class="sub">Select your type to get a tailored experience on the platform.</p>
+
+        <div class="org-grid">
+            <div class="org-card" data-type="disaster_relief" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">🏥</div>
+                <div class="name">Red Cross / Disaster Relief</div>
+                <div class="desc">Emergency response, evacuation planning, field team coordination.</div>
+            </div>
+            <div class="org-card" data-type="meteorological" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">🌦️</div>
+                <div class="name">Meteorological Department</div>
+                <div class="desc">Official weather forecasting, anomaly detection, alert publishing.</div>
+            </div>
+            <div class="org-card" data-type="agriculture" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">🌾</div>
+                <div class="name">Agricultural Organization</div>
+                <div class="desc">Crop risk, drought & heatwave alerts, irrigation timing.</div>
+            </div>
+            <div class="org-card" data-type="aviation" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">✈️</div>
+                <div class="name">Aviation / Flight Operations</div>
+                <div class="desc">Airport & route risk, storm alerts, low-latency weather data.</div>
+            </div>
+            <div class="org-card" data-type="developer" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">💻</div>
+                <div class="name">Developer / API Access</div>
+                <div class="desc">REST API, WebSocket streams, webhooks, Python/JS SDKs.</div>
+            </div>
+            <div class="org-card" data-type="government" onclick="selectOrgType(this)">
+                <div class="check">✓</div>
+                <div class="icon">🏛️</div>
+                <div class="name">Government / NGO</div>
+                <div class="desc">Multi-region oversight, SDG reporting, governance compliance.</div>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="field-row">
+            <div class="field">
+                <label>Organization Name <span class="req">*</span></label>
+                <input type="text" id="orgName" placeholder="e.g. Kenya Red Cross" />
+            </div>
+            <div class="field">
+                <label>Country</label>
+                <select id="orgCountry">
+                    <option value="Kenya" selected>Kenya</option>
+                    <option value="Uganda">Uganda</option>
+                    <option value="Tanzania">Tanzania</option>
+                    <option value="Ethiopia">Ethiopia</option>
+                    <option value="Rwanda">Rwanda</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label>Region / County</label>
+                <input type="text" id="orgRegion" placeholder="e.g. Nairobi County" />
+            </div>
+            <div class="field">
+                <label>Website</label>
+                <input type="url" id="orgWebsite" placeholder="https://yourorg.org" />
+            </div>
+        </div>
+        <div class="field">
+            <label>Brief Description</label>
+            <textarea id="orgDesc" placeholder="What does your organization do?"></textarea>
+        </div>
+
+        <div class="error-box" id="err1">Please select an organization type and enter a name.</div>
+        <div class="btn-row">
+            <div></div>
+            <button class="submit-btn" onclick="goStep2()">Continue →</button>
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="wiz-card" id="step2" style="display:none;">
+        <h2>Configure your experience</h2>
+        <p class="sub" id="step2Sub">Tell us what you need so we can tailor your dashboard and alerts.</p>
+
+        <div class="field">
+            <label>What will you use this platform for? <span class="req">*</span></label>
+            <div class="usecase-wrap">
+                <div id="usecaseOptions"></div>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Alert types that matter to you</label>
+            <div class="alert-grid">
+                <div class="alert-card selected" data-alert="flood" onclick="toggleAlert(this)"><div class="a-icon">🌊</div><div class="a-name">Flood</div></div>
+                <div class="alert-card" data-alert="drought" onclick="toggleAlert(this)"><div class="a-icon">🏜️</div><div class="a-name">Drought</div></div>
+                <div class="alert-card" data-alert="heatwave" onclick="toggleAlert(this)"><div class="a-icon">🔥</div><div class="a-name">Heatwave</div></div>
+                <div class="alert-card" data-alert="storm" onclick="toggleAlert(this)"><div class="a-icon">⛈️</div><div class="a-name">Storm</div></div>
+                <div class="alert-card" data-alert="landslide" onclick="toggleAlert(this)"><div class="a-icon">⛰️</div><div class="a-name">Landslide</div></div>
+                <div class="alert-card" data-alert="all" onclick="toggleAlert(this)"><div class="a-icon">🌍</div><div class="a-name">All Types</div></div>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Regions / cities to monitor</label>
+            <div class="chip-group" id="regionChips">
+                <div class="chip selected" data-region="nairobi" onclick="toggleChip(this)">Nairobi</div>
+                <div class="chip" data-region="mombasa" onclick="toggleChip(this)">Mombasa</div>
+                <div class="chip" data-region="kisumu" onclick="toggleChip(this)">Kisumu</div>
+                <div class="chip" data-region="nakuru" onclick="toggleChip(this)">Nakuru</div>
+                <div class="chip" data-region="eldoret" onclick="toggleChip(this)">Eldoret</div>
+                <div class="chip" data-region="kakamega" onclick="toggleChip(this)">Kakamega</div>
+                <div class="chip" data-region="kisii" onclick="toggleChip(this)">Kisii</div>
+                <div class="chip" data-region="nyeri" onclick="toggleChip(this)">Nyeri</div>
+                <div class="chip" data-region="malindi" onclick="toggleChip(this)">Malindi</div>
+                <div class="chip" data-region="all_kenya" onclick="toggleChip(this)">🇰🇪 All Kenya</div>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Minimum risk threshold: <strong id="thresholdVal">50%</strong></label>
+            <input type="range" id="alertThreshold" min="10" max="90" value="50" step="5"
+                   oninput="document.getElementById('thresholdVal').textContent=this.value+'%'"
+                   style="width:100%;accent-color:var(--indigo);margin-top:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--slate-400);margin-top:4px;">
+                <span>10% — Very sensitive</span><span>90% — Critical only</span>
+            </div>
+        </div>
+
+        <div class="field">
+            <label>How alerts should reach you</label>
+            <div class="channel-grid">
+                <div class="channel-card selected" data-channel="email" onclick="toggleChannel(this)"><div class="c-icon">📧</div><div><div class="c-name">Email</div><div class="c-desc">Detailed reports</div></div></div>
+                <div class="channel-card" data-channel="sms" onclick="toggleChannel(this)"><div class="c-icon">📱</div><div><div class="c-name">SMS</div><div class="c-desc">Field alerts</div></div></div>
+                <div class="channel-card" data-channel="api" onclick="toggleChannel(this)"><div class="c-icon">🔌</div><div><div class="c-name">REST API</div><div class="c-desc">Pull programmatically</div></div></div>
+                <div class="channel-card" data-channel="webhook" onclick="toggleChannel(this)"><div class="c-icon">🪝</div><div><div class="c-name">Webhook</div><div class="c-desc">Push to your endpoint</div></div></div>
+            </div>
+        </div>
+
+        <div class="field" id="webhookField" style="display:none;">
+            <label>Webhook URL</label>
+            <input type="url" id="webhookUrl" placeholder="https://your-system.com/webhook" />
+        </div>
+
+        <div id="devTierSection" style="display:none;">
+            <hr class="divider">
+            <div class="field">
+                <label>API Access Tier</label>
+                <div class="tier-grid">
+                    <div class="tier-card selected" data-tier="free" onclick="selectTier(this)"><div class="t-name">Free</div><div class="t-limit">100 req/day · 1 webhook</div><div class="t-price">$0/mo</div></div>
+                    <div class="tier-card" data-tier="pro" onclick="selectTier(this)"><div class="t-name">Pro</div><div class="t-limit">10k req/day · 10 webhooks</div><div class="t-price">$49/mo</div></div>
+                    <div class="tier-card" data-tier="enterprise" onclick="selectTier(this)"><div class="t-name">Enterprise</div><div class="t-limit">Unlimited · Priority support</div><div class="t-price">Contact us</div></div>
+                </div>
+            </div>
+            <div class="field">
+                <label>What will you build?</label>
+                <textarea id="devUsecase" placeholder="Describe your application or integration…"></textarea>
+            </div>
+        </div>
+
+        <div class="error-box" id="err2">Please select at least one use case.</div>
+        <div class="btn-row">
+            <button class="back-btn" onclick="setStep(1)">← Back</button>
+            <button class="submit-btn" onclick="goStep3()">Continue →</button>
+        </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="wiz-card" id="step3" style="display:none;">
+        <h2>Set up your team &amp; admin account</h2>
+        <p class="sub">Create your admin account and optionally invite your first team members.</p>
+
+        <div class="info-banner">🔐 You'll be the <strong>Organization Admin</strong>. You can add more members after registration.</div>
+
+        <div class="field-row">
+            <div class="field"><label>First Name <span class="req">*</span></label><input type="text" id="firstName" placeholder="John" /></div>
+            <div class="field"><label>Last Name <span class="req">*</span></label><input type="text" id="lastName" placeholder="Doe" /></div>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>Email <span class="req">*</span></label><input type="email" id="adminEmail" placeholder="john@yourorg.org" /></div>
+            <div class="field"><label>Phone (for SMS alerts)</label><input type="tel" id="adminPhone" placeholder="+254 700 000 000" /></div>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>Username <span class="req">*</span></label><input type="text" id="adminUsername" placeholder="john_doe" /></div>
+            <div class="field"><label>Password <span class="req">*</span></label><input type="password" id="adminPassword" placeholder="Min 8 characters" /></div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="field">
+            <label>Invite team members <span style="color:var(--slate-400);font-weight:400;">(optional)</span></label>
+            <div id="memberList">
+                <div class="member-row">
+                    <input type="email" placeholder="colleague@org.org" class="member-email" />
+                    <select class="member-role">
+                        <option value="operator">Operator</option>
+                        <option value="analyst">Analyst</option>
+                        <option value="viewer">Viewer</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <button class="remove" onclick="removeMember(this)">✕</button>
+                </div>
+            </div>
+            <button class="add-member" onclick="addMember()">+ Add another member</button>
+        </div>
+
+        <div id="apiKeySection" style="display:none;">
+            <hr class="divider">
+            <div class="field">
+                <label>Your API Key (generated on registration)</label>
+                <div class="api-box">
+                    <div class="api-label">ResilientEco API Key — keep this secret</div>
+                    <div class="api-key-row">
+                        <div class="api-key-val" id="apiKeyDisplay">rg_live_••••••••••••••••••••••••••••</div>
+                        <button class="copy-btn" onclick="copyApiKey()">Copy</button>
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--slate-400);margin-top:6px;">Your actual key will be shown once after registration. Store it securely.</p>
+            </div>
+        </div>
+
+        <div class="error-box" id="err3">Please fill in all required fields.</div>
+        <div class="btn-row">
+            <button class="back-btn" onclick="setStep(2)">← Back</button>
+            <button class="submit-btn" id="submitBtn" onclick="submitRegistration()">🚀 Create Organization</button>
+        </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="wiz-card" id="stepSuccess" style="display:none;">
+        <div class="success-wrap">
+            <span class="success-icon">🎉</span>
+            <h2 id="successTitle">Organization Created!</h2>
+            <p id="successMsg">Your organization is ready. Welcome to ResilientEco Guardian.</p>
+            <div id="successApiKey" style="display:none;margin-bottom:24px;text-align:left;">
+                <div class="api-box">
+                    <div class="api-label">Your API Key — copy now, shown only once</div>
+                    <div class="api-key-row">
+                        <div class="api-key-val" id="finalApiKey"></div>
+                        <button class="copy-btn" onclick="copyFinalKey()">Copy</button>
+                    </div>
+                </div>
+            </div>
+            <div class="success-actions">
+                <a href="/" class="submit-btn">→ Go to Dashboard</a>
+                <a href="/api/docs/" class="back-btn" id="apiDocsLink" style="display:none;">📖 API Docs</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const state = {
+    orgType:null, orgName:'', country:'Kenya', region:'', website:'', description:'',
+    useCases:[], alertTypes:['flood'], regions:['nairobi'], alertThreshold:50,
+    channels:['email'], webhookUrl:'', apiTier:'free', devUsecase:'', apiKey:null,
+};
+
+const USE_CASES = {
+    disaster_relief:['Real-time flood and disaster alerts for field teams','Evacuation zone planning and population impact estimates','SMS alerts to on-ground responders','Multi-location monitoring across affected regions','Coordination with government and meteorological agencies'],
+    meteorological:['Official weather forecast publishing to partner organizations','Anomaly detection and early warning signal generation','Raw sensor data feeds and historical analysis','Integration with national weather monitoring infrastructure','Cross-agency alert broadcasting'],
+    agriculture:['Drought and heatwave risk monitoring for farms','Irrigation timing recommendations based on rainfall forecasts','Crop-specific climate risk assessments','SMS alerts to farmers in monitored regions','Seasonal planning and long-range forecast access'],
+    aviation:['Airport and flight route weather risk monitoring','Storm and heatwave alerts for operations teams','Low-latency weather data for dispatch decisions','Visibility and wind condition forecasts','Integration with existing flight operations systems'],
+    developer:['Build climate risk applications using the REST API','Stream real-time alerts via WebSocket','Receive webhook notifications in your own systems','Embed weather widgets and risk scores in your product','Access historical climate data for ML/analytics'],
+    government:['Multi-region climate risk oversight and reporting','SDG alignment tracking (Climate Action, Reduced Inequalities)','Policy-level alert thresholds and escalation workflows','Cross-organization data sharing and coordination','Audit trails and governance compliance reporting'],
+};
+
+const ORG_LABELS = {disaster_relief:'Red Cross / Disaster Relief',meteorological:'Meteorological Department',agriculture:'Agricultural Organization',aviation:'Aviation / Flight Operations',developer:'Developer / API Access',government:'Government / NGO'};
+
+// Pre-select org type from URL param
+window.addEventListener('DOMContentLoaded', () => {
+    const t = new URLSearchParams(location.search).get('type');
+    if (t) {
+        const card = document.querySelector(`.org-card[data-type="${t}"]`);
+        if (card) selectOrgType(card);
+    }
+});
+
+function selectOrgType(el) {
+    document.querySelectorAll('.org-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    state.orgType = el.dataset.type;
+    document.getElementById('devTierSection').style.display = state.orgType === 'developer' ? 'block' : 'none';
+}
+
+function goStep2() {
+    const name = document.getElementById('orgName').value.trim();
+    if (!state.orgType || !name) { document.getElementById('err1').style.display='block'; return; }
+    document.getElementById('err1').style.display='none';
+    state.orgName = name;
+    state.country = document.getElementById('orgCountry').value;
+    state.region  = document.getElementById('orgRegion').value;
+    state.website = document.getElementById('orgWebsite').value;
+    state.description = document.getElementById('orgDesc').value;
+
+    // Populate use cases
+    const wrap = document.getElementById('usecaseOptions');
+    wrap.innerHTML = '';
+    (USE_CASES[state.orgType]||[]).forEach((uc,i) => {
+        const lbl = document.createElement('label');
+        lbl.className = 'usecase-opt';
+        lbl.innerHTML = `<input type="checkbox" value="${i}" onchange="updateUseCases()"> ${uc}`;
+        wrap.appendChild(lbl);
+    });
+    document.getElementById('step2Sub').textContent = `Configuring for: ${ORG_LABELS[state.orgType]}. Select what applies to your team.`;
+    setStep(2);
+}
+
+function updateUseCases() {
+    state.useCases = [];
+    document.querySelectorAll('#usecaseOptions input:checked').forEach(cb => {
+        state.useCases.push((USE_CASES[state.orgType]||[])[parseInt(cb.value)]);
+    });
+}
+
+function toggleAlert(el) {
+    el.classList.toggle('selected');
+    const a = el.dataset.alert;
+    state.alertTypes = el.classList.contains('selected')
+        ? [...new Set([...state.alertTypes, a])]
+        : state.alertTypes.filter(x => x !== a);
+}
+
+function toggleChip(el) {
+    el.classList.toggle('selected');
+    const r = el.dataset.region;
+    state.regions = el.classList.contains('selected')
+        ? [...new Set([...state.regions, r])]
+        : state.regions.filter(x => x !== r);
+}
+
+function toggleChannel(el) {
+    el.classList.toggle('selected');
+    const ch = el.dataset.channel;
+    state.channels = el.classList.contains('selected')
+        ? [...new Set([...state.channels, ch])]
+        : state.channels.filter(x => x !== ch);
+    document.getElementById('webhookField').style.display = state.channels.includes('webhook') ? 'block' : 'none';
+}
+
+function selectTier(el) {
+    document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    state.apiTier = el.dataset.tier;
+}
+
+function goStep3() {
+    if (state.useCases.length === 0) { document.getElementById('err2').style.display='block'; return; }
+    document.getElementById('err2').style.display='none';
+    state.alertThreshold = parseInt(document.getElementById('alertThreshold').value);
+    state.webhookUrl     = document.getElementById('webhookUrl').value;
+    state.devUsecase     = document.getElementById('devUsecase')?.value || '';
+    const showApi = state.orgType === 'developer' || state.channels.includes('api');
+    document.getElementById('apiKeySection').style.display = showApi ? 'block' : 'none';
+    setStep(3);
+}
+
+function addMember() {
+    const list = document.getElementById('memberList');
+    const row  = document.createElement('div');
+    row.className = 'member-row';
+    row.innerHTML = `<input type="email" placeholder="colleague@org.org" class="member-email"><select class="member-role"><option value="operator">Operator</option><option value="analyst">Analyst</option><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button class="remove" onclick="removeMember(this)">✕</button>`;
+    list.appendChild(row);
+}
+function removeMember(btn) { if (document.querySelectorAll('.member-row').length > 1) btn.parentElement.remove(); }
+
+function copyApiKey() { navigator.clipboard.writeText(state.apiKey||'').then(()=>showToast('Copied!','success')); }
+function copyFinalKey() { navigator.clipboard.writeText(document.getElementById('finalApiKey').textContent).then(()=>showToast('API key copied!','success')); }
+
+async function submitRegistration() {
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName  = document.getElementById('lastName').value.trim();
+    const email     = document.getElementById('adminEmail').value.trim();
+    const username  = document.getElementById('adminUsername').value.trim();
+    const password  = document.getElementById('adminPassword').value;
+    const errBox    = document.getElementById('err3');
+
+    if (!firstName||!lastName||!email||!username||!password) { errBox.textContent='Please fill in all required fields.'; errBox.style.display='block'; return; }
+    errBox.style.display='none';
+
+    const members = [];
+    document.querySelectorAll('.member-row').forEach(row => {
+        const e = row.querySelector('.member-email').value.trim();
+        const r = row.querySelector('.member-role').value;
+        if (e) members.push({email:e,role:r});
+    });
+
+    const btn = document.getElementById('submitBtn');
+    btn.innerHTML = '<span class="spinner"></span> Creating…'; btn.disabled = true;
+
+    try {
+        const resp = await fetch('/api/register-organization/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username, email, password, password2: password,
+                first_name: firstName, last_name: lastName,
+                org_name: state.orgName, org_type: state.orgType,
+                country: state.country, region: state.region,
+                website: state.website, description: state.description,
+                use_cases: state.useCases, alert_types: state.alertTypes,
+                monitored_regions: state.regions, alert_threshold: state.alertThreshold,
+                notification_channels: state.channels, webhook_url: state.webhookUrl,
+                api_tier: state.apiTier, dev_usecase: state.devUsecase,
+                invite_members: members,
+            }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            errBox.textContent = data.error || JSON.stringify(data);
+            errBox.style.display = 'block';
+            btn.innerHTML = '🚀 Create Organization'; btn.disabled = false;
+            return;
+        }
+
+        // Store tokens
+        if (data.auth) setTokens(data.auth.access, data.auth.refresh);
+        state.apiKey = data.api_key;
+        showSuccess(data);
+
+    } catch(e) {
+        errBox.textContent = 'Network error. Please try again.';
+        errBox.style.display = 'block';
+        btn.innerHTML = '🚀 Create Organization'; btn.disabled = false;
+    }
+}
+
+function showSuccess(data) {
+    document.getElementById('successTitle').textContent = `${state.orgName} is ready! 🎉`;
+    document.getElementById('successMsg').textContent = `Your ${ORG_LABELS[state.orgType]} organization has been created.${data.invited_count?' '+data.invited_count+' member(s) invited.':''}`;
+    if (data.api_key) {
+        document.getElementById('finalApiKey').textContent = data.api_key;
+        document.getElementById('successApiKey').style.display = 'block';
+        document.getElementById('apiDocsLink').style.display = 'inline-block';
+    }
+    setStep('success');
+    showToast('Organization created successfully!', 'success');
+}
+
+function setStep(n) {
+    ['step1','step2','step3','stepSuccess'].forEach(id => document.getElementById(id).style.display='none');
+
+    if (n === 'success') {
+        document.getElementById('stepSuccess').style.display = 'block';
+        [1,2,3].forEach(i => {
+            const dot = document.getElementById(`dot${i}`);
+            dot.className = 'step-dot done'; dot.textContent = '✓';
+            if (i < 3) document.getElementById(`line${i}`).classList.add('done');
+        });
+        return;
+    }
+
+    document.getElementById(`step${n}`).style.display = 'block';
+    for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        if (i < n)      { dot.className='step-dot done';    dot.textContent='✓'; }
+        else if (i===n) { dot.className='step-dot active';  dot.textContent=i; }
+        else            { dot.className='step-dot pending';  dot.textContent=i; }
+        if (i < 3) document.getElementById(`line${i}`).className = `step-line${i < n ? ' done' : ''}`;
+    }
+    window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+{% endblock %}
