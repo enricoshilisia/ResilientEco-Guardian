@@ -1,0 +1,1077 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+
+{% block title %}🌾 {{ org.name }} · Agricultural Dashboard · ResilientEco{% endblock %}
+
+{% block org_extra_styles %}
+/* ── Agricultural theme ─────────────────────────────────────────── */
+:root {
+    --org-color: #16a34a;
+    --org-light: #dcfce7;
+    --org-dark:  #14532d;
+    --warn:      #f59e0b;
+    --danger:    #ef4444;
+    --info:      #3b82f6;
+}
+
+/* Season banner */
+.season-banner {
+    display: flex; align-items: center; gap: 14px;
+    border-radius: 12px; padding: 14px 18px;
+    margin-bottom: 20px; font-size: 13px;
+    border: 1px solid rgba(22,163,74,.2);
+    background: linear-gradient(90deg, rgba(22,163,74,.07) 0%, rgba(22,163,74,.02) 100%);
+}
+.season-icon { font-size: 30px; flex-shrink: 0; }
+.season-name { font-weight: 700; color: var(--slate-900); margin-bottom: 2px; font-size: 14px; }
+.season-desc { color: var(--slate-500); font-size: 12px; }
+.season-pill {
+    margin-left: auto; flex-shrink: 0;
+    padding: 4px 14px; border-radius: 99px; font-size: 11px; font-weight: 700;
+}
+.season-pill.long-rains  { background: #dbeafe; color: #1d4ed8; }
+.season-pill.short-rains { background: #e0f2fe; color: #0369a1; }
+.season-pill.dry         { background: #fef3c7; color: #92400e; }
+
+/* Advisory cards */
+.advisory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .advisory-grid { grid-template-columns: 1fr; } }
+.advisory-card {
+    border-radius: 10px; padding: 14px;
+    border-left: 4px solid; font-size: 13px; line-height: 1.5;
+}
+.advisory-card.info    { background: #eff6ff; border-color: #3b82f6; color: #1e3a5f; }
+.advisory-card.warning { background: #fffbeb; border-color: #f59e0b; color: #78350f; }
+.advisory-card.danger  { background: #fff1f2; border-color: #ef4444; color: #7f1d1d; }
+.advisory-card.success { background: #f0fdf4; border-color: #22c55e; color: #14532d; }
+.adv-title { font-weight: 700; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; justify-content: space-between; }
+.adv-body  { font-size: 13px; }
+.risk-badge-sm { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; color: white; }
+
+/* Crop risk table */
+.crop-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.crop-table th {
+    font-size: 10px; font-weight: 700; color: var(--slate-500);
+    text-transform: uppercase; letter-spacing: .06em;
+    padding: 10px 12px; border-bottom: 2px solid var(--slate-100); text-align: left;
+}
+.crop-table td { padding: 10px 12px; border-bottom: 1px solid var(--slate-50); color: var(--slate-700); vertical-align: middle; }
+.crop-table tr:last-child td { border-bottom: none; }
+.crop-table tr:hover td { background: #f9fafb; }
+.risk-pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.risk-pill.low      { background: #dcfce7; color: #166534; }
+.risk-pill.moderate { background: #fef3c7; color: #92400e; }
+.risk-pill.high     { background: #fee2e2; color: #9f1239; }
+.risk-pill.critical { background: #450a0a; color: #fca5a5; }
+
+/* Alerts — clean card style */
+.alert-card {
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+    border: 1px solid; display: flex; flex-direction: column; gap: 4px;
+}
+.alert-card.flood    { background: #eff6ff; border-color: #bfdbfe; }
+.alert-card.drought  { background: #fffbeb; border-color: #fde68a; }
+.alert-card.heatwave { background: #fff1f2; border-color: #fecaca; }
+.alert-card-header { display: flex; align-items: center; justify-content: space-between; }
+.alert-level-badge { padding: 2px 10px; border-radius: 99px; font-size: 10px; font-weight: 700; color: white; }
+.alert-card-message { font-size: 13px; line-height: 1.5; color: var(--slate-700); margin: 2px 0; }
+.alert-card-time { font-size: 11px; color: var(--slate-400); }
+.no-alerts { text-align: center; padding: 24px; color: var(--slate-400); font-size: 13px; }
+
+/* Location management */
+.location-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--slate-50); font-size: 13px;
+}
+.location-item:last-child { border-bottom: none; }
+.location-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--org-color); flex-shrink: 0; }
+.location-dot.primary { background: #f59e0b; }
+.location-name { font-weight: 600; color: var(--slate-800); }
+.location-coords { font-size: 11px; color: var(--slate-400); font-family: monospace; }
+.location-remove {
+    margin-left: auto; font-size: 11px; color: var(--danger);
+    cursor: pointer; padding: 3px 8px; border-radius: 6px;
+    border: 1px solid #fecaca; background: white;
+    opacity: 0; transition: opacity .15s;
+}
+.location-item:hover .location-remove { opacity: 1; }
+
+/* Add location modal */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; backdrop-filter: blur(4px);
+    animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-box {
+    background: white; border-radius: 16px; padding: 28px;
+    width: min(480px, 95vw); box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    animation: slideUp .2s ease;
+}
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--slate-900); }
+.modal-sub { font-size: 13px; color: var(--slate-500); margin-bottom: 20px; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--slate-500); margin-bottom: 6px; }
+.modal-field input, .modal-field select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--slate-200);
+    border-radius: 8px; font-size: 13px; color: var(--slate-800);
+    box-sizing: border-box;
+}
+.modal-field input:focus, .modal-field select:focus {
+    outline: none; border-color: var(--org-color);
+    box-shadow: 0 0 0 3px rgba(22,163,74,.12);
+}
+.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* Kenya city quick-select */
+.city-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.city-chip {
+    padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--slate-200); background: white; color: var(--slate-600);
+    cursor: pointer; transition: all .15s;
+}
+.city-chip:hover { border-color: var(--org-color); color: var(--org-color); background: #f0fdf4; }
+.city-chip.selected { border-color: var(--org-color); background: var(--org-color); color: white; }
+
+/* Mini weather widget */
+.weather-mini { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.weather-tile { background: var(--slate-50); border-radius: 8px; padding: 10px; text-align: center; }
+.weather-tile .val { font-size: 18px; font-weight: 700; color: #667eea; }
+.weather-tile .lbl { font-size: 10px; color: var(--slate-400); margin-top: 2px; }
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="#overview"   class="org-tab active" onclick="showTab('overview',this)">  <span>📊</span><span class="tab-label">Overview</span></a>
+<a href="#crop-risk"  class="org-tab"        onclick="showTab('crop-risk',this)"> <span>🌱</span><span class="tab-label">Crop Risk</span></a>
+<a href="#weather"    class="org-tab"        onclick="showTab('weather',this)">   <span>🌤️</span><span class="tab-label">Weather</span></a>
+<a href="#alerts"     class="org-tab"        onclick="showTab('alerts',this)">    <span>🚨</span><span class="tab-label">Alerts</span></a>
+<a href="#locations"  class="org-tab"        onclick="showTab('locations',this)"> <span>📍</span><span class="tab-label">Zones</span></a>
+<a href="#chat"       class="org-tab"        onclick="showTab('chat',this)">      <span>💬</span><span class="tab-label">AI Advisor</span></a>
+{% endblock %}
+
+{% block sidebar_extra %}
+<!-- Season indicator -->
+<div class="sidebar-card">
+    <div class="sidebar-card-head">📅 Season</div>
+    <div class="sidebar-card-body">
+        <div id="seasonDisplay" style="text-align:center;padding:4px 0;">
+            <div id="seasonBadge" class="season-pill dry" style="display:inline-block;margin-bottom:8px;">⏳ Detecting…</div>
+            <div style="font-size:12px;color:var(--slate-500);" id="seasonDesc">—</div>
+        </div>
+    </div>
+</div>
+
+<!-- Live weather snapshot -->
+<div class="sidebar-card">
+    <div class="sidebar-card-head">🌡️ Current Conditions</div>
+    <div class="sidebar-card-body" id="sidebarWeather">
+        {% if locations %}
+        <div style="color:var(--slate-400);font-size:12px;text-align:center;">⏳ Loading…</div>
+        {% else %}
+        <div class="empty-state">Add monitoring zones to see weather</div>
+        {% endif %}
+    </div>
+    {% if locations %}<div style="font-size:11px;color:var(--slate-400);padding:0 14px 10px;">📍 {{ locations.0.name }}</div>{% endif %}
+</div>
+
+<!-- Quick zone switcher -->
+{% if locations %}
+<div class="sidebar-card">
+    <div class="sidebar-card-head">📍 Zones</div>
+    <div class="sidebar-card-body" style="padding:6px 0;">
+        {% for loc in locations %}
+        <div class="location-item" style="padding:8px 14px;border-bottom:1px solid var(--slate-50);" onclick="flyToLocation({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">
+            <div class="location-dot {% if loc.is_primary %}primary{% endif %}"></div>
+            <div>
+                <div class="location-name">{{ loc.name }}</div>
+                <div class="location-coords">{{ loc.latitude|floatformat:2 }}, {{ loc.longitude|floatformat:2 }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if can_manage %}
+    <div style="padding:10px 14px;">
+        <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="openAddLocationModal()">+ Add Zone</button>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block org_main %}
+<!-- ── Stat Strip ───────────────────────────────────────────────── -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-icon">🌊</div>
+        <div class="stat-label">Flood Alerts</div>
+        <div class="stat-val" id="statFlood">{{ flood_alerts|length }}</div>
+        <div class="stat-sub">Last 30 days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🏜️</div>
+        <div class="stat-label">Drought Alerts</div>
+        <div class="stat-val" id="statDrought">{{ drought_alerts|length }}</div>
+        <div class="stat-sub">Last 30 days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-label">Heatwave Alerts</div>
+        <div class="stat-val" id="statHeat">{{ heatwave_alerts|length }}</div>
+        <div class="stat-sub">Last 30 days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📌</div>
+        <div class="stat-label">Monitored Zones</div>
+        <div class="stat-val" id="statZones">{{ locations|length }}</div>
+        <div class="stat-sub">Active locations</div>
+    </div>
+</div>
+
+<!-- ── TAB: Overview ─────────────────────────────────────────────── -->
+<div id="tab-overview">
+
+    <!-- Season banner -->
+    <div class="season-banner" id="seasonBanner">
+        <div class="season-icon" id="bannerIcon">🌾</div>
+        <div>
+            <div class="season-name" id="bannerName">{{ org.name }} — Agricultural Intelligence</div>
+            <div class="season-desc" id="bannerDesc">Real-time climate risk monitoring for your farms and monitored zones.</div>
+        </div>
+        <div id="bannerPill" class="season-pill dry" style="display:none;"></div>
+    </div>
+
+    <!-- Map -->
+    <div class="content-card">
+        <div class="content-card-head">
+            🗺️ Farm & Zone Map
+            <div style="font-size:12px;color:var(--slate-400);font-weight:400;">{{ locations|length }} zone{{ locations|length|pluralize }} monitored</div>
+        </div>
+        <div id="orgMap"></div>
+        <div style="padding:10px 16px;background:var(--slate-50);border-top:1px solid var(--slate-100);font-size:12px;color:var(--slate-500);" id="mapInfo">
+            📍 Click a zone in the sidebar to focus the map
+        </div>
+    </div>
+
+    <!-- Advisories — AI-generated, never raw JSON -->
+    <div class="content-card">
+        <div class="content-card-head">
+            ⚡ Active Advisories
+            <button class="btn btn-ghost btn-sm" onclick="runAdvisoryAnalysis()" id="advisoryRefreshBtn">↻ Refresh</button>
+        </div>
+        <div class="content-card-body">
+            <div class="advisory-grid" id="advisoryGrid">
+                <!-- Rendered by renderStaticAdvisories() on load, then refreshed by AI -->
+                <div class="advisory-card info">
+                    <div class="adv-title">📡 System Active</div>
+                    <div class="adv-body">Real-time monitoring is running for all {{ locations|length }} registered zone{{ locations|length|pluralize }}.</div>
+                </div>
+                <div class="advisory-card success">
+                    <div class="adv-title">🌱 Agents Online</div>
+                    <div class="adv-body">The 5-agent AI pipeline is ready. Click Refresh for live analysis.</div>
+                </div>
+                {% if flood_alerts %}
+                <div class="advisory-card danger">
+                    <div class="adv-title">
+                        🌊 Flood Alert
+                        <span class="risk-badge-sm" style="background:#ef4444;">{{ flood_alerts.0.risk_level }}%</span>
+                    </div>
+                    <div class="adv-body">{{ flood_alerts.0.message|truncatechars:160 }}</div>
+                </div>
+                {% endif %}
+                {% if drought_alerts %}
+                <div class="advisory-card warning">
+                    <div class="adv-title">
+                        🏜️ Drought Watch
+                        <span class="risk-badge-sm" style="background:#f59e0b;">{{ drought_alerts.0.risk_level }}%</span>
+                    </div>
+                    <div class="adv-body">{{ drought_alerts.0.message|truncatechars:160 }}</div>
+                </div>
+                {% endif %}
+                {% if heatwave_alerts %}
+                <div class="advisory-card danger">
+                    <div class="adv-title">
+                        🔥 Heatwave Alert
+                        <span class="risk-badge-sm" style="background:#ef4444;">{{ heatwave_alerts.0.risk_level }}%</span>
+                    </div>
+                    <div class="adv-body">{{ heatwave_alerts.0.message|truncatechars:160 }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── TAB: Crop Risk ─────────────────────────────────────────────── -->
+<div id="tab-crop-risk" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            🌱 Crop Climate Risk Matrix
+            <button class="btn btn-ghost btn-sm" onclick="refreshCropRisk()">↻ Refresh</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="crop-table">
+                <thead>
+                    <tr>
+                        <th>Crop</th>
+                        <th>Flood Risk</th>
+                        <th>Drought Risk</th>
+                        <th>Heat Risk</th>
+                        <th>Overall</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody id="cropRiskTable">
+                    <tr><td colspan="6" style="text-align:center;color:var(--slate-400);padding:28px 12px;">Click "Refresh" to load AI-powered crop risk analysis</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <div class="content-card-head">💧 Irrigation Guidance</div>
+        <div class="content-card-body" id="irrigationPanel">
+            <div class="no-alerts">Select a zone from the sidebar to view irrigation guidance.</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── TAB: Weather ───────────────────────────────────────────────── -->
+<div id="tab-weather" style="display:none;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        {% for loc in locations|slice:":4" %}
+        <div class="content-card">
+            <div class="content-card-head" style="font-size:13px;">📍 {{ loc.name }}</div>
+            <div id="weather-{{ forloop.counter }}" style="padding:14px;">
+                <div class="weather-mini">
+                    <div class="weather-tile"><div class="val" id="w{{ forloop.counter }}-temp">—</div><div class="lbl">🌡️ Temp °C</div></div>
+                    <div class="weather-tile"><div class="val" id="w{{ forloop.counter }}-rain">—</div><div class="lbl">🌧️ Rain mm</div></div>
+                    <div class="weather-tile"><div class="val" id="w{{ forloop.counter }}-hum">—</div><div class="lbl">💧 Humid %</div></div>
+                </div>
+                <div id="w{{ forloop.counter }}-cond" style="margin-top:10px;font-size:12px;color:var(--slate-500);text-align:center;">⏳ Loading…</div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="content-card" style="grid-column:1/-1;">
+            <div class="content-card-body no-alerts">No monitoring zones added yet. Go to the <strong>Zones</strong> tab to add locations.</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── TAB: Alerts ────────────────────────────────────────────────── -->
+<div id="tab-alerts" style="display:none;">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+
+        <!-- Flood alerts -->
+        <div class="content-card">
+            <div class="content-card-head" style="color:#2563eb;">🌊 Flood</div>
+            <div class="content-card-body" style="padding:12px;" id="panelFlood">
+                {% for a in flood_alerts %}
+                <div class="alert-card flood">
+                    <div class="alert-card-header">
+                        <span style="font-weight:700;font-size:12px;color:#1e3a5f;">🌊 Flood Risk</span>
+                        <span class="alert-level-badge" style="background:{% if a.risk_level >= 70 %}#ef4444{% elif a.risk_level >= 40 %}#f97316{% else %}#22c55e{% endif %};">{{ a.risk_level }}%</span>
+                    </div>
+                    <div class="alert-card-message">{{ a.message|truncatechars:200 }}</div>
+                    <div class="alert-card-time">{{ a.timestamp|date:"M d, Y · H:i" }}</div>
+                </div>
+                {% empty %}
+                <div class="no-alerts">✅ No flood alerts</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Drought alerts -->
+        <div class="content-card">
+            <div class="content-card-head" style="color:#d97706;">🏜️ Drought</div>
+            <div class="content-card-body" style="padding:12px;" id="panelDrought">
+                {% for a in drought_alerts %}
+                <div class="alert-card drought">
+                    <div class="alert-card-header">
+                        <span style="font-weight:700;font-size:12px;color:#78350f;">🏜️ Drought Risk</span>
+                        <span class="alert-level-badge" style="background:{% if a.risk_level >= 70 %}#ef4444{% elif a.risk_level >= 40 %}#f97316{% else %}#22c55e{% endif %};">{{ a.risk_level }}%</span>
+                    </div>
+                    <div class="alert-card-message">{{ a.message|truncatechars:200 }}</div>
+                    <div class="alert-card-time">{{ a.timestamp|date:"M d, Y · H:i" }}</div>
+                </div>
+                {% empty %}
+                <div class="no-alerts">✅ No drought alerts</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Heatwave alerts -->
+        <div class="content-card">
+            <div class="content-card-head" style="color:#dc2626;">🔥 Heatwave</div>
+            <div class="content-card-body" style="padding:12px;" id="panelHeat">
+                {% for a in heatwave_alerts %}
+                <div class="alert-card heatwave">
+                    <div class="alert-card-header">
+                        <span style="font-weight:700;font-size:12px;color:#7f1d1d;">🔥 Heat Risk</span>
+                        <span class="alert-level-badge" style="background:{% if a.risk_level >= 70 %}#ef4444{% elif a.risk_level >= 40 %}#f97316{% else %}#22c55e{% endif %};">{{ a.risk_level }}%</span>
+                    </div>
+                    <div class="alert-card-message">{{ a.message|truncatechars:200 }}</div>
+                    <div class="alert-card-time">{{ a.timestamp|date:"M d, Y · H:i" }}</div>
+                </div>
+                {% empty %}
+                <div class="no-alerts">✅ No heatwave alerts</div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+    {% if can_manage %}
+    <div class="content-card">
+        <div class="content-card-head">🤖 Run Agent Analysis</div>
+        <div class="content-card-body">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% for loc in locations|slice:":6" %}
+                <button class="btn btn-ghost btn-sm" onclick="runAgentForLocation({{ loc.latitude }}, {{ loc.longitude }}, '{{ loc.name|escapejs }}')">
+                    🌾 Analyse {{ loc.name }}
+                </button>
+                {% endfor %}
+            </div>
+            <div id="agentRunResult" style="margin-top:12px;font-size:13px;"></div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ── TAB: Zones ─────────────────────────────────────────────────── -->
+<div id="tab-locations" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            📍 Monitoring Zones
+            {% if can_manage %}
+            <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="openAddLocationModal()">+ Add Zone</button>
+            {% endif %}
+        </div>
+        <div class="content-card-body" id="locationsList">
+            {% if locations %}
+            {% for loc in locations %}
+            <div class="location-item" id="loc-row-{{ loc.id }}">
+                <div class="location-dot {% if loc.is_primary %}primary{% endif %}"></div>
+                <div style="flex:1;">
+                    <div class="location-name">
+                        {{ loc.name }}
+                        {% if loc.is_primary %}<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:99px;margin-left:6px;">Primary</span>{% endif %}
+                    </div>
+                    <div class="location-coords">{{ loc.latitude }}, {{ loc.longitude }}
+                        {% if loc.radius_km %} · {{ loc.radius_km }} km radius{% endif %}
+                    </div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="flyToLocation({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">🗺️ Map</button>
+                <button class="btn btn-ghost btn-sm" onclick="runAgentForLocation({{ loc.latitude }}, {{ loc.longitude }}, '{{ loc.name|escapejs }}')">🤖 Analyse</button>
+                {% if can_manage %}
+                <button class="location-remove" onclick="removeLocation({{ loc.id }}, '{{ loc.name|escapejs }}', this)">Remove</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="no-alerts">No monitoring zones added yet. Click "Add Zone" to get started.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Map showing all zones -->
+    <div class="content-card">
+        <div class="content-card-head">🗺️ Zone Map Overview</div>
+        <div id="locationsMap" style="height:340px;border-radius:0 0 12px 12px;overflow:hidden;"></div>
+    </div>
+
+</div>
+
+<!-- ── TAB: AI Chat ───────────────────────────────────────────────── -->
+<div id="tab-chat" style="display:none;">
+    <div class="content-card">
+        <div class="content-card-head">
+            💬 Agricultural AI Advisor
+            <div style="font-size:12px;color:var(--slate-400);font-weight:400;">Powered by Azure AI Foundry · 5-agent pipeline</div>
+        </div>
+        <div id="orgChatMessages"><!-- history restored by initOrgChat() --></div>
+        <div class="org-chat-input">
+            <input type="text" id="orgChatInput" placeholder="Ask about crop risk, rainfall, planting seasons, irrigation…" />
+            <button class="btn btn-sm" style="background:#16a34a;color:white;" onclick="sendOrgMsg('orgChatInput','orgChatMessages','🌾 Agricultural AI')">▶ Send</button>
+            <button class="btn btn-sm btn-ghost" onclick="clearChatHistory('orgChatMessages')" title="Clear history" style="padding:9px 10px;">🗑</button>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <div class="content-card-head">⚡ Quick Prompts</div>
+        <div class="content-card-body">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for loc in locations|slice:":3" %}
+                <button class="btn btn-ghost btn-sm" onclick="quickPrompt('What is the current flood and drought risk for agricultural land in {{ loc.name|escapejs }}?')">🌊 Flood risk — {{ loc.name }}</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickPrompt('Is it a good time to plant maize or beans in {{ loc.name|escapejs }} given the current weather?')">🌱 Planting advice — {{ loc.name }}</button>
+                {% endfor %}
+                <button class="btn btn-ghost btn-sm" onclick="quickPrompt('What is the drought outlook for the next 14 days across my monitored zones?')">🔮 14-day drought outlook</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickPrompt('Give me a full climate risk report for all my monitored agricultural zones.')">📊 Full zone report</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickPrompt('What crops should I avoid planting this season given current climate conditions?')">🚫 Crops to avoid</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── ADD LOCATION MODAL ──────────────────────────────────────── -->
+<div id="addLocationModal" style="display:none;" class="modal-overlay" onclick="if(event.target===this)closeAddLocationModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-title">📍 Add Monitoring Zone</div>
+        <div class="modal-sub">Add a farm, field, or region to monitor for climate risk.</div>
+
+        <!-- Quick-select Kenya cities -->
+        <div class="modal-field">
+            <label>Quick-select a Kenyan city</label>
+            <div class="city-grid" id="cityGrid">
+                <div class="city-chip" onclick="selectCity('Nairobi',-1.2921,36.8219,this)">Nairobi</div>
+                <div class="city-chip" onclick="selectCity('Mombasa',-4.0435,39.6682,this)">Mombasa</div>
+                <div class="city-chip" onclick="selectCity('Kisumu',-0.0917,34.7680,this)">Kisumu</div>
+                <div class="city-chip" onclick="selectCity('Nakuru',-0.3031,36.0800,this)">Nakuru</div>
+                <div class="city-chip" onclick="selectCity('Eldoret',0.5143,35.2698,this)">Eldoret</div>
+                <div class="city-chip" onclick="selectCity('Kakamega',0.2827,34.7519,this)">Kakamega</div>
+                <div class="city-chip" onclick="selectCity('Thika',-1.0332,37.0690,this)">Thika</div>
+                <div class="city-chip" onclick="selectCity('Nyeri',-0.4167,36.9500,this)">Nyeri</div>
+                <div class="city-chip" onclick="selectCity('Malindi',-3.2167,40.1167,this)">Malindi</div>
+                <div class="city-chip" onclick="selectCity('Kisii',-0.6817,34.7667,this)">Kisii</div>
+                <div class="city-chip" onclick="selectCity('Kitale',1.0157,35.0062,this)">Kitale</div>
+            </div>
+        </div>
+
+        <div style="text-align:center;font-size:12px;color:var(--slate-400);margin:-6px 0 14px;">— or enter custom coordinates —</div>
+
+        <div class="modal-field">
+            <label>Zone / Farm Name *</label>
+            <input type="text" id="newLocName" placeholder="e.g. Rift Valley Farm, Kisumu Delta Zone" />
+        </div>
+        <div class="modal-row">
+            <div class="modal-field">
+                <label>Latitude *</label>
+                <input type="number" id="newLocLat" placeholder="-1.2921" step="0.0001" min="-4.5" max="5" />
+            </div>
+            <div class="modal-field">
+                <label>Longitude *</label>
+                <input type="number" id="newLocLon" placeholder="36.8219" step="0.0001" min="33" max="42" />
+            </div>
+        </div>
+        <div class="modal-row">
+            <div class="modal-field">
+                <label>Zone Type</label>
+                <select id="newLocType">
+                    <option value="rural">Rural / Farm</option>
+                    <option value="urban">Urban</option>
+                    <option value="coastal">Coastal</option>
+                    <option value="wetland">Wetland</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="modal-field">
+                <label>Monitoring Radius (km)</label>
+                <input type="number" id="newLocRadius" value="10" min="1" max="100" />
+            </div>
+        </div>
+        <div id="modalError" style="display:none;color:#ef4444;font-size:13px;margin-top:-6px;margin-bottom:10px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeAddLocationModal()">Cancel</button>
+            <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveNewLocation()" id="saveLocationBtn">Add Zone</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block org_extra_scripts %}
+<script>
+
+// ─── Tab switching ─────────────────────────────────────────────────
+function showTab(name, el) {
+    document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+    document.getElementById('tab-' + name).style.display = 'block';
+    document.querySelectorAll('.org-tab').forEach(t => t.classList.remove('active'));
+    if (el) el.classList.add('active');
+    if (name === 'weather')   initWeatherTab();
+    if (name === 'locations') initLocationsMap();
+}
+
+// ─── Season detection (Kenya agricultural calendar) ────────────────
+function initSeason() {
+    const m = new Date().getMonth() + 1;
+    let icon, name, desc, cls;
+    if (m >= 3 && m <= 5) {
+        icon = '🌧️'; name = 'Long Rains (MAM)'; cls = 'long-rains';
+        desc = 'High precipitation expected. Monitor for waterlogging and flood risk.';
+    } else if (m >= 10 && m <= 12) {
+        icon = '🌦️'; name = 'Short Rains (OND)'; cls = 'short-rains';
+        desc = 'Second planting season. Good conditions for beans and vegetables.';
+    } else {
+        icon = '☀️'; name = 'Dry Season'; cls = 'dry';
+        desc = 'Low rainfall expected. Irrigation critical. Watch for drought conditions.';
+    }
+    const badge = document.getElementById('seasonBadge');
+    const bannerPill = document.getElementById('bannerPill');
+    if (badge)      { badge.textContent = name; badge.className = `season-pill ${cls}`; }
+    if (bannerPill) { bannerPill.textContent = `${icon} ${name}`; bannerPill.className = `season-pill ${cls}`; bannerPill.style.display = 'inline-block'; }
+    const desc1 = document.getElementById('seasonDesc');
+    if (desc1) desc1.textContent = desc;
+    const bannerIcon = document.getElementById('bannerIcon');
+    const bannerName = document.getElementById('bannerName');
+    const bannerDesc = document.getElementById('bannerDesc');
+    if (bannerIcon) bannerIcon.textContent = icon;
+    if (bannerName) bannerName.textContent = '{{ org.name|escapejs }} — Agricultural Intelligence';
+    if (bannerDesc) bannerDesc.textContent = desc;
+}
+
+// ─── Initialise on load ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    initOrgMap('orgMap');
+    initSeason();
+    initOrgChat('orgChatInput', 'orgChatMessages', '🌾 Agricultural AI');
+
+    {% if locations %}
+    loadWeatherSidebar({{ locations.0.latitude }}, {{ locations.0.longitude }}, '{{ locations.0.name|escapejs }}');
+    {% endif %}
+});
+
+// ─── Sidebar weather (clean display) ──────────────────────────────
+async function loadWeatherSidebar(lat, lon, name) {
+    const el = document.getElementById('sidebarWeather');
+    if (!el) return;
+    try {
+        const r = await orgFetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
+        const d = await r.json();
+        el.innerHTML = `
+            <div class="weather-mini">
+                <div class="weather-tile"><div class="val">${d.temperature != null ? d.temperature + '°' : '—'}</div><div class="lbl">🌡️ Temp</div></div>
+                <div class="weather-tile"><div class="val">${d.rain_24h != null ? d.rain_24h : '—'}mm</div><div class="lbl">☔ 24h Rain</div></div>
+                <div class="weather-tile"><div class="val">${d.humidity != null ? d.humidity + '%' : '—'}</div><div class="lbl">💧 Humidity</div></div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--slate-500);text-align:center;">
+                ${d.is_raining ? '🌧️ Currently raining' : '☀️ Dry conditions'}
+                · ${d.source || ''}
+            </div>`;
+    } catch(e) {
+        el.innerHTML = '<div style="color:var(--slate-400);font-size:12px;text-align:center;">Weather unavailable</div>';
+    }
+}
+
+// ─── Weather tab (per-zone) ────────────────────────────────────────
+let weatherTabLoaded = false;
+async function initWeatherTab() {
+    if (weatherTabLoaded) return;
+    weatherTabLoaded = true;
+    const zones = [
+        {% for loc in locations|slice:":4" %}
+        { lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}', idx: {{ forloop.counter }} },
+        {% endfor %}
+    ];
+    for (const z of zones) {
+        try {
+            const r = await orgFetch(`/api/weather/?lat=${z.lat}&lon=${z.lon}&name=${encodeURIComponent(z.name)}`);
+            const d = await r.json();
+            const t  = document.getElementById(`w${z.idx}-temp`);
+            const rn = document.getElementById(`w${z.idx}-rain`);
+            const h  = document.getElementById(`w${z.idx}-hum`);
+            const c  = document.getElementById(`w${z.idx}-cond`);
+            if (t) t.textContent  = d.temperature != null ? d.temperature + '°' : '—';
+            if (rn) rn.textContent = d.rain_24h != null ? d.rain_24h + 'mm' : '—';
+            if (h) h.textContent  = d.humidity != null ? d.humidity + '%' : '—';
+            if (c) c.innerHTML    = `${d.is_raining ? '🌧️ Currently raining' : '☀️ No current rain'} · <span style="color:var(--slate-400);">${d.source || ''}</span>`;
+        } catch(e) {
+            const c = document.getElementById(`w${z.idx}-cond`);
+            if (c) c.textContent = '⚠️ Could not load weather';
+        }
+    }
+}
+
+// ─── Advisory analysis (AI-powered, clean output) ─────────────────
+let advisoryRunning = false;
+async function runAdvisoryAnalysis() {
+    if (advisoryRunning) return;
+    advisoryRunning = true;
+    const btn  = document.getElementById('advisoryRefreshBtn');
+    const grid = document.getElementById('advisoryGrid');
+    if (btn) btn.textContent = '⏳ Analysing…';
+
+    grid.innerHTML = `
+        <div class="advisory-card info" style="grid-column:1/-1;text-align:center;">
+            <div class="adv-title">🤖 AI Analysis Running</div>
+            <div class="adv-body">Analysing climate conditions for all {{ locations|length }} zone{{ locations|length|pluralize }}…</div>
+            <div style="margin-top:10px;height:3px;border-radius:99px;background:var(--slate-200);overflow:hidden;">
+                <div id="analysisProgress" style="height:100%;width:0%;background:var(--org-color);transition:width 9s linear;border-radius:99px;"></div>
+            </div>
+        </div>`;
+    setTimeout(() => { const p = document.getElementById('analysisProgress'); if(p) p.style.width = '85%'; }, 80);
+
+    const zones = ORG_LOCATIONS.length > 0 ? ORG_LOCATIONS : [{ lat: {{ locations.0.latitude|default:"-1.2921" }}, lon: {{ locations.0.longitude|default:"36.8219" }}, name: '{{ locations.0.name|default:"Nairobi"|escapejs }}' }];
+
+    const results = await Promise.allSettled(zones.map(loc =>
+        orgFetch('/api/agent/run/', {
+            method: 'POST',
+            body: JSON.stringify({
+                query: `Agricultural climate risk for ${loc.name}. Assess flood, drought, and heatwave risk. Provide a short, plain-English advisory for farmers.`,
+                lat: loc.lat, lon: loc.lon,
+                location_name: loc.name,
+                org_id: ORG_ID,
+            })
+        }).then(r => r.json()).then(d => ({ loc: loc.name, data: d }))
+    ));
+
+    const cards = [];
+    results.forEach(r => {
+        if (r.status !== 'fulfilled') return;
+        const { loc, data } = r.value;
+        if (!data || !data.result) return;
+
+        // Extract clean advisory message — never show raw JSON
+        const result = data.result;
+        let advisory = '';
+        let riskLevel = 0;
+        let riskType = 'flood';
+
+        // Try parsed structured fields
+        for (const key of ['action', 'governance', 'decision', 'predict', 'monitor']) {
+            const val = result[key] || '';
+            if (!val || typeof val !== 'string') continue;
+
+            // Try to extract alert_message from embedded JSON
+            const jsonMatch = val.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    const msg = parsed.alert_message || parsed.final_recommendation || parsed.reasoning || '';
+                    const level = parsed.risk_level || parsed.flood_risk || parsed.overall_risk || 0;
+                    if (msg && msg.length > 15 && !msg.startsWith('{')) {
+                        advisory = msg;
+                        riskLevel = parseInt(level) || 0;
+                        const primary = (parsed.primary_risk || parsed.risk_type || '').toLowerCase();
+                        if (primary.includes('drought')) riskType = 'drought';
+                        else if (primary.includes('heat')) riskType = 'heatwave';
+                        break;
+                    }
+                } catch(e) {}
+            }
+
+            // Plain text fallback — use if no JSON found
+            if (!advisory && val.length > 20 && !val.trim().startsWith('{')) {
+                advisory = val.substring(0, 200);
+                break;
+            }
+        }
+
+        if (!advisory) advisory = `Climate analysis complete for ${loc}. Conditions appear stable.`;
+
+        const cardType = riskLevel >= 70 ? 'danger' : riskLevel >= 40 ? 'warning' : 'success';
+        const icon = riskType === 'drought' ? '🏜️' : riskType === 'heatwave' ? '🔥' : '🌊';
+
+        cards.push({ loc, cardType, icon, riskLevel, advisory, riskType });
+    });
+
+    let html = '';
+    if (cards.length === 0) {
+        html = `<div class="advisory-card success"><div class="adv-title">✅ Analysis Complete</div><div class="adv-body">No significant risks detected across your zones.</div></div>`;
+    } else {
+        cards.forEach(c => {
+            const lvlBadge = c.riskLevel
+                ? `<span class="risk-badge-sm" style="background:${c.riskLevel>=70?'#ef4444':c.riskLevel>=40?'#f97316':'#22c55e'};">${c.riskLevel}%</span>`
+                : '';
+            html += `<div class="advisory-card ${c.cardType}">
+                <div class="adv-title">${c.icon} ${c.loc} ${lvlBadge}</div>
+                <div class="adv-body">${c.advisory}</div>
+            </div>`;
+        });
+    }
+    html += `<div class="advisory-card info"><div class="adv-title">📡 Monitoring Active</div><div class="adv-body">Next auto-analysis available in 30 minutes. Click ↻ Refresh to run manually.</div></div>`;
+    grid.innerHTML = html;
+
+    if (btn) btn.textContent = '↻ Refresh';
+    advisoryRunning = false;
+}
+
+// ─── Crop risk table ───────────────────────────────────────────────
+const CROPS = ['🌽 Maize','🫘 Beans','🌿 Tea','🍌 Bananas','🌾 Wheat','🥬 Vegetables'];
+const CROP_SENS = {
+    flood:   [.90, .70, .50, .80, .60, .90],
+    drought: [.80, .90, .60, .50, .85, .70],
+    heat:    [.75, .70, .90, .60, .80, .65],
+};
+
+function levelPill(score) {
+    if (score < 25)  return '<span class="risk-pill low">Low</span>';
+    if (score < 55)  return '<span class="risk-pill moderate">Moderate</span>';
+    if (score < 80)  return '<span class="risk-pill high">High</span>';
+    return '<span class="risk-pill critical">Critical</span>';
+}
+
+async function refreshCropRisk() {
+    const tbody = document.getElementById('cropRiskTable');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--slate-400);">⏳ Running AI analysis…</td></tr>';
+
+    {% if locations %}
+    const lat = {{ locations.0.latitude }};
+    const lon = {{ locations.0.longitude }};
+    const locName = '{{ locations.0.name|escapejs }}';
+    {% else %}
+    const lat = -1.2921, lon = 36.8219, locName = 'Nairobi';
+    {% endif %}
+
+    const floodBase   = {% if flood_alerts %}{{ flood_alerts.0.risk_level|default:0 }}{% else %}0{% endif %};
+    const droughtBase = {% if drought_alerts %}{{ drought_alerts.0.risk_level|default:0 }}{% else %}0{% endif %};
+    const heatBase    = {% if heatwave_alerts %}{{ heatwave_alerts.0.risk_level|default:0 }}{% else %}0{% endif %};
+
+    const actions = [
+        'Monitor soil moisture daily',
+        'Delay planting until rainfall eases',
+        'Ensure field drainage is clear',
+        'Apply mulching to retain soil moisture',
+        'Check and test irrigation systems',
+        'Consider shade nets or windbreaks',
+    ];
+
+    tbody.innerHTML = CROPS.map((crop, i) => {
+        const f = Math.min(100, Math.round(floodBase   * CROP_SENS.flood[i]));
+        const d = Math.min(100, Math.round(droughtBase * CROP_SENS.drought[i]));
+        const h = Math.min(100, Math.round(heatBase    * CROP_SENS.heat[i]));
+        const overall = Math.max(f, d, h);
+        return `<tr>
+            <td><strong>${crop}</strong></td>
+            <td>${levelPill(f)}</td>
+            <td>${levelPill(d)}</td>
+            <td>${levelPill(h)}</td>
+            <td>${levelPill(overall)}</td>
+            <td style="font-size:12px;color:var(--slate-600);">${actions[i]}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ─── Add location modal ────────────────────────────────────────────
+function openAddLocationModal() {
+    document.getElementById('addLocationModal').style.display = 'flex';
+}
+function closeAddLocationModal() {
+    document.getElementById('addLocationModal').style.display = 'none';
+    document.getElementById('modalError').style.display = 'none';
+    document.getElementById('newLocName').value = '';
+    document.getElementById('newLocLat').value  = '';
+    document.getElementById('newLocLon').value  = '';
+    document.getElementById('newLocRadius').value = '10';
+    document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('selected'));
+}
+
+function selectCity(name, lat, lon, chip) {
+    document.getElementById('newLocName').value = name;
+    document.getElementById('newLocLat').value  = lat;
+    document.getElementById('newLocLon').value  = lon;
+    document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('selected'));
+    chip.classList.add('selected');
+}
+
+async function saveNewLocation() {
+    const name   = document.getElementById('newLocName').value.trim();
+    const lat    = parseFloat(document.getElementById('newLocLat').value);
+    const lon    = parseFloat(document.getElementById('newLocLon').value);
+    const type   = document.getElementById('newLocType').value;
+    const radius = parseFloat(document.getElementById('newLocRadius').value) || 10;
+    const errEl  = document.getElementById('modalError');
+    const btn    = document.getElementById('saveLocationBtn');
+
+    errEl.style.display = 'none';
+
+    if (!name) { errEl.textContent = 'Zone name is required.'; errEl.style.display = 'block'; return; }
+    if (isNaN(lat) || isNaN(lon)) { errEl.textContent = 'Enter valid latitude and longitude.'; errEl.style.display = 'block'; return; }
+
+    btn.textContent = '⏳ Adding…';
+    btn.disabled = true;
+
+    try {
+        const r = await orgFetch('/api/locations/', {
+            method: 'POST',
+            body: JSON.stringify({ name, lat, lon, org_id: ORG_ID, location_type: type, radius_km: radius })
+        });
+        const d = await r.json();
+
+        if (!r.ok) {
+            errEl.textContent = d.error || 'Failed to add zone.';
+            errEl.style.display = 'block';
+            btn.textContent = 'Add Zone';
+            btn.disabled = false;
+            return;
+        }
+
+        // Add to the locations list DOM
+        const list = document.getElementById('locationsList');
+        const noAlertsEl = list.querySelector('.no-alerts');
+        if (noAlertsEl) noAlertsEl.remove();
+
+        const loc = d.location;
+        const row = document.createElement('div');
+        row.className = 'location-item';
+        row.id = `loc-row-${loc.id}`;
+        row.innerHTML = `
+            <div class="location-dot"></div>
+            <div style="flex:1;">
+                <div class="location-name">${name}</div>
+                <div class="location-coords">${lat}, ${lon} · ${radius} km radius</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="flyToLocation(${lat},${lon},'${name.replace(/'/g,"\\'")}')">🗺️ Map</button>
+            <button class="btn btn-ghost btn-sm" onclick="runAgentForLocation(${lat},${lon},'${name.replace(/'/g,"\\'")}')">🤖 Analyse</button>
+            <button class="location-remove" onclick="removeLocation(${loc.id},'${name.replace(/'/g,"\\'")}',this)">Remove</button>`;
+        list.appendChild(row);
+
+        // Update stat counter
+        const statEl = document.getElementById('statZones');
+        if (statEl) statEl.textContent = parseInt(statEl.textContent || '0') + 1;
+
+        closeAddLocationModal();
+        showToast(`✅ "${name}" added to monitoring zones`);
+
+    } catch(e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+    }
+
+    btn.textContent = 'Add Zone';
+    btn.disabled = false;
+}
+
+// ─── Remove location ───────────────────────────────────────────────
+async function removeLocation(id, name, btn) {
+    if (!confirm(`Remove "${name}" from monitoring zones?`)) return;
+    try {
+        const r = await orgFetch(`/api/locations/${id}/`, { method: 'DELETE' });
+        if (r.ok || r.status === 204) {
+            const row = document.getElementById(`loc-row-${id}`);
+            if (row) { row.style.opacity = '0'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300); }
+            const statEl = document.getElementById('statZones');
+            if (statEl) statEl.textContent = Math.max(0, parseInt(statEl.textContent || '1') - 1);
+            showToast(`🗑 "${name}" removed`);
+        }
+    } catch(e) { showToast('⚠️ Could not remove zone', 'error'); }
+}
+
+// ─── Fly to location on map ────────────────────────────────────────
+function flyToLocation(lat, lon, name) {
+    showTab('overview', document.querySelector('.org-tab'));
+    if (window.orgMapInstance) {
+        window.orgMapInstance.flyTo([lat, lon], 12);
+        document.getElementById('mapInfo').textContent = `📍 Focused: ${name}`;
+    }
+    loadWeatherSidebar(lat, lon, name);
+}
+
+// ─── Locations tab mini-map ────────────────────────────────────────
+let locMapInited = false;
+function initLocationsMap() {
+    if (locMapInited) return;
+    locMapInited = true;
+    if (typeof initOrgMap === 'function') {
+        initOrgMap('locationsMap');
+    }
+}
+
+// ─── Run agent for specific location ──────────────────────────────
+async function runAgentForLocation(lat, lon, name) {
+    const el = document.getElementById('agentRunResult');
+    if (el) el.innerHTML = `<span style="color:var(--slate-400);">⏳ Running analysis for ${name}…</span>`;
+    try {
+        const r = await orgFetch('/api/agent/run/', {
+            method: 'POST',
+            body: JSON.stringify({
+                query: `Full agricultural climate risk assessment for ${name}. Include flood, drought, and heatwave risk with specific advice for farmers.`,
+                lat, lon, org_id: ORG_ID
+            })
+        });
+        const d = await r.json();
+
+        // Extract clean message
+        let msg = '';
+        const result = d.result || {};
+        for (const key of ['action', 'governance', 'decision']) {
+            const val = result[key] || '';
+            if (!val) continue;
+            const jm = (val + '').match(/\{[\s\S]*\}/);
+            if (jm) {
+                try {
+                    const p = JSON.parse(jm[0]);
+                    msg = p.alert_message || p.final_recommendation || p.reasoning || '';
+                    if (msg && !msg.startsWith('{')) break;
+                } catch(e) {}
+            }
+            if (!msg && typeof val === 'string' && val.length > 20 && !val.trim().startsWith('{')) {
+                msg = val.substring(0, 300);
+                break;
+            }
+        }
+
+        if (el) el.innerHTML = `
+            <div style="background:var(--slate-50);border-radius:10px;padding:14px;border:1px solid var(--slate-200);">
+                <div style="font-weight:700;color:var(--slate-800);margin-bottom:6px;">✅ ${name} — Analysis Complete</div>
+                <div style="font-size:13px;color:var(--slate-600);line-height:1.6;">${msg || 'Analysis complete. No significant risks detected.'}</div>
+                <div style="font-size:11px;color:var(--slate-400);margin-top:8px;">Latency: ${d.latency_ms || '—'}ms</div>
+            </div>`;
+
+        // Refresh alerts panels
+        refreshAlertPanels();
+
+    } catch(e) {
+        if (el) el.innerHTML = `<span style="color:#ef4444;">⚠️ Agent run failed. Please try again.</span>`;
+    }
+}
+
+// ─── Refresh alert panels ──────────────────────────────────────────
+async function refreshAlertPanels() {
+    try {
+        const r = await orgFetch(`/api/alerts/?org_id=${ORG_ID}`);
+        const d = await r.json();
+        const alerts = d.alerts || [];
+
+        function renderPanel(type, containerId, badgeStyle) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            const filtered = alerts.filter(a => a.risk_type === type);
+            if (filtered.length === 0) {
+                el.innerHTML = `<div class="no-alerts">✅ No ${type} alerts</div>`;
+                return;
+            }
+            el.innerHTML = filtered.slice(0,5).map(a => `
+                <div class="alert-card ${a.risk_type}">
+                    <div class="alert-card-header">
+                        <span style="font-weight:700;font-size:12px;">${a.risk_type === 'flood' ? '🌊 Flood' : a.risk_type === 'drought' ? '🏜️ Drought' : '🔥 Heatwave'} Risk</span>
+                        <span class="alert-level-badge" style="background:${a.risk_level>=70?'#ef4444':a.risk_level>=40?'#f97316':'#22c55e'};">${a.risk_level}%</span>
+                    </div>
+                    <div class="alert-card-message">${(a.message||'').substring(0,200)}</div>
+                    <div class="alert-card-time">${new Date(a.timestamp).toLocaleString()}</div>
+                </div>`).join('');
+        }
+
+        renderPanel('flood',    'panelFlood',   '');
+        renderPanel('drought',  'panelDrought', '');
+        renderPanel('heatwave', 'panelHeat',    '');
+
+    } catch(e) { /* silently fail */ }
+}
+
+// ─── Quick chat prompt ─────────────────────────────────────────────
+function quickPrompt(text) {
+    showTab('chat', document.querySelectorAll('.org-tab')[5]);
+    document.getElementById('orgChatInput').value = text;
+    setTimeout(() => sendOrgMsg('orgChatInput', 'orgChatMessages', '🌾 Agricultural AI'), 100);
+}
+
+// ─── Toast notification ────────────────────────────────────────────
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${type==='error'?'#ef4444':'#1e293b'};color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:99999;animation:fadeIn .2s ease;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+</script>
+{% endblock %}

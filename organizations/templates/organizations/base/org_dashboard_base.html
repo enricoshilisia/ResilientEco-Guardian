@@ -1,0 +1,768 @@
+{% extends "guardian/base.html" %}
+{% comment %}
+organizations/templates/organizations/base/org_dashboard_base.html
+{% endcomment %}
+
+{% block title %}{{ page_title|default:org.name }} · ResilientEco Guardian{% endblock %}
+
+{% block page_styles %}
+<style>
+    :root {
+        --org-color: {{ org_config.color|default:"#4f46e5" }};
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+        --shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
+    }
+
+    .org-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, var(--org-color) 130%);
+        color: white; padding: 28px 0 0; position: relative; overflow: hidden;
+    }
+    .org-header::before {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    .org-header-inner { position: relative; z-index: 1; }
+    .org-header-top {
+        display: flex; align-items: flex-start;
+        justify-content: space-between; gap: 20px;
+        flex-wrap: wrap; padding-bottom: 20px;
+    }
+    .org-identity { display: flex; align-items: center; gap: 14px; }
+    .org-icon-badge {
+        width: 52px; height: 52px; border-radius: 14px;
+        background: rgba(255,255,255,.12);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 26px; flex-shrink: 0; border: 1px solid rgba(255,255,255,.15);
+    }
+    .org-title    { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+    .org-subtitle { font-size: 13px; opacity: .65; margin-top: 3px; }
+    .org-header-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .role-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 10px; border-radius: 99px;
+        background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+        font-size: 11px; font-weight: 700; color: white;
+        letter-spacing: .04em; text-transform: uppercase;
+    }
+    .verified-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 4px 10px; border-radius: 99px;
+        background: rgba(5,150,105,.25); border: 1px solid rgba(5,150,105,.4);
+        font-size: 11px; font-weight: 700; color: #6ee7b7;
+    }
+    .live-pulse {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 99px;
+        background: rgba(5,150,105,.2); border: 1px solid rgba(5,150,105,.35);
+        font-size: 11px; font-weight: 700; color: #6ee7b7;
+    }
+    .live-pulse .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #34d399; animation: livePulse 1.5s ease infinite;
+    }
+    @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
+
+    .org-nav-tabs { display: flex; gap: 2px; margin-top: 4px; position: relative; z-index: 1; }
+    .org-tab {
+        padding: 10px 18px; font-size: 13px; font-weight: 600;
+        color: rgba(255,255,255,.6); text-decoration: none;
+        border-radius: 10px 10px 0 0; transition: all .15s;
+        border-bottom: 3px solid transparent;
+        display: flex; align-items: center; gap: 7px;
+    }
+    .org-tab:hover  { color: white; background: rgba(255,255,255,.08); }
+    .org-tab.active { color: white; background: rgba(255,255,255,.12); border-bottom-color: white; }
+
+    .org-layout {
+        display: grid; grid-template-columns: 270px 1fr;
+        gap: 24px; padding: 28px 0 60px; align-items: start;
+    }
+    .sidebar { display: flex; flex-direction: column; gap: 14px; }
+    .sidebar-card {
+        background: white; border-radius: var(--radius-lg);
+        border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm); overflow: hidden;
+    }
+    .sidebar-card-head {
+        padding: 13px 16px; border-bottom: 1px solid var(--slate-100);
+        font-size: 11px; font-weight: 700; color: var(--slate-500);
+        letter-spacing: .06em; text-transform: uppercase;
+        display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    }
+    .sidebar-card-body { padding: 10px; }
+
+    .loc-row {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 10px; border-radius: var(--radius-sm); margin-bottom: 2px;
+        cursor: pointer; transition: background .12s; border: 1px solid transparent;
+    }
+    .loc-row:hover { background: var(--slate-50); border-color: var(--slate-200); }
+    .loc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--slate-300); flex-shrink: 0; }
+    .loc-dot.primary { background: var(--org-color); }
+    .loc-name  { font-size: 13px; font-weight: 600; color: var(--slate-800); line-height: 1.2; }
+    .loc-coord { font-size: 10px; color: var(--slate-400); font-family: var(--font-mono); margin-top: 1px; }
+
+    .sidebar-alert {
+        border-radius: var(--radius-sm); padding: 10px 11px; margin-bottom: 6px;
+        border-left: 3px solid;
+    }
+    .sidebar-alert:last-child { margin-bottom: 0; }
+    .sidebar-alert.flood    { background: #eff6ff; border-color: #3b82f6; }
+    .sidebar-alert.drought  { background: #fffbeb; border-color: #f59e0b; }
+    .sidebar-alert.heatwave { background: #fff1f2; border-color: #ef4444; }
+    .sidebar-alert.other    { background: #f8fafc; border-color: #94a3b8; }
+    .sa-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .sa-type   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--slate-500); }
+    .sa-level  { padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; color: white; }
+    .sa-msg    { font-size: 12px; color: var(--slate-600); line-height: 1.45; }
+    .sa-time   { font-size: 10px; color: var(--slate-400); margin-top: 4px; font-family: var(--font-mono); }
+
+    .org-content { min-width: 0; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+    .stat-card {
+        background: white; border-radius: var(--radius-md); padding: 18px;
+        border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);
+        position: relative; overflow: hidden;
+    }
+    .stat-card::after {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: var(--org-color); opacity: .25;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+    }
+    .stat-card .stat-icon  { float: right; font-size: 20px; opacity: .6; }
+    .stat-card .stat-label { font-size: 10px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    .stat-card .stat-val   { font-size: 30px; font-weight: 700; color: var(--slate-900); font-family: var(--font-mono); line-height: 1; }
+    .stat-card .stat-sub   { font-size: 11px; color: var(--slate-500); margin-top: 5px; }
+
+    .content-card {
+        background: white; border-radius: var(--radius-lg);
+        border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);
+        margin-bottom: 20px; overflow: hidden;
+    }
+    .content-card-head {
+        padding: 15px 20px; border-bottom: 1px solid var(--slate-100);
+        font-size: 13px; font-weight: 700; color: var(--slate-700);
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .content-card-body { padding: 20px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; border: none; cursor: pointer; text-decoration: none; transition: all .15s; font-family: var(--font-body); }
+    .btn-ghost { background: white; border: 1px solid var(--slate-200); color: var(--slate-600); }
+    .btn-ghost:hover { background: var(--slate-50); border-color: var(--slate-300); color: var(--slate-800); }
+    .btn-sm { padding: 6px 11px; font-size: 12px; }
+
+    #orgMap { height: 360px; }
+
+    #orgChatMessages {
+        height: 300px; overflow-y: auto; padding: 14px;
+        display: flex; flex-direction: column; gap: 8px;
+        background: var(--slate-50);
+    }
+    .msg { border-radius: 10px; padding: 10px 13px; max-width: 90%; font-size: 13px; line-height: 1.6; word-break: break-word; }
+    .msg.user  { background: var(--org-color); color: white; margin-left: auto; border-radius: 10px 10px 2px 10px; }
+    .msg.agent { background: white; border: 1px solid var(--slate-200); border-radius: 10px 10px 10px 2px; color: var(--slate-700); }
+    .msg-label { font-size: 10px; font-weight: 700; color: var(--org-color); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+    .msg-time  { font-size: 9px; opacity: .5; margin-top: 5px; font-family: var(--font-mono); }
+    .org-chat-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--slate-100); background: white; }
+    .org-chat-input input {
+        flex: 1; padding: 9px 13px; border: 1.5px solid var(--slate-200);
+        border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font-body); outline: none; transition: border-color .15s;
+    }
+    .org-chat-input input:focus { border-color: var(--org-color); }
+
+    /* Session expired banner */
+    .auth-banner {
+        display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+        background: #1e293b; color: white; padding: 12px 20px;
+        font-size: 13px; font-weight: 500; text-align: center;
+        box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    }
+    .auth-banner a { color: #34d399; font-weight: 700; text-decoration: none; margin-left: 8px; }
+    .auth-banner a:hover { text-decoration: underline; }
+
+    .risk-badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; color: white; margin-bottom: 6px; }
+    .empty-state { text-align: center; color: var(--slate-400); font-size: 13px; padding: 20px; }
+
+    @media (max-width: 960px) { .org-layout { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 500px) { .stat-grid { grid-template-columns: 1fr; } .org-tab .tab-label { display: none; } }
+
+    {% block org_extra_styles %}{% endblock %}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Session expired banner -->
+<div class="auth-banner" id="authBanner">
+    🔒 Your session has expired.
+    <a href="/login/?next={{ request.path }}">Sign in again</a>
+    to continue using the AI advisor and agent pipeline.
+</div>
+
+<!-- Org Header -->
+<div class="org-header">
+    <div class="container org-header-inner">
+        <div class="org-header-top">
+            <div class="org-identity">
+                <div class="org-icon-badge">{{ org_config.icon }}</div>
+                <div>
+                    <div class="org-title">{{ org.name }}</div>
+                    <div class="org-subtitle">{{ org_config.label }} · {{ org.country }}{% if org.region %}, {{ org.region }}{% endif %}</div>
+                </div>
+            </div>
+            <div class="org-header-badges">
+                <div class="live-pulse"><div class="dot"></div>Live</div>
+                <div class="role-badge" id="sessionBadge">
+                    {% if user_role == 'admin' %}👑{% elif user_role == 'operator' %}⚙️{% elif user_role == 'analyst' %}📊{% else %}👁️{% endif %}
+                    {{ membership.get_role_display }}
+                </div>
+                {% if org.is_verified %}<div class="verified-badge">✓ Verified</div>{% endif %}
+            </div>
+        </div>
+        <div class="org-nav-tabs">
+            {% block org_nav_tabs %}
+            <a href="#" class="org-tab active"><span>📊</span><span class="tab-label">Overview</span></a>
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<!-- Main Layout -->
+<div class="container">
+    <div class="org-layout">
+        <aside class="sidebar">
+            {% block sidebar %}
+            <div class="sidebar-card">
+                <div class="sidebar-card-head">
+                    📌 Monitored Locations
+                    {% if can_manage %}
+                    <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 9px;" onclick="typeof openAddLocationModal==='function'&&openAddLocationModal()">+ Add</button>
+                    {% endif %}
+                </div>
+                <div class="sidebar-card-body">
+                    {% if locations %}
+                        {% for loc in locations %}
+                        <div class="loc-row" onclick="flyTo({{ loc.latitude }}, {{ loc.longitude }}, '{{ loc.name|escapejs }}')">
+                            <div class="loc-dot {% if loc.is_primary %}primary{% endif %}"></div>
+                            <div style="flex:1;min-width:0;">
+                                <div class="loc-name">{{ loc.name }}</div>
+                                <div class="loc-coord">{{ loc.latitude|floatformat:3 }}, {{ loc.longitude|floatformat:3 }}</div>
+                            </div>
+                            {% if loc.is_primary %}
+                            <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:99px;flex-shrink:0;">Primary</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">No locations yet</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="sidebar-card">
+                <div class="sidebar-card-head">
+                    🚨 Recent Alerts
+
+                    {# Count badge — only unique zone+type combos #}
+                    {% if recent_alerts %}
+                    <span style="background:var(--slate-100);color:var(--slate-500);
+                                padding:1px 7px;border-radius:99px;font-size:10px;">
+                        {{ recent_alerts|length }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="sidebar-card-body" id="sidebarAlerts">
+                    {% if recent_alerts %}
+                        {% for alert in recent_alerts %}
+                        <div class="sidebar-alert {{ alert.risk_type|default:'other' }}">
+                            <div class="sa-header">
+                                <span class="sa-type">
+                                    {% if alert.risk_type == 'flood'    %}🌊
+                                    {% elif alert.risk_type == 'drought'  %}🏜️
+                                    {% elif alert.risk_type == 'heatwave' %}🔥
+                                    {% else %}⚠️{% endif %}
+                                    {{ alert.risk_type|title|default:"Alert" }}
+                                    {# Show zone name if available — key differentiator #}
+                                    {% if alert.location %}
+                                    <span style="font-weight:400;opacity:.75;"> · {{ alert.location.name }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="sa-level"
+                                    style="background:{% if alert.risk_level >= 70 %}#ef4444
+                                                    {% elif alert.risk_level >= 40 %}#f97316
+                                                    {% else %}#22c55e{% endif %};">
+                                    {{ alert.risk_level }}%
+                                </span>
+                            </div>
+                            {# Message cleaned by JS on load if it still contains JSON #}
+                            <div class="sa-msg">{{ alert.message|truncatechars:110 }}</div>
+                            <div class="sa-time">{{ alert.timestamp|timesince }} ago</div>
+                        </div>
+                        {% endfor %}
+
+                        {# "View all" link only if there are alerts #}
+                        <div style="text-align:center;padding:8px 0 2px;">
+                            <a href="#" onclick="showTab('alerts', document.querySelector('.org-tab[onclick*=alerts]')); return false;"
+                            style="font-size:11px;color:var(--org-color);font-weight:600;text-decoration:none;">
+                                View all alerts →
+                            </a>
+                        </div>
+
+                    {% else %}
+                        <div class="empty-state">
+                            <div style="font-size:24px;margin-bottom:6px;">✅</div>
+                            No active alerts
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% block sidebar_extra %}{% endblock %}
+            {% endblock %}
+        </aside>
+
+        <div class="org-content">
+            {% block org_main %}
+            <div class="empty-state" style="padding:60px;">
+                <div style="font-size:48px;margin-bottom:12px;">🏗️</div>
+                <div style="font-size:16px;font-weight:600;color:var(--slate-700);">Dashboard coming soon</div>
+            </div>
+            {% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Org config ─────────────────────────────────────────────────────
+const ORG_ID    = "{{ org.id }}";
+const ORG_COLOR = "{{ org_config.color|default:'#4f46e5' }}";
+document.documentElement.style.setProperty('--org-color', ORG_COLOR);
+
+const ORG_LOCATIONS = [
+    {% for loc in locations %}
+    { name: "{{ loc.name|escapejs }}", lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, primary: {{ loc.is_primary|yesno:"true,false" }} },
+    {% endfor %}
+];
+
+// ══════════════════════════════════════════════════════════════════
+// TOKEN MANAGEMENT
+// Reads from localStorage *and* cookies, handles JWT Base64 padding,
+// detects expiry, and shows the auth banner instead of silent failure.
+// ══════════════════════════════════════════════════════════════════
+const Auth = (() => {
+    function _readCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|;)\\s*' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function getAccessToken() {
+        return localStorage.getItem('rg_access') || _readCookie('rg_access') || null;
+    }
+
+    function getRefreshToken() {
+        return localStorage.getItem('rg_refresh') || _readCookie('rg_refresh') || null;
+    }
+
+    function isExpired(token) {
+        if (!token) return true;
+        try {
+            // JWT payload is Base64URL — pad to make it valid Base64
+            const parts = token.split('.');
+            if (parts.length < 2) return true;
+            const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const pad  = b64.length % 4 === 0 ? '' : '='.repeat(4 - b64.length % 4);
+            const payload = JSON.parse(atob(b64 + pad));
+            // exp is Unix seconds; give 30s buffer
+            return payload.exp ? (payload.exp - 30) < (Date.now() / 1000) : false;
+        } catch(_) { return false; } // if we can't decode, try anyway
+    }
+
+    async function refresh() {
+        const rt = getRefreshToken();
+        if (!rt) return false;
+        try {
+            const r = await fetch('/api/token/refresh/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh: rt }),
+            });
+            if (!r.ok) return false;
+            const d = await r.json();
+            if (d.access) {
+                localStorage.setItem('rg_access', d.access);
+                // Update cookie too
+                document.cookie = `rg_access=${d.access};path=/;samesite=lax`;
+                return true;
+            }
+        } catch(_) {}
+        return false;
+    }
+
+    function showExpiredBanner() {
+        const b = document.getElementById('authBanner');
+        if (b) b.style.display = 'block';
+        // Dim the session badge
+        const sb = document.getElementById('sessionBadge');
+        if (sb) sb.style.opacity = '.5';
+    }
+
+    return { getAccessToken, getRefreshToken, isExpired, refresh, showExpiredBanner };
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// orgFetch  — JWT-aware, auto-refreshes on 401, shows banner if dead
+// ══════════════════════════════════════════════════════════════════
+async function orgFetch(url, options = {}) {
+    const csrf = (() => {
+        const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+        return m ? decodeURIComponent(m[1]) : '';
+    })();
+
+    async function _doFetch(token) {
+        const headers = { 'Content-Type': 'application/json', ...options.headers };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (csrf)  headers['X-CSRFToken']   = csrf;
+        return fetch(url, { ...options, headers });
+    }
+
+    let token = Auth.getAccessToken();
+
+    // Proactively refresh if the token is about to expire
+    if (Auth.isExpired(token)) {
+        const refreshed = await Auth.refresh();
+        if (refreshed) {
+            token = Auth.getAccessToken();
+        } else {
+            Auth.showExpiredBanner();
+            // Still attempt the call — RunAgentView is AllowAny,
+            // so it may succeed even without a token
+        }
+    }
+
+    let response = await _doFetch(token);
+
+    // If we get a 401, try a token refresh once and retry
+    if (response.status === 401) {
+        const refreshed = await Auth.refresh();
+        if (refreshed) {
+            token = Auth.getAccessToken();
+            response = await _doFetch(token);
+        } else {
+            Auth.showExpiredBanner();
+        }
+    }
+
+    return response;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// cleanAlertMessage  — strips raw JSON from any alert text
+// ══════════════════════════════════════════════════════════════════
+function cleanAlertMessage(raw) {
+    if (!raw) return '';
+    let text = String(raw).trim();
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+
+    if (text.startsWith('{')) {
+        try {
+            const d = JSON.parse(text);
+            for (const k of ['alert_message','sms_message','final_recommendation','reasoning','message','action','decision','summary']) {
+                const v = d[k];
+                if (v && typeof v === 'string' && v.length > 10 && !v.trim().startsWith('{')) return v.trim();
+            }
+            const acts = d.recommended_actions || d.immediate_steps || [];
+            if (Array.isArray(acts) && acts.length) return acts.slice(0,2).join('; ');
+        } catch(_) {}
+    }
+
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+        try {
+            const d = JSON.parse(m[0]);
+            for (const k of ['alert_message','sms_message','final_recommendation','reasoning','message','action']) {
+                const v = d[k];
+                if (v && typeof v === 'string' && v.length > 10 && !v.trim().startsWith('{')) return v.trim();
+            }
+        } catch(_) {}
+    }
+
+    text = text.replace(/\{[^{}]*\}/g, '').replace(/\s{2,}/g,' ').trim();
+    return text.length > 200 ? text.substring(0,197) + '…' : text;
+}
+
+// Clean any server-rendered JSON in sidebar alert messages
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.sa-msg').forEach(el => {
+        const raw = el.textContent || '';
+        if (raw.trim().startsWith('{') || raw.includes('"alert_message"')) {
+            el.textContent = cleanAlertMessage(raw) || 'Climate risk detected. Review the full alert for details.';
+        }
+    });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════════════════════════════
+let orgMap = null;
+window.orgMapInstance = null;
+
+function initOrgMap(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return null;
+    const center = ORG_LOCATIONS.length ? [ORG_LOCATIONS[0].lat, ORG_LOCATIONS[0].lon] : [-0.0236, 37.9062];
+    const map = L.map(containerId).setView(center, ORG_LOCATIONS.length ? 8 : 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 18,
+    }).addTo(map);
+    ORG_LOCATIONS.forEach(loc => {
+        const marker = L.marker([loc.lat, loc.lon])
+            .bindPopup(`<strong>${loc.name}</strong>`)
+            .addTo(map);
+        if (loc.primary) marker.openPopup();
+    });
+    if (containerId === 'orgMap' || !orgMap) {
+        orgMap = map;
+        window.orgMapInstance = map;
+    }
+    return map;
+}
+
+function flyTo(lat, lon, name) {
+    const map = orgMap || window.orgMapInstance;
+    if (!map) return;
+    map.flyTo([lat, lon], 11, { duration: 1 });
+    L.popup().setLatLng([lat,lon]).setContent(`<strong>📍 ${name}</strong>`).openOn(map);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WEATHER
+// ══════════════════════════════════════════════════════════════════
+async function loadOrgWeather(lat, lon, name, targetId) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.innerHTML = '<div style="text-align:center;color:var(--slate-400);padding:16px;font-size:13px;">⏳ Loading…</div>';
+    try {
+        // Weather endpoint is public — no auth needed
+        const r = await fetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        el.innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                ${_wStat(d.temperature != null ? d.temperature+'°C' : '—','🌡️ Temp')}
+                ${_wStat((d.precipitation||0)+'mm','🌧️ Now')}
+                ${_wStat((d.rain_24h||0)+'mm','☔ 24h')}
+                ${_wStat(d.humidity != null ? d.humidity+'%' : '—','💧 Humid')}
+            </div>
+            <div style="padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;margin-bottom:8px;
+                ${d.is_raining?'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;':'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;'}">
+                ${d.is_raining?'🌧️ Currently raining':'☀️ No rain right now'}
+            </div>
+            <div style="font-size:10px;color:var(--slate-400);text-align:center;font-family:var(--font-mono);">${d.observation_time||''} · ${d.source||''}</div>`;
+    } catch(e) {
+        el.innerHTML = '<div style="color:#ef4444;text-align:center;font-size:13px;padding:12px;">⚠️ Weather unavailable</div>';
+    }
+}
+function _wStat(val, lbl) {
+    return `<div style="background:var(--slate-50);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--slate-100);">
+        <div style="font-size:17px;font-weight:700;color:var(--org-color);font-family:var(--font-mono);">${val}</div>
+        <div style="font-size:10px;color:var(--slate-500);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${lbl}</div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ALERTS LOADER
+// ══════════════════════════════════════════════════════════════════
+async function loadOrgAlerts(targetId, riskType) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    try {
+        const r = await orgFetch('/api/alerts/');
+        const d = await r.json();
+        let alerts = (d.alerts || []).filter(a => !riskType || a.risk_type === riskType).slice(0,8);
+        if (!alerts.length) { el.innerHTML = '<div class="empty-state">No alerts</div>'; return; }
+        el.innerHTML = alerts.map(a => {
+            const c   = a.risk_level >= 70 ? '#ef4444' : a.risk_level >= 40 ? '#f97316' : '#22c55e';
+            const ico = a.risk_type === 'flood' ? '🌊' : a.risk_type === 'drought' ? '🏜️' : a.risk_type === 'heatwave' ? '🔥' : '⚠️';
+            const msg = cleanAlertMessage(a.message) || 'Climate risk detected.';
+            return `<div class="sidebar-alert ${a.risk_type||'other'}">
+                <div class="sa-header">
+                    <span class="sa-type">${ico} ${(a.risk_type||'alert').charAt(0).toUpperCase()+(a.risk_type||'alert').slice(1)}</span>
+                    <span class="sa-level" style="background:${c};">${a.risk_level}%</span>
+                </div>
+                <div class="sa-msg">${msg}</div>
+                <div class="sa-time">${new Date(a.timestamp).toLocaleString()}</div>
+            </div>`;
+        }).join('');
+    } catch(e) { if (el) el.innerHTML = '<div class="empty-state">Could not load alerts</div>'; }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PERSISTENT CHAT
+// ══════════════════════════════════════════════════════════════════
+const CHAT_MAX = 80;
+let _chatBusy  = false;
+
+function _chatKey(messagesId) {
+    let uid = 'anon';
+    try {
+        const t = Auth.getAccessToken();
+        if (t) {
+            const b64 = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+            const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - b64.length % 4);
+            const p = JSON.parse(atob(b64 + pad));
+            uid = p.user_id || p.sub || 'anon';
+        }
+    } catch(_) {}
+    return `chat__${uid}__${ORG_ID}__${messagesId}`;
+}
+function _loadHist(mid) { try { return JSON.parse(localStorage.getItem(_chatKey(mid))||'[]'); } catch(_) { return []; } }
+function _saveHist(mid, h) { try { localStorage.setItem(_chatKey(mid), JSON.stringify(h.slice(-CHAT_MAX))); } catch(_) {} }
+
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function _bubble(box, role, html, label, ts) {
+    const el = document.createElement('div');
+    el.className = `msg ${role}`;
+    const time = ts ? `<div class="msg-time">${new Date(ts).toLocaleTimeString()}</div>` : '';
+    if (role === 'agent') {
+        el.innerHTML = (label ? `<div class="msg-label">${label}</div>` : '') + html + time;
+    } else {
+        el.innerHTML = `<span>${_esc(html)}</span>${time}`;
+    }
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    return el;
+}
+
+function _typingStart(box, label) {
+    const el = document.createElement('div');
+    el.id = 'chat-typing'; el.className = 'msg agent';
+    el.innerHTML = `${label?`<div class="msg-label">${label}</div>`:''}
+        <span style="display:inline-flex;gap:4px;align-items:center;">
+            <span style="animation:bounce .8s infinite .00s;display:inline-block;">●</span>
+            <span style="animation:bounce .8s infinite .15s;display:inline-block;">●</span>
+            <span style="animation:bounce .8s infinite .30s;display:inline-block;">●</span>
+        </span>`;
+    box.appendChild(el); box.scrollTop = box.scrollHeight;
+}
+function _typingEnd() { document.getElementById('chat-typing')?.remove(); }
+
+function initOrgChat(inputId, messagesId, systemLabel) {
+    const label = systemLabel || '🌍 Guardian AI';
+    const box   = document.getElementById(messagesId);
+    if (!box) return;
+    const hist = _loadHist(messagesId);
+    if (hist.length) {
+        hist.slice(-25).forEach(m => _bubble(box, m.role, m.text, m.label, m.ts));
+        const note = document.createElement('div');
+        note.style.cssText = 'text-align:center;font-size:10px;color:var(--slate-400);padding:6px 0 2px;font-family:var(--font-mono);';
+        note.textContent = `— ${hist.length} saved messages —`;
+        box.insertBefore(note, box.firstChild);
+    }
+    document.getElementById(inputId)?.addEventListener('keypress', ev => {
+        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); sendOrgMsg(inputId, messagesId, label); }
+    });
+}
+
+async function sendOrgMsg(inputId, messagesId, agentLabel) {
+    if (_chatBusy) return;
+    const input = document.getElementById(inputId);
+    const box   = document.getElementById(messagesId);
+    const msg   = input?.value.trim();
+    const label = agentLabel || '🌍 Guardian AI';
+    if (!msg || !box) return;
+
+    input.value = '';
+    _chatBusy = true;
+
+    const ts = Date.now();
+    _bubble(box, 'user', msg, null, ts);
+    const hist = _loadHist(messagesId);
+    hist.push({ role: 'user', text: msg, ts });
+    _saveHist(messagesId, hist);
+
+    _typingStart(box, label);
+
+    const loc = ORG_LOCATIONS.find(l => l.primary) || ORG_LOCATIONS[0] || { lat: -1.2921, lon: 36.8219, name: 'Nairobi' };
+
+    try {
+        const r = await orgFetch('/api/agent/run/', {
+            method: 'POST',
+            body: JSON.stringify({ query: msg, location_name: loc.name, lat: loc.lat, lon: loc.lon, org_id: ORG_ID }),
+        });
+
+        _typingEnd();
+
+        // Handle auth failure gracefully — show actionable message, not "No response"
+        if (r.status === 401) {
+            const authMsg = '🔒 Session expired. Please <a href="/login/?next={{ request.path }}" style="color:var(--org-color);font-weight:700;">sign in again</a> to continue.';
+            _bubble(box, 'agent', authMsg, label, Date.now());
+            _chatBusy = false;
+            return;
+        }
+
+        if (!r.ok) {
+            _bubble(box, 'agent', `⚠️ Agent returned an error (${r.status}). Please try again.`, label, Date.now());
+            _chatBusy = false;
+            return;
+        }
+
+        const data = await r.json();
+        let reply = '';
+        const result = data.result;
+
+        if (typeof result === 'string') {
+            reply = cleanAlertMessage(result);
+        } else if (result && typeof result === 'object') {
+            for (const key of ['action','governance','decision','predict','monitor']) {
+                const raw = result[key] || '';
+                if (!raw) continue;
+                const clean = cleanAlertMessage(String(raw));
+                if (clean && clean.length > 15) { reply = clean; break; }
+            }
+            if (!reply) reply = data.error || 'Analysis complete. No significant risks detected.';
+        } else {
+            reply = data.error || 'Analysis complete.';
+        }
+
+        // Prepend risk badge if available
+        const rl = result && (result.risk_level || result.flood_risk);
+        if (rl) {
+            const n = parseInt(rl);
+            const c = n >= 70 ? '#ef4444' : n >= 40 ? '#f97316' : '#22c55e';
+            reply = `<span class="risk-badge" style="background:${c};">Risk ${n}%</span><br>${reply}`;
+        }
+
+        const rts = Date.now();
+        _bubble(box, 'agent', reply, label, rts);
+        hist.push({ role: 'agent', text: reply, label, ts: rts });
+        _saveHist(messagesId, hist);
+
+    } catch(e) {
+        _typingEnd();
+        _bubble(box, 'agent', '⚠️ Could not reach the agent pipeline. Check your connection and try again.', label, Date.now());
+    }
+
+    _chatBusy = false;
+    input?.focus();
+}
+
+function clearChatHistory(messagesId) {
+    try { localStorage.removeItem(_chatKey(messagesId)); } catch(_) {}
+    const box = document.getElementById(messagesId);
+    if (box) box.innerHTML = '';
+}
+
+const _css = document.createElement('style');
+_css.textContent = '@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}';
+document.head.appendChild(_css);
+</script>
+
+{% block org_extra_scripts %}{% endblock %}
+{% endblock %}

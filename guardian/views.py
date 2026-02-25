@@ -6,7 +6,9 @@ All imports come from .models — no separate accounts app needed.
 import os
 import re
 import time
+import secrets
 import logging
+import json
 
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
@@ -15,6 +17,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.text import slugify
 from datetime import timedelta
 
 from rest_framework import status, permissions
@@ -68,31 +71,132 @@ def _log_activity(user, action, description='', request=None, organization=None)
     )
 
 
+def _clean_alert_message(text: str) -> str:
+    """
+    Extract a clean, human-readable message from agent output.
+    Handles: raw JSON strings, nested JSON, markdown, plain text.
+    """
+    if not text:
+        return ""
+
+    text = str(text).strip()
+
+    # If it looks like JSON, parse and extract the best field
+    if text.startswith('{'):
+        try:
+            data = json.loads(text)
+            # Priority order for extracting a readable message
+            for key in ('alert_message', 'sms_message', 'final_recommendation',
+                        'reasoning', 'action', 'decision', 'summary', 'message'):
+                val = data.get(key, '')
+                if val and isinstance(val, str) and len(val) > 10:
+                    return val.strip()
+            # Fallback: join recommended_actions list
+            actions = data.get('recommended_actions', [])
+            if actions:
+                return '; '.join(str(a) for a in actions[:3])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Strip markdown code fences
+    text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*```$', '', text)
+
+    # Try to extract JSON embedded in text
+    match = re.search(r'\{[\s\S]*\}', text)
+    if match:
+        try:
+            data = json.loads(match.group())
+            for key in ('alert_message', 'sms_message', 'final_recommendation',
+                        'reasoning', 'action', 'decision', 'summary', 'message'):
+                val = data.get(key, '')
+                if val and isinstance(val, str) and len(val) > 10:
+                    return val.strip()
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Plain text — truncate if too long, clean up whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:500] if len(text) > 500 else text
+
+
 def _extract_risk_level(results):
-    if isinstance(results, dict):
-        if 'risk_level' in results:
+    """Extract numeric risk level from agent pipeline results."""
+    if not isinstance(results, dict):
+        return None
+
+    # Direct key
+    if 'risk_level' in results:
+        try:
+            return int(results['risk_level'])
+        except (ValueError, TypeError):
+            pass
+
+    # Check nested agent outputs
+    for key in ('action', 'decision', 'predict', 'governance'):
+        val = results.get(key, '')
+        if not isinstance(val, str):
+            continue
+        # Try parsing as JSON first
+        if val.strip().startswith('{'):
             try:
-                return int(results['risk_level'])
-            except (ValueError, TypeError):
+                data = json.loads(val)
+                for rkey in ('risk_level', 'flood_risk', 'overall_risk'):
+                    if rkey in data:
+                        return int(data[rkey])
+            except Exception:
                 pass
-        action = results.get('action', '')
-        if isinstance(action, str):
-            numbers = re.findall(r'\b([6-9][0-9]|100)\b', action)
-            if numbers:
-                return int(numbers[0])
+        # Regex fallback — look for high percentage numbers
+        numbers = re.findall(r'\b([6-9][0-9]|100)\b', val)
+        if numbers:
+            return int(numbers[0])
+
     return None
 
 
 def _auto_create_alert(results, risk_level, location_obj, organization, user):
+    """
+    Persist a clean, human-readable alert from agent pipeline results.
+    """
+    from .models import AlertLog
+
     risk_type = 'flood'
-    action_text = ''
+    clean_message = ''
+
     if isinstance(results, dict):
-        action_text = results.get('action', '') or results.get('decision', '') or ''
-        lower = action_text.lower()
+        # Collect candidate message strings in priority order
+        candidates = []
+        for key in ('action', 'action_plan', 'decision', 'governance', 'predict'):
+            val = results.get(key, '')
+            if val:
+                candidates.append(str(val))
+
+        # Try each candidate until we get a clean message
+        for candidate in candidates:
+            msg = _clean_alert_message(candidate)
+            if msg and len(msg) > 15 and not msg.startswith('{'):
+                clean_message = msg
+                break
+
+        # Detect risk type from message content
+        lower = clean_message.lower()
         if 'drought' in lower:
             risk_type = 'drought'
-        elif 'heat' in lower:
+        elif 'heat' in lower or 'heatwave' in lower:
             risk_type = 'heatwave'
+
+    if not clean_message:
+        risk_labels = {
+            'flood': 'flood conditions',
+            'drought': 'drought conditions',
+            'heatwave': 'elevated heat',
+        }
+        loc_name = location_obj.name if location_obj else (organization.name if organization else 'your area')
+        clean_message = (
+            f"Climate risk alert for {loc_name}: {risk_labels.get(risk_type, 'climate risk')} detected "
+            f"with risk level {risk_level}%. Monitor conditions and follow local guidance."
+        )
+
     try:
         AlertLog.objects.create(
             user=user,
@@ -100,14 +204,14 @@ def _auto_create_alert(results, risk_level, location_obj, organization, user):
             location=location_obj,
             risk_type=risk_type,
             risk_level=risk_level,
-            message=action_text[:2000] if action_text else "Auto-generated alert from agent pipeline.",
+            message=clean_message[:2000],
             weather_data=results.get('weather') if isinstance(results, dict) else None,
             is_system_generated=True,
             alert_status='pending',
         )
+        logger.info(f"[Alert] Created {risk_type} alert (level={risk_level}): {clean_message[:80]}")
     except Exception:
         logger.warning("Could not auto-create alert", exc_info=True)
-
 
 # ─────────────────────────────────────────────
 # CLIMATE AI
@@ -166,7 +270,7 @@ INSTRUCTIONS:
 
 
 # ─────────────────────────────────────────────
-# PAGE
+# PAGES
 # ─────────────────────────────────────────────
 
 def dashboard(request):
@@ -179,6 +283,11 @@ def dashboard(request):
             user=request.user, is_active=True
         ).select_related('organization')
     return render(request, 'guardian/dashboard.html', context)
+
+
+def org_register_page(request):
+    """Serve the 3-step org registration wizard."""
+    return render(request, 'guardian/org_register.html')
 
 
 # ─────────────────────────────────────────────
@@ -271,6 +380,225 @@ class LogoutView(APIView):
             return Response({"detail": "Logged out."})
         except Exception:
             return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─────────────────────────────────────────────
+# ORGANIZATION REGISTRATION WIZARD
+# ─────────────────────────────────────────────
+
+class RegisterOrganizationView(APIView):
+    """
+    POST /api/register-organization/
+    Handles the full 3-step wizard submission in one call.
+    Creates: user → org → membership → locations → invitations → API key
+    """
+    permission_classes = [permissions.AllowAny]
+
+    # Kenyan city coordinates for auto-creating SavedLocations
+    REGION_COORDS = {
+        'nairobi':  (-1.2921, 36.8219),
+        'mombasa':  (-4.0435, 39.6682),
+        'kisumu':   (-0.0917, 34.7680),
+        'nakuru':   (-0.3031, 36.0800),
+        'eldoret':  (0.5143,  35.2698),
+        'kakamega': (0.2827,  34.7519),
+        'kisii':    (-0.6817, 34.7667),
+        'nyeri':    (-0.4167, 36.9500),
+        'malindi':  (-3.2167, 40.1167),
+    }
+
+    # Map wizard org type → model org_type choices
+    ORG_TYPE_MAP = {
+        'disaster_relief': 'ngo',
+        'meteorological':  'institution',
+        'agriculture':     'enterprise',
+        'aviation':        'enterprise',
+        'developer':       'enterprise',
+        'government':      'government',
+    }
+
+    def post(self, request):
+        data = request.data
+
+        # ── 1. Validate required fields ──────────────────────────────
+        required = ['username', 'email', 'password', 'org_name', 'org_type']
+        for field in required:
+            if not str(data.get(field, '')).strip():
+                return Response(
+                    {"error": f"'{field}' is required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        username = data['username'].strip()
+        email    = data['email'].strip()
+        password = data['password']
+        org_name = data['org_name'].strip()
+        org_type = data['org_type'].strip()
+
+        # ── 2. Validate password strength ────────────────────────────
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            return Response({"error": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── 3. Check uniqueness ───────────────────────────────────────
+        if User.objects.filter(username=username).exists():
+            return Response({"error": "Username already taken."}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email=email).exists():
+            return Response({"error": "Email already registered."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── 4. Create user ────────────────────────────────────────────
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=data.get('first_name', '').strip(),
+            last_name=data.get('last_name', '').strip(),
+        )
+
+        # Update profile preferences from wizard
+        channels = data.get('notification_channels', ['email'])
+        profile  = user.profile
+        profile.phone           = data.get('phone', '').strip()
+        profile.alert_threshold = int(data.get('alert_threshold', 50))
+        profile.notifications_enabled = True
+        if 'sms' in channels and 'email' in channels:
+            profile.notification_channel = 'all'
+        elif 'sms' in channels:
+            profile.notification_channel = 'sms'
+        else:
+            profile.notification_channel = 'email'
+        profile.save()
+
+        # ── 5. Create organization ────────────────────────────────────
+        model_org_type = self.ORG_TYPE_MAP.get(org_type, 'community')
+
+        slug = slugify(org_name)
+        base, n = slug, 1
+        while Organization.objects.filter(slug=slug).exists():
+            slug = f"{base}-{n}"; n += 1
+
+        org = Organization.objects.create(
+            name=org_name,
+            slug=slug,
+            org_type=model_org_type,
+            country=data.get('country', 'Kenya'),
+            region=data.get('region', ''),
+            website=data.get('website', ''),
+            description=data.get('description', ''),
+        )
+
+        # ── 6. Create admin membership ────────────────────────────────
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=org,
+            role='admin',
+            invited_by=user,
+        )
+
+        # Set as user's default org
+        profile.default_organization = org
+        profile.save()
+
+        # Log activity
+        _log_activity(user, 'org_created', f'Created via wizard: {org.name}', request, org)
+        _log_activity(user, 'register', 'Registered via org wizard', request)
+
+        # ── 7. Auto-create monitored locations ────────────────────────
+        monitored_regions = data.get('monitored_regions', ['nairobi'])
+        if 'all_kenya' in monitored_regions:
+            monitored_regions = list(self.REGION_COORDS.keys())
+
+        locations_created = 0
+        for i, region in enumerate(monitored_regions):
+            coords = self.REGION_COORDS.get(region.lower())
+            if coords:
+                lat, lon = coords
+                SavedLocation.objects.create(
+                    organization=org,
+                    name=region.title(),
+                    latitude=lat,
+                    longitude=lon,
+                    location_type='urban',
+                    is_primary=(i == 0),
+                )
+                locations_created += 1
+
+        # ── 8. Generate API key (for dev/API orgs) ────────────────────
+        api_key = None
+        needs_api = (org_type == 'developer' or 'api' in channels or 'webhook' in channels)
+        if needs_api:
+            api_key = f"rg_live_{secrets.token_urlsafe(32)}"
+            # TODO: store in dedicated APIKey model once created
+            # For now log it securely
+            logger.info(
+                f"[OrgReg] API key generated for org={org.name} "
+                f"user={username} tier={data.get('api_tier', 'free')}"
+            )
+
+        # ── 9. Send team invitations ──────────────────────────────────
+        invite_members = data.get('invite_members', [])
+        invited_count  = 0
+        for member in invite_members:
+            member_email = member.get('email', '').strip()
+            member_role  = member.get('role', 'viewer')
+            if not member_email:
+                continue
+            try:
+                OrganizationInvitation.objects.create(
+                    organization=org,
+                    invited_by=user,
+                    email=member_email,
+                    role=member_role,
+                    expires_at=timezone.now() + timedelta(days=7),
+                )
+                invited_count += 1
+                logger.info(f"[OrgReg] Invited {member_email} as {member_role} to {org.name}")
+            except Exception as e:
+                logger.warning(f"[OrgReg] Could not invite {member_email}: {e}")
+
+        # ── 10. Issue JWT tokens ──────────────────────────────────────
+        refresh = RefreshToken.for_user(user)
+
+        logger.info(
+            f"[OrgReg] ✅ '{org.name}' ({org_type}) created by '{username}'. "
+            f"Regions: {monitored_regions}. Invited: {invited_count}. "
+            f"Locations: {locations_created}. API: {bool(api_key)}"
+        )
+
+        return Response({
+            "status":   "success",
+            "message":  f"Organization '{org_name}' created successfully.",
+            "organization": {
+                "id":       str(org.id),
+                "name":     org.name,
+                "slug":     org.slug,
+                "org_type": org_type,
+                "country":  org.country,
+            },
+            "user": {
+                "id":       user.id,
+                "username": user.username,
+                "email":    user.email,
+                "full_name": user.get_full_name(),
+            },
+            "auth": {
+                "access":  str(refresh.access_token),
+                "refresh": str(refresh),
+            },
+            "wizard_config": {
+                "org_type":             org_type,
+                "use_cases":            data.get('use_cases', []),
+                "alert_types":          data.get('alert_types', ['flood']),
+                "monitored_regions":    monitored_regions,
+                "notification_channels": channels,
+                "webhook_url":          data.get('webhook_url', ''),
+                "api_tier":             data.get('api_tier', 'free'),
+            },
+            "invited_count":    invited_count,
+            "locations_created": locations_created,
+            "api_key":          api_key,  # None if not a dev/API org
+        }, status=status.HTTP_201_CREATED)
 
 
 # ─────────────────────────────────────────────
@@ -462,7 +790,6 @@ class CreateOrganizationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        from django.utils.text import slugify
         name     = request.data.get('name', '').strip()
         org_type = request.data.get('org_type', 'community')
         country  = request.data.get('country', 'Kenya')
@@ -649,7 +976,40 @@ class DeclineInvitationView(APIView):
         invitation.save()
         return Response({"detail": "Invitation declined."})
 
+class RevokeInvitationView(APIView):
+    """
+    POST /api/organizations/<uuid:org_id>/invitations/<uuid:inv_id>/revoke/
+    Admin/operator only. Revokes a pending invitation.
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
+    def post(self, request, org_id, inv_id):
+        org = get_object_or_404(Organization, id=org_id, is_active=True)
+        membership = get_object_or_404(
+            OrganizationMembership, user=request.user, organization=org, is_active=True
+        )
+        if not membership.can_manage_members():
+            return Response({"error": "Admin only."}, status=status.HTTP_403_FORBIDDEN)
+
+        invitation = get_object_or_404(OrganizationInvitation, id=inv_id, organization=org)
+        if invitation.status != 'pending':
+            return Response({"error": "Only pending invitations can be revoked."}, status=status.HTTP_400_BAD_REQUEST)
+
+        invitation.status = 'revoked'
+        invitation.responded_at = timezone.now()
+        invitation.save()
+
+        # Optional but recommended for consistency with other views
+        _log_activity(
+            request.user,
+            'invitation_revoked',
+            f'Revoked invitation for {invitation.email}',
+            request,
+            org
+        )
+
+        return Response({"detail": "Invitation revoked successfully."})
+    
 # ─────────────────────────────────────────────
 # AGENT RUNNER
 # ─────────────────────────────────────────────
@@ -827,7 +1187,7 @@ class AlertListView(APIView):
         else:
             alerts = AlertLog.objects.filter(alert_status='approved').order_by('-timestamp')[:10]
         return Response({'alerts': list(alerts.values(
-            'id', 'risk_type', 'risk_level', 'message',
+            'id', 'risk_type', 'risk_level','message',
             'alert_status', 'confidence_score', 'timestamp', 'organization__name'
         ))})
 
@@ -897,29 +1257,23 @@ class AlertDetailView(APIView):
             alert.governance_notes = request.data['governance_notes']
         alert.save()
         return Response({"status": "updated", "alert_id": alert.id, "alert_status": alert.alert_status})
-    
+
+
 class WeatherView(APIView):
-    """
-    Public endpoint to get current weather for any location.
-    Uses Visual Crossing (or Open-Meteo fallback).
-    """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         lat = request.query_params.get('lat')
         lon = request.query_params.get('lon')
         location_name = request.query_params.get('name', 'Location')
-
         if not lat or not lon:
             return Response(
                 {"error": "lat and lon query parameters required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         try:
             from .services.weather_service import get_weather_summary
             summary = get_weather_summary(float(lat), float(lon), location_name)
-            
             return Response({
                 'location': summary['location'],
                 'source': summary['data_source'],

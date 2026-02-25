@@ -1,0 +1,605 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+{% comment %}
+organizations/templates/organizations/shared/org_members.html
+Global members & invitations view — works for ALL org types.
+{% endcomment %}
+
+{% block title %}👥 {{ org.name }} · Members · ResilientEco Guardian{% endblock %}
+
+{% block org_extra_styles %}
+/* ── Members page ─────────────────────────────────────────────── */
+
+/* Role colour tokens */
+:root {
+    --role-admin:    #7c3aed;
+    --role-operator: #0369a1;
+    --role-analyst:  #047857;
+    --role-viewer:   #64748b;
+}
+
+/* ── Stats row ────────────────────────────────────────────────── */
+.mem-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+}
+.mem-stat {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+}
+.mem-stat::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: var(--org-color);
+    opacity: .3;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.mem-stat .ms-icon  { float: right; font-size: 20px; opacity: .55; }
+.mem-stat .ms-label { font-size: 10px; font-weight: 700; color: var(--slate-500); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.mem-stat .ms-val   { font-size: 28px; font-weight: 700; color: var(--slate-900); font-family: var(--font-mono); line-height: 1; }
+.mem-stat .ms-sub   { font-size: 11px; color: var(--slate-400); margin-top: 4px; }
+
+/* ── Member table ─────────────────────────────────────────────── */
+.member-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.member-table th {
+    font-size: 10px; font-weight: 700; color: var(--slate-500);
+    text-transform: uppercase; letter-spacing: .06em;
+    padding: 10px 16px; border-bottom: 2px solid var(--slate-100); text-align: left;
+}
+.member-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--slate-50);
+    color: var(--slate-700);
+    vertical-align: middle;
+}
+.member-table tr:last-child td { border-bottom: none; }
+.member-table tbody tr { transition: background .1s; }
+.member-table tbody tr:hover td { background: #fafbfc; }
+
+.member-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--org-color), #0f172a);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: white; flex-shrink: 0;
+}
+.member-name  { font-weight: 600; color: var(--slate-800); }
+.member-email { font-size: 11px; color: var(--slate-400); margin-top: 1px; }
+
+/* Role badge */
+.role-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700;
+}
+.role-tag.admin    { background: rgba(124,58,237,.1);  color: var(--role-admin);    border: 1px solid rgba(124,58,237,.2); }
+.role-tag.operator { background: rgba(3,105,161,.1);   color: var(--role-operator); border: 1px solid rgba(3,105,161,.2); }
+.role-tag.analyst  { background: rgba(4,120,87,.1);    color: var(--role-analyst);  border: 1px solid rgba(4,120,87,.2); }
+.role-tag.viewer   { background: var(--slate-100);     color: var(--role-viewer);   border: 1px solid var(--slate-200); }
+
+/* Invite table (pending) */
+.invite-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.invite-table th {
+    font-size: 10px; font-weight: 700; color: var(--slate-500);
+    text-transform: uppercase; letter-spacing: .06em;
+    padding: 10px 16px; border-bottom: 2px solid var(--slate-100); text-align: left;
+}
+.invite-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--slate-50);
+    color: var(--slate-600);
+    vertical-align: middle;
+    font-size: 13px;
+}
+.invite-table tr:last-child td { border-bottom: none; }
+
+.status-pill {
+    display: inline-block; padding: 2px 9px; border-radius: 99px;
+    font-size: 10px; font-weight: 700;
+}
+.status-pill.pending  { background: #fef3c7; color: #92400e; }
+.status-pill.accepted { background: #dcfce7; color: #166534; }
+.status-pill.expired  { background: var(--slate-100); color: var(--slate-500); }
+.status-pill.declined { background: #fee2e2; color: #9f1239; }
+
+/* Invite form inline ─────────────────────────────────────────── */
+.invite-form-bar {
+    display: flex; gap: 10px; align-items: flex-end;
+    padding: 16px 20px; background: var(--slate-50);
+    border-top: 1px solid var(--slate-100); flex-wrap: wrap;
+}
+.invite-form-bar .iff {
+    display: flex; flex-direction: column; gap: 5px;
+}
+.invite-form-bar label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--slate-500);
+}
+.invite-form-bar input,
+.invite-form-bar select {
+    padding: 8px 12px; border: 1.5px solid var(--slate-200);
+    border-radius: var(--radius-sm); font-size: 13px; color: var(--slate-800);
+    background: white; outline: none; font-family: var(--font-body);
+    transition: border-color .15s;
+}
+.invite-form-bar input:focus,
+.invite-form-bar select:focus { border-color: var(--org-color); }
+.invite-form-bar input { min-width: 240px; }
+.invite-error {
+    padding: 8px 12px; background: #fff1f2; border: 1px solid #fecaca;
+    border-radius: var(--radius-sm); color: #9f1239; font-size: 12px;
+    margin: 8px 20px 0; display: none;
+}
+.invite-success {
+    padding: 8px 12px; background: #f0fdf4; border: 1px solid #bbf7d0;
+    border-radius: var(--radius-sm); color: #166534; font-size: 12px;
+    margin: 8px 20px 0; display: none;
+}
+
+/* Role-change inline select */
+.role-select {
+    padding: 4px 8px; border: 1px solid var(--slate-200);
+    border-radius: 6px; font-size: 12px; color: var(--slate-700);
+    background: white; cursor: pointer; outline: none;
+    font-family: var(--font-body);
+}
+.role-select:focus { border-color: var(--org-color); }
+
+.btn-danger-sm {
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    font-size: 11px; font-weight: 600; border: 1px solid #fecaca;
+    background: white; color: #dc2626; cursor: pointer;
+    transition: all .15s; font-family: var(--font-body);
+}
+.btn-danger-sm:hover { background: #fee2e2; }
+
+/* Empty state */
+.empty-table {
+    text-align: center; padding: 36px 20px;
+    color: var(--slate-400); font-size: 13px;
+}
+.empty-table .et-icon { font-size: 32px; margin-bottom: 8px; }
+
+/* Tooltip */
+.you-badge {
+    font-size: 9px; background: var(--org-color); color: white;
+    padding: 1px 6px; border-radius: 99px; margin-left: 5px;
+    font-weight: 700; vertical-align: middle;
+}
+
+@media (max-width: 800px) {
+    .mem-stats { grid-template-columns: 1fr 1fr; }
+    .invite-form-bar { flex-direction: column; }
+    .invite-form-bar input { min-width: 100%; }
+}
+@media (max-width: 500px) {
+    .mem-stats { grid-template-columns: 1fr; }
+    .member-table th:nth-child(3),
+    .member-table td:nth-child(3) { display: none; } /* hide joined date */
+}
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="{% url 'org_dashboard' org.id %}" class="org-tab">
+    <span>📊</span><span class="tab-label">Overview</span>
+</a>
+<a href="{% url 'org_members' org.id %}" class="org-tab active">
+    <span>👥</span><span class="tab-label">Members</span>
+</a>
+<a href="{% url 'org_profile' org.id %}" class="org-tab">
+    <span>👤</span><span class="tab-label">Profile</span>
+</a>
+{% if can_manage %}
+<a href="{% url 'org_settings' org.id %}" class="org-tab">
+    <span>⚙️</span><span class="tab-label">Settings</span>
+</a>
+{% endif %}
+{% endblock %}
+
+{% block org_main %}
+
+<!-- ── Stats ─────────────────────────────────────────────────────── -->
+<div class="mem-stats">
+    <div class="mem-stat">
+        <div class="ms-icon">👥</div>
+        <div class="ms-label">Total Members</div>
+        <div class="ms-val" id="statTotalMembers">{{ members|length }}</div>
+        <div class="ms-sub">Active</div>
+    </div>
+    <div class="mem-stat">
+        <div class="ms-icon">👑</div>
+        <div class="ms-label">Admins</div>
+        <div class="ms-val">{{ members|dictsortreversed:"role"|length }}</div>
+        <div class="ms-sub" id="statAdmins">—</div>
+    </div>
+    <div class="mem-stat">
+        <div class="ms-icon">📨</div>
+        <div class="ms-label">Pending Invites</div>
+        <div class="ms-val" id="statPending">{{ pending_invitations|length }}</div>
+        <div class="ms-sub">Awaiting response</div>
+    </div>
+    <div class="mem-stat">
+        <div class="ms-icon">📅</div>
+        <div class="ms-label">Latest Join</div>
+        <div class="ms-val" id="statLatestJoin" style="font-size:16px;padding-top:4px;">
+            {% if members %}{{ members.0.joined_at|date:"M d" }}{% else %}—{% endif %}
+        </div>
+        <div class="ms-sub">Most recent</div>
+    </div>
+</div>
+
+<!-- ── Active Members ─────────────────────────────────────────────── -->
+<div class="content-card" style="margin-bottom:20px;">
+    <div class="content-card-head">
+        👥 Active Members
+        <div style="font-size:12px;color:var(--slate-400);font-weight:400;">
+            {{ members|length }} member{{ members|length|pluralize }}
+        </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+        <table class="member-table">
+            <thead>
+                <tr>
+                    <th>Member</th>
+                    <th>Role</th>
+                    <th>Joined</th>
+                    {% if can_manage %}<th style="text-align:right;">Actions</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody id="membersTableBody">
+                {% for m in members %}
+                <tr id="member-row-{{ m.user.id }}">
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div class="member-avatar">
+                                {{ m.user.first_name|slice:":1"|upper }}{{ m.user.last_name|slice:":1"|upper }}{% if not m.user.first_name %}{{ m.user.username|slice:":2"|upper }}{% endif %}
+                            </div>
+                            <div>
+                                <div class="member-name">
+                                    {{ m.user.get_full_name|default:m.user.username }}
+                                    {% if m.user == request.user %}
+                                    <span class="you-badge">YOU</span>
+                                    {% endif %}
+                                </div>
+                                <div class="member-email">{{ m.user.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if can_manage and m.user != request.user %}
+                        <select class="role-select" onchange="updateMemberRole({{ m.user.id }}, this.value, this)"
+                                data-original="{{ m.role }}">
+                            <option value="admin"    {% if m.role == 'admin'    %}selected{% endif %}>👑 Admin</option>
+                            <option value="operator" {% if m.role == 'operator' %}selected{% endif %}>⚙️ Operator</option>
+                            <option value="analyst"  {% if m.role == 'analyst'  %}selected{% endif %}>📊 Analyst</option>
+                            <option value="viewer"   {% if m.role == 'viewer'   %}selected{% endif %}>👁️ Viewer</option>
+                        </select>
+                        {% else %}
+                        <span class="role-tag {{ m.role }}">
+                            {% if m.role == 'admin'    %}👑{% elif m.role == 'operator' %}⚙️{% elif m.role == 'analyst' %}📊{% else %}👁️{% endif %}
+                            {{ m.get_role_display }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--slate-400);font-size:12px;font-family:var(--font-mono);">
+                        {{ m.joined_at|date:"M d, Y" }}
+                    </td>
+                    {% if can_manage %}
+                    <td style="text-align:right;">
+                        {% if m.user != request.user %}
+                        <button class="btn-danger-sm"
+                                onclick="removeMember({{ m.user.id }}, '{{ m.user.get_full_name|default:m.user.username|escapejs }}', this)">
+                            Remove
+                        </button>
+                        {% else %}
+                        <span style="font-size:11px;color:var(--slate-300);">—</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if can_manage %}4{% else %}3{% endif %}">
+                        <div class="empty-table">
+                            <div class="et-icon">👥</div>
+                            No members found.
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if can_manage %}
+    <!-- Inline invite form at bottom of members card -->
+    <form id="inviteForm" onsubmit="event.preventDefault();sendInvitation();">
+        <div class="invite-form-bar">
+            <div class="iff" style="flex:1;">
+                <label>Email Address *</label>
+                <input type="email" id="inviteEmail" placeholder="colleague@example.com" required />
+            </div>
+            <div class="iff">
+                <label>Role</label>
+                <select id="inviteRole">
+                    <option value="viewer">👁️ Viewer</option>
+                    <option value="analyst">📊 Analyst</option>
+                    <option value="operator">⚙️ Operator</option>
+                    <option value="admin">👑 Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sm" id="inviteBtn"
+                    style="background:var(--org-color);color:white;align-self:flex-end;">
+                ✉️ Send Invite
+            </button>
+        </div>
+    </form>
+    <div class="invite-error"   id="inviteError"></div>
+    <div class="invite-success" id="inviteSuccess"></div>
+    {% endif %}
+</div>
+
+<!-- ── Pending Invitations ────────────────────────────────────────── -->
+<div class="content-card">
+    <div class="content-card-head">
+        📨 Invitations
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span id="pendingBadge" style="background:var(--slate-100);color:var(--slate-500);padding:1px 8px;border-radius:99px;font-size:11px;font-weight:600;">
+                {{ pending_invitations|length }} pending
+            </span>
+        </div>
+    </div>
+
+    <div style="overflow-x:auto;" id="invitationsPanel">
+        <table class="invite-table">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Invited By</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    {% if can_manage %}<th style="text-align:right;">Action</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody id="inviteTableBody">
+                {% for inv in all_invitations %}
+                <tr id="invite-row-{{ inv.id }}">
+                    <td style="font-weight:500;color:var(--slate-800);">{{ inv.email }}</td>
+                    <td>
+                        <span class="role-tag {{ inv.role }}">
+                            {% if inv.role == 'admin'    %}👑{% elif inv.role == 'operator' %}⚙️{% elif inv.role == 'analyst' %}📊{% else %}👁️{% endif %}
+                            {{ inv.get_role_display }}
+                        </span>
+                    </td>
+                    <td style="color:var(--slate-500);font-size:12px;">
+                        {{ inv.invited_by.get_full_name|default:inv.invited_by.username }}
+                    </td>
+                    <td>
+                        <span class="status-pill {{ inv.status }}">{{ inv.status|title }}</span>
+                    </td>
+                    <td style="font-size:11px;color:var(--slate-400);font-family:var(--font-mono);">
+                        {{ inv.expires_at|date:"M d, Y" }}
+                    </td>
+                    {% if can_manage %}
+                    <td style="text-align:right;">
+                        {% if inv.status == 'pending' %}
+                        <button class="btn-danger-sm"
+                                onclick="revokeInvitation('{{ inv.id }}', '{{ inv.email|escapejs }}', this)">
+                            Revoke
+                        </button>
+                        {% else %}
+                        <span style="font-size:11px;color:var(--slate-300);">—</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if can_manage %}6{% else %}5{% endif %}">
+                        <div class="empty-table">
+                            <div class="et-icon">📭</div>
+                            No invitations sent yet.
+                            {% if can_manage %}Use the form above to invite teammates.{% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block org_extra_scripts %}
+<script>
+const ORG_ID_MEMBERS = "{{ org.id }}";
+
+// ── Send invitation ────────────────────────────────────────────────
+async function sendInvitation() {
+    const email   = document.getElementById('inviteEmail').value.trim();
+    const role    = document.getElementById('inviteRole').value;
+    const errEl   = document.getElementById('inviteError');
+    const succEl  = document.getElementById('inviteSuccess');
+    const btn     = document.getElementById('inviteBtn');
+
+    errEl.style.display  = 'none';
+    succEl.style.display = 'none';
+
+    if (!email) { errEl.textContent = 'Email address is required.'; errEl.style.display = 'block'; return; }
+
+    btn.textContent = '⏳ Sending…';
+    btn.disabled    = true;
+
+    try {
+        const r = await orgFetch(`/api/organizations/${ORG_ID_MEMBERS}/invite/`, {
+            method: 'POST',
+            body: JSON.stringify({ email, role }),
+        });
+        const d = await r.json();
+
+        if (!r.ok) {
+            errEl.textContent  = d.error || 'Failed to send invitation.';
+            errEl.style.display = 'block';
+        } else {
+            succEl.textContent  = `✅ Invitation sent to ${email}`;
+            succEl.style.display = 'block';
+            document.getElementById('inviteEmail').value = '';
+            addInviteRow(d);
+            updatePendingBadge(1);
+            setTimeout(() => { succEl.style.display = 'none'; }, 4000);
+        }
+    } catch(e) {
+        errEl.textContent  = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+    }
+
+    btn.textContent = '✉️ Send Invite';
+    btn.disabled    = false;
+}
+
+function addInviteRow(inv) {
+    const roleIcons = { admin:'👑', operator:'⚙️', analyst:'📊', viewer:'👁️' };
+    const roleLabels = { admin:'Admin', operator:'Operator', analyst:'Analyst', viewer:'Viewer' };
+    const tbody = document.getElementById('inviteTableBody');
+
+    // Remove empty-state row if present
+    const empty = tbody.querySelector('.empty-table');
+    if (empty) empty.closest('tr').remove();
+
+    const now  = new Date();
+    const exp  = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const expStr = exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const tr = document.createElement('tr');
+    tr.id = `invite-row-${inv.id}`;
+    tr.innerHTML = `
+        <td style="font-weight:500;color:var(--slate-800);">${_esc(inv.email)}</td>
+        <td><span class="role-tag ${inv.role}">${roleIcons[inv.role]||'👁️'} ${roleLabels[inv.role]||inv.role}</span></td>
+        <td style="color:var(--slate-500);font-size:12px;">You</td>
+        <td><span class="status-pill pending">Pending</span></td>
+        <td style="font-size:11px;color:var(--slate-400);font-family:var(--font-mono);">${expStr}</td>
+        <td style="text-align:right;">
+            <button class="btn-danger-sm" onclick="revokeInvitation('${inv.id}','${_esc(inv.email)}',this)">Revoke</button>
+        </td>`;
+    tbody.insertBefore(tr, tbody.firstChild);
+}
+
+// ── Revoke invitation ──────────────────────────────────────────────
+async function revokeInvitation(invId, email, btn) {
+    if (!confirm(`Revoke invitation for ${email}?`)) return;
+    btn.textContent = '…';
+    btn.disabled = true;
+    try {
+        const r = await orgFetch(`/api/organizations/${ORG_ID_MEMBERS}/invitations/${invId}/revoke/`, {
+            method: 'POST',
+        });
+        if (r.ok || r.status === 204) {
+            const row = document.getElementById(`invite-row-${invId}`);
+            if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>row.remove(),300); }
+            updatePendingBadge(-1);
+            showToastM(`Invitation for ${email} revoked.`);
+        } else {
+            const d = await r.json();
+            showToastM(d.error || 'Could not revoke.', 'error');
+            btn.textContent = 'Revoke'; btn.disabled = false;
+        }
+    } catch(e) {
+        showToastM('Network error.', 'error');
+        btn.textContent = 'Revoke'; btn.disabled = false;
+    }
+}
+
+// ── Update member role ─────────────────────────────────────────────
+let _roleDebounce = null;
+async function updateMemberRole(userId, newRole, selectEl) {
+    clearTimeout(_roleDebounce);
+    _roleDebounce = setTimeout(async () => {
+        const original = selectEl.dataset.original;
+        try {
+            const r = await orgFetch(`/api/organizations/${ORG_ID_MEMBERS}/members/${userId}/role/`, {
+                method: 'PATCH',
+                body: JSON.stringify({ role: newRole }),
+            });
+            if (r.ok) {
+                selectEl.dataset.original = newRole;
+                showToastM(`Role updated to ${newRole}.`);
+            } else {
+                const d = await r.json();
+                showToastM(d.error || 'Could not update role.', 'error');
+                selectEl.value = original;
+            }
+        } catch(e) {
+            showToastM('Network error.', 'error');
+            selectEl.value = original;
+        }
+    }, 600);
+}
+
+// ── Remove member ──────────────────────────────────────────────────
+async function removeMember(userId, name, btn) {
+    if (!confirm(`Remove ${name} from this organization?`)) return;
+    btn.textContent = '…';
+    btn.disabled = true;
+    try {
+        const r = await orgFetch(`/api/organizations/${ORG_ID_MEMBERS}/members/${userId}/remove/`, {
+            method: 'DELETE',
+        });
+        if (r.ok || r.status === 204) {
+            const row = document.getElementById(`member-row-${userId}`);
+            if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>row.remove(),300); }
+            const stat = document.getElementById('statTotalMembers');
+            if (stat) stat.textContent = Math.max(0, parseInt(stat.textContent)-1);
+            showToastM(`${name} removed from the organization.`);
+        } else {
+            const d = await r.json();
+            showToastM(d.error||'Could not remove member.','error');
+            btn.textContent='Remove'; btn.disabled=false;
+        }
+    } catch(e) {
+        showToastM('Network error.','error');
+        btn.textContent='Remove'; btn.disabled=false;
+    }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+function updatePendingBadge(delta) {
+    const el = document.getElementById('pendingBadge');
+    if (!el) return;
+    const cur = parseInt(el.textContent) || 0;
+    const n   = Math.max(0, cur + delta);
+    el.textContent = `${n} pending`;
+    const stat = document.getElementById('statPending');
+    if (stat) stat.textContent = n;
+}
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToastM(msg, type) {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${type==='error'?'#ef4444':'#1e293b'};color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:99999;animation:fadeIn .2s ease;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3500);
+}
+
+// ── Compute admin count on load ────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const rows  = document.querySelectorAll('#membersTableBody tr[id]');
+    let admins  = 0;
+    rows.forEach(r => {
+        const sel = r.querySelector('select.role-select');
+        const tag = r.querySelector('.role-tag.admin');
+        if ((sel && sel.value === 'admin') || tag) admins++;
+    });
+    const el = document.getElementById('statAdmins');
+    if (el) el.textContent = admins === 1 ? '1 admin' : `${admins} admins`;
+});
+</script>
+{% endblock %}

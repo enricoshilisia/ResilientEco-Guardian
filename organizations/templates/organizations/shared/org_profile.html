@@ -1,0 +1,580 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+{% comment %}
+organizations/templates/organizations/shared/org_profile.html
+Global user profile view — works for ALL org types.
+Shows personal details, notification preferences, password change, org memberships.
+{% endcomment %}
+
+{% block title %}👤 My Profile · {{ org.name }} · ResilientEco Guardian{% endblock %}
+
+{% block org_extra_styles %}
+/* ── Profile page ─────────────────────────────────────────────── */
+
+.profile-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+@media (max-width: 860px) { .profile-layout { grid-template-columns: 1fr; } }
+
+/* ── Profile card (left column) ───────────────────────────────── */
+.profile-id-card {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.profile-id-header {
+    background: linear-gradient(135deg, #0f172a 0%, var(--org-color) 120%);
+    padding: 28px 20px 52px;
+    text-align: center;
+    position: relative;
+}
+.profile-avatar-wrap {
+    position: absolute; bottom: -32px; left: 50%; transform: translateX(-50%);
+}
+.profile-avatar {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700; color: var(--org-color);
+    border: 3px solid white;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+.profile-id-body {
+    padding: 44px 20px 20px;
+    text-align: center;
+}
+.profile-display-name {
+    font-size: 16px; font-weight: 700; color: var(--slate-900);
+    margin-bottom: 2px;
+}
+.profile-username {
+    font-size: 12px; color: var(--slate-400); font-family: var(--font-mono); margin-bottom: 12px;
+}
+.profile-stat-row {
+    display: flex; justify-content: center; gap: 16px;
+    padding: 12px 0; border-top: 1px solid var(--slate-100); border-bottom: 1px solid var(--slate-100);
+    margin-bottom: 14px;
+}
+.profile-stat { text-align: center; }
+.profile-stat .psv { font-size: 18px; font-weight: 700; color: var(--slate-800); font-family: var(--font-mono); }
+.profile-stat .psl { font-size: 10px; color: var(--slate-400); text-transform: uppercase; letter-spacing: .05em; }
+
+.membership-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 8px; font-size: 12px;
+    background: var(--slate-50); margin-bottom: 6px;
+    border: 1px solid var(--slate-100);
+}
+.membership-row:last-child { margin-bottom: 0; }
+.mr-org  { flex: 1; font-weight: 600; color: var(--slate-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr-role { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+.mr-role.admin    { background: rgba(124,58,237,.1); color: #7c3aed; }
+.mr-role.operator { background: rgba(3,105,161,.1);  color: #0369a1; }
+.mr-role.analyst  { background: rgba(4,120,87,.1);   color: #047857; }
+.mr-role.viewer   { background: var(--slate-100);    color: #64748b; }
+.mr-default { font-size: 9px; background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 99px; }
+
+/* ── Form panels ──────────────────────────────────────────────── */
+.form-section {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.form-section-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--slate-100);
+    font-size: 13px; font-weight: 700; color: var(--slate-700);
+    display: flex; align-items: center; justify-content: space-between;
+}
+.form-section-body { padding: 20px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+.form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.form-field:last-child { margin-bottom: 0; }
+.form-field label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--slate-500);
+}
+.form-field input,
+.form-field select,
+.form-field textarea {
+    padding: 9px 12px; border: 1.5px solid var(--slate-200);
+    border-radius: var(--radius-sm); font-size: 13px; color: var(--slate-800);
+    background: white; outline: none; font-family: var(--font-body);
+    transition: border-color .15s;
+    width: 100%; box-sizing: border-box;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus { border-color: var(--org-color); box-shadow: 0 0 0 3px rgba(79,70,229,.08); }
+.form-field input[readonly] {
+    background: var(--slate-50); color: var(--slate-400); cursor: not-allowed;
+}
+.form-hint { font-size: 11px; color: var(--slate-400); margin-top: 3px; }
+
+.form-actions {
+    display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+    padding: 12px 20px; border-top: 1px solid var(--slate-100); background: var(--slate-50);
+}
+.form-msg {
+    font-size: 12px; padding: 7px 12px; border-radius: 6px;
+    display: none; flex: 1;
+}
+.form-msg.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.form-msg.error   { background: #fff1f2; color: #9f1239; border: 1px solid #fecaca; }
+
+/* Toggle switch */
+.toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--slate-50);
+}
+.toggle-row:last-child { border-bottom: none; }
+.toggle-label { font-size: 13px; color: var(--slate-700); font-weight: 500; }
+.toggle-desc  { font-size: 11px; color: var(--slate-400); margin-top: 2px; }
+.toggle {
+    position: relative; width: 40px; height: 22px; flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+    position: absolute; inset: 0; border-radius: 99px; background: var(--slate-200);
+    cursor: pointer; transition: background .2s;
+}
+.toggle input:checked + .toggle-track { background: var(--org-color); }
+.toggle-thumb {
+    position: absolute; left: 3px; top: 3px;
+    width: 16px; height: 16px; border-radius: 50%; background: white;
+    box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    transition: transform .2s;
+    pointer-events: none;
+}
+.toggle input:checked ~ .toggle-thumb { transform: translateX(18px); }
+
+/* Danger zone */
+.danger-zone {
+    border: 1px solid #fecaca; border-radius: var(--radius-lg);
+    overflow: hidden; margin-bottom: 16px;
+}
+.danger-zone-head {
+    background: #fff1f2; padding: 12px 20px;
+    font-size: 13px; font-weight: 700; color: #9f1239;
+    border-bottom: 1px solid #fecaca;
+    display: flex; align-items: center; gap: 8px;
+}
+.danger-zone-body { padding: 16px 20px; background: white; }
+.danger-zone-body p { font-size: 13px; color: var(--slate-600); margin-bottom: 12px; }
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="{% url 'org_dashboard' org.id %}" class="org-tab">
+    <span>📊</span><span class="tab-label">Overview</span>
+</a>
+<a href="{% url 'org_members' org.id %}" class="org-tab">
+    <span>👥</span><span class="tab-label">Members</span>
+</a>
+<a href="{% url 'org_profile' org.id %}" class="org-tab active">
+    <span>👤</span><span class="tab-label">Profile</span>
+</a>
+{% if can_manage %}
+<a href="{% url 'org_settings' org.id %}" class="org-tab">
+    <span>⚙️</span><span class="tab-label">Settings</span>
+</a>
+{% endif %}
+{% endblock %}
+
+{% block org_main %}
+<div class="profile-layout">
+
+    <!-- ── Left: Identity card ──────────────────────────────────── -->
+    <div>
+        <div class="profile-id-card">
+            <div class="profile-id-header">
+                <div style="font-size:12px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.06em;">Your Account</div>
+                <div class="profile-avatar-wrap">
+                    <div class="profile-avatar" id="avatarInitials">
+                        {{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}{% if not request.user.first_name %}{{ request.user.username|slice:":2"|upper }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="profile-id-body">
+                <div class="profile-display-name" id="displayName">
+                    {{ request.user.get_full_name|default:request.user.username }}
+                </div>
+                <div class="profile-username">@{{ request.user.username }}</div>
+
+                <div class="profile-stat-row">
+                    <div class="profile-stat">
+                        <div class="psv">{{ user_profile.login_count|default:"—" }}</div>
+                        <div class="psl">Logins</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="psv">{{ memberships|length }}</div>
+                        <div class="psl">Orgs</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="psv">{{ user_profile.alert_threshold }}%</div>
+                        <div class="psl">Alert thr.</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:4px;">
+                    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-bottom:8px;">Organizations</div>
+                    {% for m in memberships %}
+                    <div class="membership-row">
+                        <div class="mr-org">{{ m.organization.name }}</div>
+                        <span class="mr-role {{ m.role }}">{{ m.get_role_display }}</span>
+                        {% if m.organization == user_profile.default_organization %}
+                        <span class="mr-default">Default</span>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div style="font-size:12px;color:var(--slate-400);text-align:center;padding:8px;">No memberships</div>
+                    {% endfor %}
+                </div>
+
+                {% if user_profile.last_active %}
+                <div style="margin-top:14px;font-size:11px;color:var(--slate-400);text-align:center;">
+                    Last active {{ user_profile.last_active|timesince }} ago
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right: Settings panels ───────────────────────────────── -->
+    <div>
+
+        <!-- Personal Info -->
+        <div class="form-section">
+            <div class="form-section-head">
+                👤 Personal Information
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">Displayed across the platform</span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>First Name</label>
+                        <input type="text" id="pfFirstName" value="{{ request.user.first_name }}" placeholder="Your first name" />
+                    </div>
+                    <div class="form-field">
+                        <label>Last Name</label>
+                        <input type="text" id="pfLastName" value="{{ request.user.last_name }}" placeholder="Your last name" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Email Address</label>
+                        <input type="email" id="pfEmail" value="{{ request.user.email }}" placeholder="you@example.com" />
+                    </div>
+                    <div class="form-field">
+                        <label>Username</label>
+                        <input type="text" value="{{ request.user.username }}" readonly />
+                        <div class="form-hint">Username cannot be changed.</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Phone Number</label>
+                        <input type="tel" id="pfPhone" value="{{ user_profile.phone }}" placeholder="+254 700 000 000" />
+                    </div>
+                    <div class="form-field">
+                        <label>Timezone</label>
+                        <select id="pfTimezone">
+                            <option value="Africa/Nairobi"   {% if user_profile.timezone == 'Africa/Nairobi'   %}selected{% endif %}>Africa/Nairobi (EAT)</option>
+                            <option value="Africa/Kampala"   {% if user_profile.timezone == 'Africa/Kampala'   %}selected{% endif %}>Africa/Kampala</option>
+                            <option value="Africa/Dar_es_Salaam" {% if user_profile.timezone == 'Africa/Dar_es_Salaam' %}selected{% endif %}>Africa/Dar es Salaam</option>
+                            <option value="UTC"              {% if user_profile.timezone == 'UTC'              %}selected{% endif %}>UTC</option>
+                            <option value="Europe/London"    {% if user_profile.timezone == 'Europe/London'    %}selected{% endif %}>Europe/London (GMT/BST)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Bio</label>
+                    <textarea id="pfBio" rows="2" placeholder="A short description of your role or team…">{{ user_profile.bio }}</textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <div class="form-msg" id="profileMsg"></div>
+                <button class="btn btn-ghost btn-sm" onclick="resetProfileForm()">Reset</button>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveProfile()">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="form-section">
+            <div class="form-section-head">
+                🔔 Notifications & Alerts
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">Control how you receive alerts</span>
+            </div>
+            <div class="form-section-body">
+
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Enable Notifications</div>
+                        <div class="toggle-desc">Receive alerts and updates from the platform</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="notifEnabled" {% if user_profile.notifications_enabled %}checked{% endif %}
+                               onchange="saveNotifications()">
+                        <div class="toggle-track"></div>
+                        <div class="toggle-thumb"></div>
+                    </label>
+                </div>
+
+                <div style="margin-top:14px;">
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Notification Channel</label>
+                            <select id="notifChannel" onchange="saveNotifications()">
+                                <option value="email" {% if user_profile.notification_channel == 'email' %}selected{% endif %}>📧 Email only</option>
+                                <option value="sms"   {% if user_profile.notification_channel == 'sms'   %}selected{% endif %}>📱 SMS only</option>
+                                <option value="all"   {% if user_profile.notification_channel == 'all'   %}selected{% endif %}>📧📱 Email + SMS</option>
+                                <option value="none"  {% if user_profile.notification_channel == 'none'  %}selected{% endif %}>🔕 None</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label>Alert Threshold (%)</label>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <input type="range" id="alertThreshold" min="0" max="100" step="5"
+                                       value="{{ user_profile.alert_threshold }}"
+                                       oninput="document.getElementById('thresholdVal').textContent=this.value+'%'"
+                                       onchange="saveNotifications()"
+                                       style="flex:1;accent-color:var(--org-color);" />
+                                <span id="thresholdVal" style="font-size:13px;font-weight:700;color:var(--org-color);min-width:36px;text-align:right;">{{ user_profile.alert_threshold }}%</span>
+                            </div>
+                            <div class="form-hint">Only notify for risks above this level</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-msg" id="notifMsg" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="form-section">
+            <div class="form-section-head">
+                🔐 Change Password
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">Keep your account secure</span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-field">
+                    <label>Current Password *</label>
+                    <input type="password" id="pwOld" placeholder="Enter current password" autocomplete="current-password" />
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>New Password *</label>
+                        <input type="password" id="pwNew" placeholder="At least 8 characters" autocomplete="new-password"
+                               oninput="checkPwStrength(this.value)" />
+                        <div id="pwStrengthBar" style="height:3px;border-radius:99px;background:var(--slate-100);margin-top:5px;overflow:hidden;">
+                            <div id="pwStrengthFill" style="height:100%;width:0%;border-radius:99px;transition:width .3s,background .3s;"></div>
+                        </div>
+                        <div class="form-hint" id="pwStrengthLabel"></div>
+                    </div>
+                    <div class="form-field">
+                        <label>Confirm New Password *</label>
+                        <input type="password" id="pwNew2" placeholder="Repeat new password" autocomplete="new-password" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <div class="form-msg" id="pwMsg"></div>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="changePassword()">
+                    Update Password
+                </button>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="danger-zone">
+            <div class="danger-zone-head">⚠️ Danger Zone</div>
+            <div class="danger-zone-body">
+                <p>Deactivating your account will remove your access to all organizations and cannot be easily undone. Please contact your organization admin to reactivate.</p>
+                <button class="btn btn-sm" style="background:#ef4444;color:white;border:none;"
+                        onclick="deactivateAccount()">
+                    Deactivate My Account
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+
+{% block org_extra_scripts %}
+<script>
+// ── Capture original form values for reset ─────────────────────────
+const _origProfile = {
+    firstName: document.getElementById('pfFirstName')?.value || '',
+    lastName:  document.getElementById('pfLastName')?.value  || '',
+    email:     document.getElementById('pfEmail')?.value     || '',
+    phone:     document.getElementById('pfPhone')?.value     || '',
+    timezone:  document.getElementById('pfTimezone')?.value  || '',
+    bio:       document.getElementById('pfBio')?.value       || '',
+};
+
+function resetProfileForm() {
+    document.getElementById('pfFirstName').value = _origProfile.firstName;
+    document.getElementById('pfLastName').value  = _origProfile.lastName;
+    document.getElementById('pfEmail').value     = _origProfile.email;
+    document.getElementById('pfPhone').value     = _origProfile.phone;
+    document.getElementById('pfTimezone').value  = _origProfile.timezone;
+    document.getElementById('pfBio').value       = _origProfile.bio;
+    showFormMsg('profileMsg', '', '');
+}
+
+// ── Save personal profile ──────────────────────────────────────────
+async function saveProfile() {
+    const payload = {
+        first_name: document.getElementById('pfFirstName').value.trim(),
+        last_name:  document.getElementById('pfLastName').value.trim(),
+        email:      document.getElementById('pfEmail').value.trim(),
+        phone:      document.getElementById('pfPhone').value.trim(),
+        timezone:   document.getElementById('pfTimezone').value,
+        bio:        document.getElementById('pfBio').value.trim(),
+    };
+    try {
+        const r = await orgFetch('/api/profile/', { method: 'PATCH', body: JSON.stringify(payload) });
+        const d = await r.json();
+        if (r.ok) {
+            showFormMsg('profileMsg', '✅ Profile saved successfully.', 'success');
+            // Update the display name in the identity card live
+            const full = [payload.first_name, payload.last_name].filter(Boolean).join(' ');
+            const dn   = document.getElementById('displayName');
+            if (dn && full) dn.textContent = full;
+            const av = document.getElementById('avatarInitials');
+            if (av && payload.first_name) {
+                av.textContent = (payload.first_name[0] + (payload.last_name?.[0]||'')).toUpperCase();
+            }
+        } else {
+            showFormMsg('profileMsg', d.error || 'Failed to save profile.', 'error');
+        }
+    } catch(e) {
+        showFormMsg('profileMsg', 'Network error. Please try again.', 'error');
+    }
+}
+
+// ── Save notifications ─────────────────────────────────────────────
+let _notifDebounce = null;
+async function saveNotifications() {
+    clearTimeout(_notifDebounce);
+    _notifDebounce = setTimeout(async () => {
+        const payload = {
+            notifications_enabled: document.getElementById('notifEnabled').checked,
+            notification_channel:  document.getElementById('notifChannel').value,
+            alert_threshold:       parseInt(document.getElementById('alertThreshold').value),
+        };
+        try {
+            const r = await orgFetch('/api/profile/', { method: 'PATCH', body: JSON.stringify(payload) });
+            const d = await r.json();
+            const msgEl = document.getElementById('notifMsg');
+            if (r.ok) {
+                showFormMsg('notifMsg', '✅ Notification preferences saved.', 'success');
+                setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 3000);
+            } else {
+                showFormMsg('notifMsg', d.error || 'Failed to save.', 'error');
+            }
+        } catch(e) {
+            showFormMsg('notifMsg', 'Network error.', 'error');
+        }
+    }, 800);
+}
+
+// ── Change password ────────────────────────────────────────────────
+async function changePassword() {
+    const old_password  = document.getElementById('pwOld').value;
+    const new_password  = document.getElementById('pwNew').value;
+    const new_password2 = document.getElementById('pwNew2').value;
+
+    if (!old_password || !new_password || !new_password2) {
+        showFormMsg('pwMsg', 'All password fields are required.', 'error'); return;
+    }
+    if (new_password !== new_password2) {
+        showFormMsg('pwMsg', 'New passwords do not match.', 'error'); return;
+    }
+    if (new_password.length < 8) {
+        showFormMsg('pwMsg', 'Password must be at least 8 characters.', 'error'); return;
+    }
+    try {
+        const r = await orgFetch('/api/profile/change-password/', {
+            method: 'POST',
+            body: JSON.stringify({ old_password, new_password, new_password2 }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+            showFormMsg('pwMsg', '✅ Password changed successfully.', 'success');
+            document.getElementById('pwOld').value = '';
+            document.getElementById('pwNew').value = '';
+            document.getElementById('pwNew2').value = '';
+        } else {
+            const errMsg = Array.isArray(d.error) ? d.error.join(' ') : (d.error || 'Failed to update password.');
+            showFormMsg('pwMsg', errMsg, 'error');
+        }
+    } catch(e) {
+        showFormMsg('pwMsg', 'Network error. Please try again.', 'error');
+    }
+}
+
+// ── Password strength ──────────────────────────────────────────────
+function checkPwStrength(pw) {
+    let score = 0;
+    if (pw.length >= 8)  score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+    const fill  = document.getElementById('pwStrengthFill');
+    const label = document.getElementById('pwStrengthLabel');
+    const pct   = (score / 5) * 100;
+    const colors = ['#ef4444','#f97316','#eab308','#22c55e','#16a34a'];
+    const labels = ['Very weak','Weak','Fair','Strong','Very strong'];
+    if (fill) {
+        fill.style.width = pct + '%';
+        fill.style.background = colors[score - 1] || '#ef4444';
+    }
+    if (label) {
+        label.textContent = pw.length ? labels[score - 1] || '' : '';
+    }
+}
+
+// ── Deactivate account ─────────────────────────────────────────────
+async function deactivateAccount() {
+    const confirmed = confirm('Are you sure you want to deactivate your account? You will lose access to all organizations.');
+    if (!confirmed) return;
+    const double = prompt('Type DELETE to confirm:');
+    if (double !== 'DELETE') { alert('Account deactivation cancelled.'); return; }
+    try {
+        const r = await orgFetch('/api/profile/', { method: 'DELETE' });
+        if (r.ok || r.status === 204) {
+            localStorage.clear();
+            window.location.href = '/login/?msg=deactivated';
+        }
+    } catch(e) {
+        alert('Network error. Please try again.');
+    }
+}
+
+// ── Utility ───────────────────────────────────────────────────────
+function showFormMsg(id, msg, type) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg;
+    el.className   = `form-msg ${type}`;
+    el.style.display = 'block';
+}
+</script>
+{% endblock %}

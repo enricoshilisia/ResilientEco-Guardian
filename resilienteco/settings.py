@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'allauth.socialaccount.providers.microsoft',
     'guardian',
+    'organizations',
+    'rest_framework',
 ]
 
 SITE_ID = 1
@@ -97,6 +99,17 @@ DATABASES = {
 }
 
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Keep SessionAuthentication if you use the browsable API / admin
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -131,16 +144,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']  # make sure this matches exactly
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'    # for collectstatic, different from STATICFILES_DIRS
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-LOGIN_REDIRECT_URL = '/'
-ACCOUNT_LOGOUT_REDIRECT_URL = '/'
-SOCIALACCOUNT_AUTO_SIGNUP = True
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/my-dashboard/'
+
+# Tell allauth to use your login page too
+ACCOUNT_LOGIN_URL = '/login/'
 
 # Add at the bottom
 ASGI_APPLICATION = 'resilienteco.asgi.application'

@@ -1,0 +1,666 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+{% comment %}
+organizations/templates/organizations/shared/org_settings.html
+Global organization settings — admin/operator only.
+Works for ALL org types.
+{% endcomment %}
+
+{% block title %}⚙️ {{ org.name }} · Settings · ResilientEco Guardian{% endblock %}
+
+{% block org_extra_styles %}
+/* ── Settings page ─────────────────────────────────────────────── */
+
+.settings-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+@media (max-width: 800px) { .settings-layout { grid-template-columns: 1fr; } }
+
+/* ── Settings nav (left) ──────────────────────────────────────── */
+.settings-nav {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    position: sticky;
+    top: 16px;
+}
+.settings-nav-head {
+    padding: 12px 16px;
+    font-size: 10px; font-weight: 700; color: var(--slate-400);
+    text-transform: uppercase; letter-spacing: .07em;
+    border-bottom: 1px solid var(--slate-100);
+}
+.settings-nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--slate-600);
+    cursor: pointer; border-bottom: 1px solid var(--slate-50);
+    transition: all .12s; text-decoration: none;
+    border-left: 3px solid transparent;
+}
+.settings-nav-item:last-child { border-bottom: none; }
+.settings-nav-item:hover { background: var(--slate-50); color: var(--slate-800); }
+.settings-nav-item.active {
+    background: linear-gradient(90deg, rgba(79,70,229,.06) 0%, transparent 100%);
+    color: var(--org-color); font-weight: 600;
+    border-left-color: var(--org-color);
+}
+.settings-nav-icon { font-size: 15px; opacity: .8; }
+
+/* ── Form section ─────────────────────────────────────────────── */
+.form-section {
+    background: white;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+    overflow: hidden;
+    scroll-margin-top: 24px;
+}
+.form-section-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--slate-100);
+    font-size: 13px; font-weight: 700; color: var(--slate-700);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.form-section-head .fsh-icon { font-size: 16px; }
+.form-section-body { padding: 20px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+.form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.form-field:last-child { margin-bottom: 0; }
+.form-field label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--slate-500);
+}
+.form-field input,
+.form-field select,
+.form-field textarea {
+    padding: 9px 12px; border: 1.5px solid var(--slate-200);
+    border-radius: var(--radius-sm); font-size: 13px; color: var(--slate-800);
+    background: white; outline: none; font-family: var(--font-body);
+    transition: border-color .15s; width: 100%; box-sizing: border-box;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+    border-color: var(--org-color);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.07);
+}
+.form-field input[readonly] {
+    background: var(--slate-50); color: var(--slate-400); cursor: not-allowed;
+}
+.form-hint { font-size: 11px; color: var(--slate-400); margin-top: 3px; }
+
+.form-actions {
+    display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+    padding: 12px 20px; border-top: 1px solid var(--slate-100); background: var(--slate-50);
+}
+.form-msg {
+    font-size: 12px; padding: 7px 12px; border-radius: 6px;
+    display: none; flex: 1;
+}
+.form-msg.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.form-msg.error   { background: #fff1f2; color: #9f1239; border: 1px solid #fecaca; }
+
+/* Org type selector */
+.org-type-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+@media (max-width: 500px) { .org-type-grid { grid-template-columns: 1fr 1fr; } }
+.org-type-tile {
+    border: 2px solid var(--slate-200); border-radius: 10px; padding: 12px 10px;
+    text-align: center; cursor: pointer; transition: all .15s;
+    background: white; font-family: var(--font-body);
+}
+.org-type-tile:hover { border-color: var(--org-color); background: rgba(79,70,229,.03); }
+.org-type-tile.selected {
+    border-color: var(--org-color);
+    background: linear-gradient(135deg, rgba(79,70,229,.06), rgba(79,70,229,.02));
+    box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+.org-type-tile .ot-icon { font-size: 22px; margin-bottom: 5px; }
+.org-type-tile .ot-label { font-size: 11px; font-weight: 600; color: var(--slate-700); }
+.org-type-tile .ot-desc  { font-size: 10px; color: var(--slate-400); margin-top: 2px; }
+
+/* Verification status */
+.verif-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 14px;
+}
+.verif-banner.verified   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+.verif-banner.unverified { background: #fefce8; border: 1px solid #fde68a; color: #92400e; }
+
+/* API key */
+.api-key-row {
+    display: flex; align-items: center; gap: 8px;
+}
+.api-key-display {
+    flex: 1; padding: 9px 12px; border: 1.5px solid var(--slate-200);
+    border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font-mono);
+    color: var(--slate-600); background: var(--slate-50); letter-spacing: .04em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Danger zone */
+.danger-zone {
+    border: 1px solid #fecaca; border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 0;
+}
+.danger-zone-head {
+    background: #fff1f2; padding: 12px 20px;
+    font-size: 13px; font-weight: 700; color: #9f1239;
+    border-bottom: 1px solid #fecaca;
+}
+.danger-zone-body { padding: 16px 20px; background: white; }
+.danger-zone-body p { font-size: 13px; color: var(--slate-600); margin: 0 0 10px; }
+.danger-action-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid var(--slate-50);
+}
+.danger-action-row:last-child { border-bottom: none; padding-bottom: 0; }
+.dar-info .dar-title { font-size: 13px; font-weight: 600; color: var(--slate-800); margin-bottom: 3px; }
+.dar-info .dar-desc  { font-size: 12px; color: var(--slate-500); }
+
+/* Slug field */
+.slug-prefix {
+    font-size: 12px; color: var(--slate-400); padding: 9px 10px 9px 12px;
+    background: var(--slate-50); border: 1.5px solid var(--slate-200);
+    border-right: none; border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    white-space: nowrap; font-family: var(--font-mono);
+}
+.slug-input {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+    border-left: none !important;
+}
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="{% url 'org_dashboard' org.id %}" class="org-tab">
+    <span>📊</span><span class="tab-label">Overview</span>
+</a>
+<a href="{% url 'org_members' org.id %}" class="org-tab">
+    <span>👥</span><span class="tab-label">Members</span>
+</a>
+<a href="{% url 'org_profile' org.id %}" class="org-tab">
+    <span>👤</span><span class="tab-label">Profile</span>
+</a>
+<a href="{% url 'org_settings' org.id %}" class="org-tab active">
+    <span>⚙️</span><span class="tab-label">Settings</span>
+</a>
+{% endblock %}
+
+{% block org_main %}
+<div class="settings-layout">
+
+    <!-- ── Left nav ─────────────────────────────────────────────── -->
+    <div>
+        <div class="settings-nav">
+            <div class="settings-nav-head">Settings</div>
+            <a class="settings-nav-item active" href="#general"    onclick="scrollToSection('general',this)">
+                <span class="settings-nav-icon">🏢</span> General
+            </a>
+            <a class="settings-nav-item" href="#contact"   onclick="scrollToSection('contact',this)">
+                <span class="settings-nav-icon">📬</span> Contact
+            </a>
+            <a class="settings-nav-item" href="#org-type"  onclick="scrollToSection('org-type',this)">
+                <span class="settings-nav-icon">🏷️</span> Org Type
+            </a>
+            <a class="settings-nav-item" href="#verification" onclick="scrollToSection('verification',this)">
+                <span class="settings-nav-icon">✅</span> Verification
+            </a>
+            <a class="settings-nav-item" href="#api"       onclick="scrollToSection('api',this)">
+                <span class="settings-nav-icon">🔑</span> API Access
+            </a>
+            {% if user_role == 'admin' %}
+            <a class="settings-nav-item" href="#danger"    onclick="scrollToSection('danger',this)">
+                <span class="settings-nav-icon">⚠️</span> Danger Zone
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Right panels ─────────────────────────────────────────── -->
+    <div id="settings-right">
+
+        <!-- General -->
+        <div class="form-section" id="section-general">
+            <div class="form-section-head">
+                <span><span class="fsh-icon">🏢</span> General Information</span>
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">Basic organization details</span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-field">
+                    <label>Organization Name *</label>
+                    <input type="text" id="settOrgName" value="{{ org.name }}" placeholder="Organization full name" />
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Country</label>
+                        <select id="settCountry">
+                            <option value="Kenya"     {% if org.country == 'Kenya'     %}selected{% endif %}>🇰🇪 Kenya</option>
+                            <option value="Uganda"    {% if org.country == 'Uganda'    %}selected{% endif %}>🇺🇬 Uganda</option>
+                            <option value="Tanzania"  {% if org.country == 'Tanzania'  %}selected{% endif %}>🇹🇿 Tanzania</option>
+                            <option value="Rwanda"    {% if org.country == 'Rwanda'    %}selected{% endif %}>🇷🇼 Rwanda</option>
+                            <option value="Ethiopia"  {% if org.country == 'Ethiopia'  %}selected{% endif %}>🇪🇹 Ethiopia</option>
+                            <option value="Somalia"   {% if org.country == 'Somalia'   %}selected{% endif %}>🇸🇴 Somalia</option>
+                            <option value="Burundi"   {% if org.country == 'Burundi'   %}selected{% endif %}>🇧🇮 Burundi</option>
+                            <option value="Other"     {% if org.country == 'Other'     %}selected{% endif %}>🌍 Other</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label>Region / County</label>
+                        <input type="text" id="settRegion" value="{{ org.region }}" placeholder="e.g. Rift Valley, Nairobi County" />
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>URL Slug</label>
+                    <div style="display:flex;align-items:stretch;">
+                        <span class="slug-prefix">/org/</span>
+                        <input type="text" id="settSlug" value="{{ org.slug }}" class="slug-input" readonly />
+                    </div>
+                    <div class="form-hint">Slug is set automatically and cannot be changed after creation.</div>
+                </div>
+                <div class="form-field">
+                    <label>Description</label>
+                    <textarea id="settDesc" rows="3" placeholder="What does your organization do?">{{ org.description }}</textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <div class="form-msg" id="generalMsg"></div>
+                <button class="btn btn-ghost btn-sm" onclick="resetGeneral()">Reset</button>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveGeneral()">
+                    Save General
+                </button>
+            </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="form-section" id="section-contact">
+            <div class="form-section-head">
+                <span><span class="fsh-icon">📬</span> Contact & Links</span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Website URL</label>
+                        <input type="url" id="settWebsite" value="{{ org.website }}" placeholder="https://example.org" />
+                    </div>
+                    <div class="form-field">
+                        <label>Org ID (read-only)</label>
+                        <input type="text" value="{{ org.id }}" readonly style="font-family:var(--font-mono);font-size:11px;" />
+                        <div class="form-hint">Use this in API calls as <code>org_id</code>.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <div class="form-msg" id="contactMsg"></div>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveContact()">
+                    Save Contact
+                </button>
+            </div>
+        </div>
+
+        <!-- Org Type -->
+        <div class="form-section" id="section-org-type">
+            <div class="form-section-head">
+                <span><span class="fsh-icon">🏷️</span> Organization Type</span>
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">Changes the dashboard layout</span>
+            </div>
+            <div class="form-section-body">
+                <div class="org-type-grid" id="orgTypeGrid">
+                    {% for val, label in org_type_choices %}
+                    <div class="org-type-tile {% if org.org_type == val %}selected{% endif %}"
+                         onclick="selectOrgType('{{ val }}', this)"
+                         data-val="{{ val }}">
+                        <div class="ot-icon">
+                            {% if val == 'government' %}🏛️
+                            {% elif val == 'ngo' %}🤝
+                            {% elif val == 'institution' %}🎓
+                            {% elif val == 'enterprise' %}🏢
+                            {% elif val == 'community' %}🌿
+                            {% else %}🏷️{% endif %}
+                        </div>
+                        <div class="ot-label">{{ label }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <input type="hidden" id="settOrgType" value="{{ org.org_type }}" />
+            </div>
+            <div class="form-actions">
+                <div class="form-msg" id="orgTypeMsg"></div>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveOrgType()">
+                    Save Type
+                </button>
+            </div>
+        </div>
+
+        <!-- Verification -->
+        <div class="form-section" id="section-verification">
+            <div class="form-section-head">
+                <span><span class="fsh-icon">✅</span> Verification Status</span>
+            </div>
+            <div class="form-section-body">
+                {% if org.is_verified %}
+                <div class="verif-banner verified">
+                    <span style="font-size:20px;">✅</span>
+                    <div>
+                        <strong>Verified organization</strong><br>
+                        <span style="font-size:12px;">This organization has been reviewed and verified by ResilientEco Guardian.</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="verif-banner unverified">
+                    <span style="font-size:20px;">⏳</span>
+                    <div>
+                        <strong>Not yet verified</strong><br>
+                        <span style="font-size:12px;">Submit a verification request to receive the verified badge and unlock advanced features.</span>
+                    </div>
+                </div>
+                <p style="font-size:13px;color:var(--slate-500);margin:10px 0 0;">
+                    Verification requires proof of organization registration, a valid website, and an active admin user.
+                    Contact <a href="mailto:verify@resilienteco.org" style="color:var(--org-color);">verify@resilienteco.org</a> to begin the process.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- API Access -->
+        <div class="form-section" id="section-api">
+            <div class="form-section-head">
+                <span><span class="fsh-icon">🔑</span> API Access</span>
+                <span style="font-size:11px;color:var(--slate-400);font-weight:400;">For developers and integrations</span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-field">
+                    <label>Organization API Key</label>
+                    <div class="api-key-row">
+                        <div class="api-key-display" id="apiKeyDisplay">
+                            {% if org_api_key %}{{ org_api_key }}{% else %}rg_live_••••••••••••••••••••{% endif %}
+                        </div>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleApiKey()" id="apiToggleBtn" title="Show/Hide">👁️</button>
+                        <button class="btn btn-ghost btn-sm" onclick="copyApiKey()" title="Copy">📋</button>
+                    </div>
+                    <div class="form-hint">Keep your API key secret. Do not commit it to public repositories.</div>
+                </div>
+
+                <div style="margin-top:12px;padding:12px;background:var(--slate-50);border-radius:8px;border:1px solid var(--slate-100);">
+                    <div style="font-size:11px;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Quick Reference</div>
+                    <div style="font-family:var(--font-mono);font-size:11px;color:var(--slate-600);line-height:1.8;">
+                        <div>Base URL: <span style="color:var(--org-color);">https://guardian.resilienteco.org/api/</span></div>
+                        <div>Auth: <span style="color:var(--org-color);">Bearer &lt;token&gt;</span> or <span style="color:var(--org-color);">X-API-Key &lt;key&gt;</span></div>
+                        <div>Org ID: <span style="color:var(--org-color);">{{ org.id }}</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone — admin only -->
+        {% if user_role == 'admin' %}
+        <div class="danger-zone" id="section-danger">
+            <div class="danger-zone-head">⚠️ Danger Zone</div>
+            <div class="danger-zone-body">
+
+                <div class="danger-action-row">
+                    <div class="dar-info">
+                        <div class="dar-title">Transfer Ownership</div>
+                        <div class="dar-desc">Assign admin rights to another member and demote yourself to operator.</div>
+                    </div>
+                    <button class="btn btn-sm" style="border:1px solid #f97316;color:#c2410c;background:white;white-space:nowrap;"
+                            onclick="openTransferModal()">Transfer</button>
+                </div>
+
+                <div class="danger-action-row">
+                    <div class="dar-info">
+                        <div class="dar-title">Archive Organization</div>
+                        <div class="dar-desc">Mark this organization as inactive. Members retain read-only access.</div>
+                    </div>
+                    <button class="btn btn-sm" style="border:1px solid #fecaca;color:#dc2626;background:white;white-space:nowrap;"
+                            onclick="archiveOrg()">Archive</button>
+                </div>
+
+            </div>
+        </div>
+        {% endif %}
+
+    </div><!-- /settings-right -->
+</div>
+
+<!-- Transfer ownership modal -->
+<div id="transferModal" style="display:none;" class="modal-overlay" onclick="if(event.target===this)closeTransferModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px;color:var(--slate-900);">🔄 Transfer Ownership</div>
+        <div style="font-size:13px;color:var(--slate-500);margin-bottom:20px;">Choose a current member to become the new admin.</div>
+        <div style="margin-bottom:14px;">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-500);display:block;margin-bottom:6px;">New Admin</label>
+            <select id="transferTarget" style="width:100%;padding:9px 12px;border:1.5px solid var(--slate-200);border-radius:8px;font-size:13px;">
+                {% for m in members %}
+                {% if m.user != request.user %}
+                <option value="{{ m.user.id }}">{{ m.user.get_full_name|default:m.user.username }} ({{ m.get_role_display }})</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div id="transferError" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-ghost btn-sm" onclick="closeTransferModal()">Cancel</button>
+            <button class="btn btn-sm" style="background:#f97316;color:white;" onclick="confirmTransfer()">Confirm Transfer</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block org_extra_scripts %}
+<script>
+const SETTINGS_ORG_ID = "{{ org.id }}";
+
+// ── Settings nav smooth scroll ─────────────────────────────────────
+function scrollToSection(id, el) {
+    const section = document.getElementById('section-' + id);
+    if (section) { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
+    if (el) el.classList.add('active');
+    return false;
+}
+
+// Highlight active nav item on scroll
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const id = entry.target.id.replace('section-', '');
+            document.querySelectorAll('.settings-nav-item').forEach(item => {
+                item.classList.toggle('active', item.getAttribute('href') === '#' + id);
+            });
+        }
+    });
+}, { threshold: 0.4 });
+document.querySelectorAll('[id^="section-"]').forEach(s => observer.observe(s));
+
+// ── Save General ──────────────────────────────────────────────────
+const _origGeneral = {
+    name: document.getElementById('settOrgName')?.value,
+    country: document.getElementById('settCountry')?.value,
+    region: document.getElementById('settRegion')?.value,
+    description: document.getElementById('settDesc')?.value,
+};
+function resetGeneral() {
+    document.getElementById('settOrgName').value = _origGeneral.name;
+    document.getElementById('settCountry').value = _origGeneral.country;
+    document.getElementById('settRegion').value  = _origGeneral.region;
+    document.getElementById('settDesc').value    = _origGeneral.description;
+    showFormMsg('generalMsg', '', '');
+}
+async function saveGeneral() {
+    const payload = {
+        name:        document.getElementById('settOrgName').value.trim(),
+        country:     document.getElementById('settCountry').value,
+        region:      document.getElementById('settRegion').value.trim(),
+        description: document.getElementById('settDesc').value.trim(),
+    };
+    if (!payload.name) { showFormMsg('generalMsg', 'Organization name is required.', 'error'); return; }
+    await _patchOrg(payload, 'generalMsg', () => {
+        // Update header title live
+        const t = document.querySelector('.org-title');
+        if (t) t.textContent = payload.name;
+        const s = document.querySelector('.org-subtitle');
+        if (s && payload.region) {
+            const parts = s.textContent.split('·');
+            if (parts.length > 1) {
+                s.textContent = parts[0].trim() + ' · ' + payload.country + ', ' + payload.region;
+            }
+        }
+    });
+}
+
+// ── Save Contact ──────────────────────────────────────────────────
+async function saveContact() {
+    const payload = { website: document.getElementById('settWebsite').value.trim() };
+    await _patchOrg(payload, 'contactMsg');
+}
+
+// ── Org type tile selection ────────────────────────────────────────
+function selectOrgType(val, tile) {
+    document.querySelectorAll('.org-type-tile').forEach(t => t.classList.remove('selected'));
+    tile.classList.add('selected');
+    document.getElementById('settOrgType').value = val;
+}
+async function saveOrgType() {
+    const orgType = document.getElementById('settOrgType').value;
+    await _patchOrg({ org_type: orgType }, 'orgTypeMsg');
+}
+
+// ── Shared PATCH helper ────────────────────────────────────────────
+async function _patchOrg(payload, msgId, onSuccess) {
+    try {
+        const r = await orgFetch(`/api/organizations/${SETTINGS_ORG_ID}/`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (r.ok) {
+            showFormMsg(msgId, '✅ Saved successfully.', 'success');
+            if (onSuccess) onSuccess();
+        } else {
+            showFormMsg(msgId, d.error || d.detail || 'Failed to save.', 'error');
+        }
+    } catch(e) {
+        showFormMsg(msgId, 'Network error. Please try again.', 'error');
+    }
+}
+
+// ── API key show/hide + copy ───────────────────────────────────────
+let _apiKeyRevealed = false;
+const _maskedKey    = document.getElementById('apiKeyDisplay')?.textContent.trim() || '';
+function toggleApiKey() {
+    const el = document.getElementById('apiKeyDisplay');
+    if (!el) return;
+    _apiKeyRevealed = !_apiKeyRevealed;
+    el.style.filter = _apiKeyRevealed ? 'none' : 'blur(5px)';
+    document.getElementById('apiToggleBtn').textContent = _apiKeyRevealed ? '🙈' : '👁️';
+}
+function copyApiKey() {
+    const text = document.getElementById('apiKeyDisplay')?.textContent.trim();
+    if (!text || text.includes('•')) { showToastS('No API key available to copy.', 'error'); return; }
+    navigator.clipboard.writeText(text)
+        .then(() => showToastS('API key copied to clipboard.'))
+        .catch(() => showToastS('Could not copy.', 'error'));
+}
+
+// Apply initial blur to API key
+window.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('apiKeyDisplay');
+    if (el && el.textContent.includes('live_')) el.style.filter = 'blur(5px)';
+});
+
+// ── Archive org ────────────────────────────────────────────────────
+async function archiveOrg() {
+    if (!confirm('Archive "{{ org.name|escapejs }}"? Members will retain read-only access.')) return;
+    const name = prompt('Type the organization name to confirm:');
+    if (name !== '{{ org.name|escapejs }}') { alert('Name did not match. Cancelled.'); return; }
+    try {
+        const r = await orgFetch(`/api/organizations/${SETTINGS_ORG_ID}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: false }),
+        });
+        if (r.ok) {
+            showToastS('Organization archived. Redirecting…');
+            setTimeout(() => window.location.href = '/dashboard/', 2000);
+        } else {
+            const d = await r.json();
+            showToastS(d.error || 'Could not archive.', 'error');
+        }
+    } catch(e) { showToastS('Network error.', 'error'); }
+}
+
+// ── Transfer ownership modal ───────────────────────────────────────
+function openTransferModal()  { document.getElementById('transferModal').style.display = 'flex'; }
+function closeTransferModal() { document.getElementById('transferModal').style.display = 'none'; }
+
+async function confirmTransfer() {
+    const targetUserId = document.getElementById('transferTarget').value;
+    const errEl        = document.getElementById('transferError');
+    errEl.style.display = 'none';
+    if (!targetUserId) { errEl.textContent = 'Select a member.'; errEl.style.display = 'block'; return; }
+    try {
+        const r = await orgFetch(`/api/organizations/${SETTINGS_ORG_ID}/members/${targetUserId}/role/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ role: 'admin' }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+            closeTransferModal();
+            showToastS('Ownership transferred. Your role has been updated to Operator.');
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            errEl.textContent = d.error || 'Failed to transfer ownership.';
+            errEl.style.display = 'block';
+        }
+    } catch(e) {
+        errEl.textContent = 'Network error.';
+        errEl.style.display = 'block';
+    }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────
+function showFormMsg(id, msg, type) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.textContent = msg;
+    el.className   = `form-msg ${type}`;
+    el.style.display = 'block';
+    if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+function showToastS(msg, type) {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${type==='error'?'#ef4444':'#1e293b'};color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:99999;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3500);
+}
+</script>
+
+<!-- Shared modal styles (re-used from org_dashboard_base pattern) -->
+<style>
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; backdrop-filter: blur(4px);
+    animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-box {
+    background: white; border-radius: 16px; padding: 28px;
+    width: min(480px, 95vw); box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    animation: slideUp .2s ease;
+}
+@keyframes slideUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+</style>
+{% endblock %}
