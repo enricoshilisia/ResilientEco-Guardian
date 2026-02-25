@@ -1,0 +1,240 @@
+{% extends "guardian/base.html" %}
+
+{% block title %}Sign In · ResilientEco Guardian{% endblock %}
+{% block nav_login %}active{% endblock %}
+
+{% block page_styles %}
+<style>
+    body { background: var(--slate-100); }
+
+    .auth-wrap {
+        min-height: calc(100vh - 64px - 280px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 20px;
+    }
+
+    .auth-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 40px rgba(0,0,0,.10);
+        border: 1px solid var(--slate-200);
+        width: 100%;
+        max-width: 440px;
+        overflow: hidden;
+    }
+
+    .auth-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #312e81 100%);
+        padding: 32px 36px 28px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .auth-header::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%234f46e5' fill-opacity='0.08'%3E%3Cpath d='M20 20c0-5.523-4.477-10-10-10S0 14.477 0 20s4.477 10 10 10 10-4.477 10-10zm10 0c0 5.523 4.477 10 10 10s10-4.477 10-10-4.477-10-10-10-10 4.477-10 10z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    .auth-header-inner { position: relative; z-index: 1; }
+    .auth-header .logo { font-size: 28px; margin-bottom: 10px; display: block; }
+    .auth-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+    .auth-header p { font-size: 13px; opacity: .7; margin-top: 4px; }
+
+    .auth-body { padding: 32px 36px; }
+
+    .field { margin-bottom: 18px; }
+    .field label {
+        display: block; font-size: 12px; font-weight: 700;
+        color: var(--slate-600); letter-spacing: .04em;
+        text-transform: uppercase; margin-bottom: 7px;
+    }
+    .field input {
+        width: 100%; padding: 11px 14px;
+        border: 2px solid var(--slate-200); border-radius: 10px;
+        font-size: 14px; font-family: var(--font-body);
+        color: var(--slate-900); outline: none;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus {
+        border-color: var(--indigo);
+        box-shadow: 0 0 0 3px rgba(79,70,229,.10);
+    }
+    .field input::placeholder { color: var(--slate-400); }
+
+    .submit-btn {
+        width: 100%; padding: 13px;
+        background: linear-gradient(135deg, var(--indigo), var(--violet));
+        color: white; border: none; border-radius: 10px;
+        font-size: 15px; font-weight: 700; cursor: pointer;
+        font-family: var(--font-body);
+        box-shadow: 0 4px 14px rgba(79,70,229,.30);
+        transition: all .15s;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .submit-btn:hover { opacity: .92; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: .6; transform: none; cursor: not-allowed; }
+
+    .auth-footer {
+        text-align: center;
+        padding: 20px 36px 28px;
+        border-top: 1px solid var(--slate-100);
+        font-size: 13px;
+        color: var(--slate-500);
+    }
+    .auth-footer a { color: var(--indigo); font-weight: 600; text-decoration: none; }
+    .auth-footer a:hover { text-decoration: underline; }
+
+    .error-box {
+        background: #fff1f2; color: #9f1239;
+        border: 1px solid #fecdd3; border-radius: 8px;
+        padding: 10px 14px; font-size: 13px; font-weight: 500;
+        margin-bottom: 18px; display: none;
+        align-items: center; gap: 8px;
+    }
+
+    .divider {
+        display: flex; align-items: center; gap: 12px;
+        margin: 20px 0; color: var(--slate-400); font-size: 12px;
+    }
+    .divider::before, .divider::after { content:''; flex:1; height:1px; background:var(--slate-200); }
+
+    .spinner {
+        display: inline-block; width: 16px; height: 16px;
+        border: 2px solid rgba(255,255,255,.4); border-top-color: white;
+        border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .forgot-link {
+        font-size: 12px; color: var(--slate-500); text-align: right;
+        margin-top: 4px; display: block;
+    }
+    .forgot-link:hover { color: var(--indigo); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+    <div class="auth-card">
+
+        <div class="auth-header">
+            <div class="auth-header-inner">
+                <span class="logo">🌍</span>
+                <h1>Welcome back</h1>
+                <p>Sign in to your ResilientEco Guardian account</p>
+            </div>
+        </div>
+
+        <div class="auth-body">
+            <div class="error-box" id="errBox">❌ <span id="errMsg">Invalid credentials</span></div>
+
+            <div class="field">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="your_username" autocomplete="username" />
+            </div>
+
+            <div class="field">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+                <a href="/forgot-password/" class="forgot-link">Forgot password?</a>
+            </div>
+
+            <button class="submit-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
+
+            <div class="divider">or</div>
+
+            <a href="/register/" class="submit-btn" style="background:var(--slate-100);color:var(--slate-700);box-shadow:none;border:1.5px solid var(--slate-200);text-decoration:none;">
+                🏢 Register your organization
+            </a>
+        </div>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="/register/">Get started for free</a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-focus
+document.getElementById('username').focus();
+
+// Enter key on both fields
+['username', 'password'].forEach(id => {
+    document.getElementById(id).addEventListener('keypress', e => {
+        if (e.key === 'Enter') doLogin();
+    });
+});
+
+// Read Django CSRF cookie
+function getCsrf() {
+    return document.cookie.split(';')
+        .find(c => c.trim().startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+}
+
+async function doLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('loginBtn');
+    const errBox   = document.getElementById('errBox');
+
+    errBox.style.display = 'none';
+
+    if (!username || !password) {
+        document.getElementById('errMsg').textContent = 'Please enter username and password.';
+        errBox.style.display = 'flex';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Signing in…';
+
+    try {
+        const resp = await fetch('/api/auth/login/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrf(),
+            },
+            body: JSON.stringify({ username, password }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            document.getElementById('errMsg').textContent = data.error || 'Invalid credentials.';
+            errBox.style.display = 'flex';
+            btn.disabled = false;
+            btn.innerHTML = 'Sign In →';
+            return;
+        }
+
+        // Store tokens
+        setTokens(data.access, data.refresh);
+        document.cookie = 'rg_access=' + data.access + '; path=/; max-age=86400; SameSite=Lax';
+
+        // Cache user info for nav display
+        localStorage.setItem('rg_user', JSON.stringify({
+            username:  data.username,
+            full_name: data.full_name,
+            email:     data.email,
+            org_name:  data.default_org_name || null,
+        }));
+
+        showToast('Welcome back, ' + (data.full_name || data.username) + '!', 'success');
+        const next = new URLSearchParams(window.location.search).get('next') || '/my-dashboard/';
+        setTimeout(() => window.location.href = next, 800);
+
+    } catch(e) {
+        document.getElementById('errMsg').textContent = 'Network error. Please try again.';
+        errBox.style.display = 'flex';
+        btn.disabled = false;
+        btn.innerHTML = 'Sign In →';
+    }
+}
+</script>
+{% endblock %}

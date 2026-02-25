@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ResilientEco Guardian{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Autonomous multi-agent climate resilience platform for East Africa{% endblock %}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    {% block extra_head %}{% endblock %}
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --indigo:    #4f46e5;
+            --indigo-dk: #3730a3;
+            --indigo-lt: #e0e7ff;
+            --violet:    #7c3aed;
+            --emerald:   #059669;
+            --amber:     #d97706;
+            --rose:      #e11d48;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --slate-200: #e2e8f0;
+            --slate-100: #f1f5f9;
+            --slate-50:  #f8fafc;
+            --white:     #ffffff;
+            --nav-h: 64px;
+            --radius: 12px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+            --shadow:    0 4px 16px rgba(0,0,0,.10);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,.14);
+            --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'Space Mono', monospace;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: var(--font-body);
+            background: var(--slate-50);
+            color: var(--slate-800);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* NAV */
+        .nav {
+            position: sticky; top: 0; z-index: 999; height: var(--nav-h);
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--slate-200);
+            display: flex; align-items: center;
+        }
+        .nav-inner {
+            max-width: 1340px; margin: 0 auto; padding: 0 24px;
+            width: 100%; display: flex; align-items: center;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            text-decoration: none; flex-shrink: 0;
+        }
+        .nav-logo-mark {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--indigo), var(--violet));
+            border-radius: 10px; display: flex; align-items: center;
+            justify-content: center; font-size: 18px; flex-shrink: 0;
+        }
+        .nav-logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+        .nav-logo-text .brand { font-weight: 700; font-size: 15px; color: var(--slate-900); letter-spacing: -0.02em; }
+        .nav-logo-text .tagline { font-size: 10px; color: var(--slate-500); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+        .nav-links { display: flex; align-items: center; gap: 2px; margin-left: 32px; }
+        .nav-link {
+            padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 500;
+            color: var(--slate-600); text-decoration: none; transition: color .15s, background .15s;
+        }
+        .nav-link:hover { color: var(--indigo); background: var(--indigo-lt); }
+        .nav-link.active { color: var(--indigo); background: var(--indigo-lt); font-weight: 600; }
+        .nav-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+        .nav-org-badge {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 10px 4px 6px; border-radius: 99px;
+            background: var(--slate-100); font-size: 12px; font-weight: 600;
+            color: var(--slate-700); border: 1px solid var(--slate-200);
+        }
+        .nav-org-badge .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--emerald); flex-shrink: 0;
+        }
+
+        /* Buttons */
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: all .15s; font-family: var(--font-body); white-space: nowrap; }
+        .btn-ghost { background: transparent; color: var(--slate-700); border: 1.5px solid var(--slate-200); }
+        .btn-ghost:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-lt); }
+        .btn-primary { background: linear-gradient(135deg, var(--indigo) 0%, var(--violet) 100%); color: white; box-shadow: 0 2px 8px rgba(79,70,229,.30); }
+        .btn-primary:hover { opacity: .92; transform: translateY(-1px); }
+        .btn-sm { padding: 6px 14px; font-size: 13px; }
+        .btn-danger { background: var(--rose); color: white; }
+        .btn-success { background: var(--emerald); color: white; }
+
+        .nav-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--indigo), var(--violet));
+            color: white; font-size: 13px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: 2px solid white;
+            box-shadow: 0 0 0 2px var(--indigo-lt);
+        }
+
+        /* Dropdown */
+        .dropdown { position: relative; }
+        .dropdown-menu {
+            position: absolute; top: calc(100% + 8px); right: 0;
+            background: white; border: 1px solid var(--slate-200);
+            border-radius: var(--radius); box-shadow: var(--shadow-lg);
+            min-width: 200px; overflow: hidden;
+            opacity: 0; transform: translateY(-6px) scale(.98);
+            pointer-events: none; transition: all .15s; z-index: 999;
+        }
+        .dropdown.open .dropdown-menu { opacity: 1; transform: none; pointer-events: auto; }
+        .dropdown-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--slate-100); }
+        .dropdown-header .name { font-weight: 700; font-size: 14px; color: var(--slate-900); }
+        .dropdown-header .email { font-size: 12px; color: var(--slate-500); margin-top: 1px; }
+        .dropdown-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 16px; font-size: 13px; font-weight: 500;
+            color: var(--slate-700); text-decoration: none; cursor: pointer; transition: background .1s;
+        }
+        .dropdown-item:hover { background: var(--slate-50); color: var(--slate-900); }
+        .dropdown-item.danger:hover { background: #fff1f2; color: var(--rose); }
+        .dropdown-divider { height: 1px; background: var(--slate-100); margin: 4px 0; }
+
+        main { flex: 1; }
+
+        /* Toast */
+        .toast-rack { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+        .toast { padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--slate-900); color: white; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 8px; animation: toastIn .25s ease forwards; pointer-events: auto; }
+        .toast.success { background: var(--emerald); }
+        .toast.error   { background: var(--rose); }
+        .toast.warning { background: var(--amber); }
+        @keyframes toastIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes toastOut { to { opacity:0; transform: translateY(12px); } }
+
+        /* Footer */
+        .footer { background: var(--slate-900); color: var(--slate-400); padding: 56px 0 32px; margin-top: auto; }
+        .footer-inner { max-width: 1340px; margin: 0 auto; padding: 0 24px; }
+        .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid var(--slate-700); }
+        .footer-brand .logo-text { font-size: 18px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .footer-brand p { font-size: 13px; line-height: 1.7; color: var(--slate-400); max-width: 280px; }
+        .footer-badges { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+        .footer-badge { padding: 4px 10px; border-radius: 99px; background: var(--slate-800); color: var(--slate-400); font-size: 11px; font-family: var(--font-mono); border: 1px solid var(--slate-700); }
+        .footer-col h4 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--slate-500); margin-bottom: 16px; }
+        .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .footer-col ul li a { font-size: 13px; color: var(--slate-400); text-decoration: none; transition: color .15s; }
+        .footer-col ul li a:hover { color: white; }
+        .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; flex-wrap: wrap; gap: 12px; }
+        .footer-bottom .copy { font-size: 12px; color: var(--slate-600); }
+        .footer-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--slate-500); }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 0 3px rgba(5,150,105,.2); animation: pulse 2s ease infinite; }
+        @keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(5,150,105,.2)} 50%{box-shadow:0 0 0 6px rgba(5,150,105,.0)} }
+
+        .messages-wrap { max-width: 1340px; margin: 16px auto 0; padding: 0 24px; }
+        .alert-msg { padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .alert-msg.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .alert-msg.error   { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+        .alert-msg.warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+        .alert-msg.info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+
+        .container { max-width: 1340px; margin: 0 auto; padding: 0 24px; }
+        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+        /* Nav auth areas — hidden until JS determines state */
+        #nav-authed { display: none; }
+        #nav-guest  { display: none; }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+            .footer-brand { grid-column: 1 / -1; }
+        }
+        @media (max-width: 480px) {
+            .footer-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    {% block page_styles %}{% endblock %}
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nav-inner">
+
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-mark">🌍</div>
+            <div class="nav-logo-text">
+                <span class="brand">ResilientEco</span>
+                <span class="tagline">Guardian Platform</span>
+            </div>
+        </a>
+
+        <div class="nav-links">
+            <a href="/" class="nav-link {% block nav_home %}{% endblock %}">Dashboard</a>
+            <a href="/alerts/" class="nav-link {% block nav_alerts %}{% endblock %}">Alerts</a>
+            <a href="/locations/" class="nav-link {% block nav_locations %}{% endblock %}">Locations</a>
+            <a href="/api/docs/" class="nav-link {% block nav_api %}{% endblock %}">API</a>
+        </div>
+
+        <div class="nav-right">
+
+            <!-- AUTHENTICATED STATE (shown by JS when token exists) -->
+            <div id="nav-authed" style="display:none; align-items:center; gap:8px;">
+                <div class="nav-org-badge" id="nav-org-badge" style="display:none;">
+                    <div class="dot"></div>
+                    <span id="nav-org-name"></span>
+                </div>
+                <div class="dropdown" id="userDropdown">
+                    <div class="nav-avatar" onclick="toggleDropdown('userDropdown')" id="nav-avatar-initials" title="Account">??</div>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-header">
+                            <div class="name" id="nav-full-name">—</div>
+                            <div class="email" id="nav-email">—</div>
+                        </div>
+                        <a class="dropdown-item" href="/my-dashboard/">🏠 My Dashboard</a>
+                        <a class="dropdown-item" href="/profile/">👤 My Profile</a>
+                        <a class="dropdown-item" href="/organizations/">🏢 Organizations</a>
+                        <a class="dropdown-item" href="/invitations/">✉️ Invitations</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="/settings/">⚙️ Settings</a>
+                        <a class="dropdown-item danger" href="#" onclick="logoutUser()">↩ Sign Out</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GUEST STATE (shown by JS when no token) -->
+            <div id="nav-guest" style="display:none; align-items:center; gap:8px;">
+                <a href="/login/" class="btn btn-ghost btn-sm {% block nav_login %}{% endblock %}">Sign In</a>
+                <a href="/register/" class="btn btn-primary btn-sm {% block nav_register %}{% endblock %}">Get Started</a>
+            </div>
+
+        </div>
+    </div>
+</nav>
+
+<!-- Django Messages -->
+{% if messages %}
+<div class="messages-wrap">
+    {% for message in messages %}
+    <div class="alert-msg {{ message.tags }}">
+        {% if message.tags == 'success' %}✅{% elif message.tags == 'error' %}❌{% elif message.tags == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<main>{% block content %}{% endblock %}</main>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <div class="logo-text">🌍 ResilientEco Guardian</div>
+                <p>Autonomous multi-agent climate resilience platform for East Africa. Powered by Azure AI Foundry with real-time risk monitoring, early warning systems, and SDG-aligned governance.</p>
+                <div class="footer-badges">
+                    <span class="footer-badge">Azure AI</span>
+                    <span class="footer-badge">MCP Protocol</span>
+                    <span class="footer-badge">WebSocket</span>
+                    <span class="footer-badge">Kenya 🇰🇪</span>
+                </div>
+            </div>
+            <div class="footer-col">
+                <h4>Platform</h4>
+                <ul>
+                    <li><a href="/">Dashboard</a></li>
+                    <li><a href="/alerts/">Live Alerts</a></li>
+                    <li><a href="/locations/">Locations</a></li>
+                    <li><a href="/organizations/">Organizations</a></li>
+                    <li><a href="/api/docs/">API Docs</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Organizations</h4>
+                <ul>
+                    <li><a href="/register/?type=disaster_relief">Disaster Relief</a></li>
+                    <li><a href="/register/?type=meteorological">Meteorological</a></li>
+                    <li><a href="/register/?type=agriculture">Agriculture</a></li>
+                    <li><a href="/register/?type=aviation">Aviation</a></li>
+                    <li><a href="/register/?type=developer">Developers</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="/api/docs/">REST API</a></li>
+                    <li><a href="/docs/websocket/">WebSocket Docs</a></li>
+                    <li><a href="/docs/webhooks/">Webhooks</a></li>
+                    <li><a href="/docs/sdks/">Python & JS SDKs</a></li>
+                    <li><a href="mailto:support@resilienteco.io">Support</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="copy">© 2026 ResilientEco Guardian · Built for climate resilience in East Africa</div>
+            <div class="footer-status"><div class="status-dot"></div> All systems operational</div>
+        </div>
+    </div>
+</footer>
+
+<div class="toast-rack" id="toastRack"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Dropdown ──────────────────────────────────────────────────────
+function toggleDropdown(id) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+    if (!isOpen) el.classList.add('open');
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+    }
+});
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(message, type = 'info', duration = 3500) {
+    const rack = document.getElementById('toastRack');
+    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `${icons[type] || 'ℹ️'} ${message}`;
+    rack.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'toastOut .25s ease forwards';
+        setTimeout(() => toast.remove(), 250);
+    }, duration);
+}
+
+// ── Auth helpers ──────────────────────────────────────────────────
+function getTokens() {
+    return {
+        access:  localStorage.getItem('rg_access'),
+        refresh: localStorage.getItem('rg_refresh'),
+    };
+}
+function setTokens(access, refresh) {
+    localStorage.setItem('rg_access', access);
+    if (refresh) localStorage.setItem('rg_refresh', refresh);
+}
+function clearTokens() {
+    localStorage.removeItem('rg_access');
+    localStorage.removeItem('rg_refresh');
+    localStorage.removeItem('rg_user');
+    // Clear rg_access cookie
+    document.cookie = 'rg_access=; path=/; max-age=0; SameSite=Lax';
+}
+
+function getCsrf() {
+    return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+async function logoutUser() {
+    const { refresh } = getTokens();
+    const csrf = getCsrf();
+
+    // 1. Blacklist JWT token
+    try {
+        await fetch('/api/auth/logout/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ refresh }),
+        });
+    } catch (_) {}
+
+    // 2. Clear Django session (in case allauth or admin set one)
+    try {
+        await fetch('/accounts/logout/', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+    } catch (_) {}
+
+    // 3. Clear all local state
+    clearTokens();
+    window.location.href = '/login/';
+}
+
+async function authFetch(url, options = {}) {
+    const { access } = getTokens();
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (access) headers['Authorization'] = `Bearer ${access}`;
+    return fetch(url, { ...options, headers });
+}
+
+// ── Nav auth state — driven by localStorage, not Django session ───
+(function initNav() {
+    const access = localStorage.getItem('rg_access');
+    const authedEl = document.getElementById('nav-authed');
+    const guestEl  = document.getElementById('nav-guest');
+
+    if (!access) {
+        guestEl.style.display = 'flex';
+        return;
+    }
+
+    // Decode JWT payload (no verification needed for display)
+    try {
+        const payload = JSON.parse(atob(access.split('.')[1]));
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < now) {
+            // Token expired — show guest, clear storage
+            clearTokens();
+            guestEl.style.display = 'flex';
+            return;
+        }
+    } catch (_) {}
+
+    // Show authed nav
+    authedEl.style.display = 'flex';
+
+    // Populate from cached user info in localStorage
+    const userStr = localStorage.getItem('rg_user');
+    if (userStr) {
+        try {
+            const u = JSON.parse(userStr);
+            document.getElementById('nav-full-name').textContent = u.full_name || u.username || '—';
+            document.getElementById('nav-email').textContent = u.email || '—';
+
+            // Initials
+            const parts = (u.full_name || u.username || '').trim().split(' ');
+            const initials = parts.length >= 2
+                ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase()
+                : (parts[0] || '?').substring(0, 2).toUpperCase();
+            document.getElementById('nav-avatar-initials').textContent = initials;
+
+            // Org badge
+            if (u.org_name) {
+                document.getElementById('nav-org-name').textContent = u.org_name.length > 20
+                    ? u.org_name.substring(0, 18) + '…'
+                    : u.org_name;
+                document.getElementById('nav-org-badge').style.display = 'flex';
+            }
+        } catch (_) {}
+    }
+})();
+
+// ── Active nav link ───────────────────────────────────────────────
+document.querySelectorAll('.nav-link').forEach(link => {
+    if (link.href === window.location.href ||
+        (window.location.pathname.startsWith(new URL(link.href, location.origin).pathname) && link.href !== '/')) {
+        link.classList.add('active');
+    }
+});
+
+// ── Auto-dismiss Django messages ──────────────────────────────────
+document.querySelectorAll('.alert-msg').forEach(msg => {
+    setTimeout(() => msg.style.transition = 'opacity .4s', 3000);
+    setTimeout(() => msg.style.opacity = '0', 3400);
+    setTimeout(() => msg.remove(), 3800);
+});
+</script>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>
