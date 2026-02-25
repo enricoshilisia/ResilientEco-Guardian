@@ -230,11 +230,16 @@ async function loadAlerts(){
     });
 }
 
-// WebSocket
+// ─── WebSocket (wss:// on HTTPS, ws:// on HTTP) ───────────────────
 const AGENT_COLORS={monitor:'#7c3aed',predict:'#4f46e5',decision:'#d97706',action:'#059669',governance:'#dc2626',mcp_actions:'#0078d4',system:'#667eea',complete:'#059669',thinking:'#667eea',error:'#ef4444'};
 const AGENT_LABELS={monitor:'🔍 Monitor Agent',predict:'📊 Predict Agent',decision:'🧠 Decision Agent',action:'⚡ Action Agent',governance:'⚖️ Governance Agent',mcp_actions:'☁️ Azure MCP'};
 
-const chatSocket=new WebSocket('ws://'+window.location.host+'/ws/chat/');
+const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const chatSocket = new WebSocket(wsProtocol + window.location.host + '/ws/chat/');
+
+chatSocket.onopen = () => {
+    console.log('✅ WebSocket connected via', wsProtocol);
+};
 chatSocket.onmessage=e=>{
     const data=JSON.parse(e.data);
     const type=data.type||'agent';
@@ -243,11 +248,16 @@ chatSocket.onmessage=e=>{
     addAgentMessage(label,data.message,color);
 };
 chatSocket.onclose=()=>addAgentMessage('⚠️ System','Connection lost. Please refresh.','#ef4444');
+chatSocket.onerror=(err)=>console.error('WebSocket error:', err);
 
 function sendMessage(){
     const input=document.getElementById('chatInput');
     const msg=input.value.trim();
     if(!msg) return;
+    if(chatSocket.readyState !== WebSocket.OPEN){
+        addAgentMessage('⚠️ System','WebSocket not connected. Please refresh.','#ef4444');
+        return;
+    }
     const box=document.getElementById('chatMessages');
     const div=document.createElement('div');
     div.className='message user';
