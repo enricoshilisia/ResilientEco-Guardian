@@ -7,8 +7,6 @@ from django.urls import path
 
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from organizations import views as org_views
-
 from guardian import views
 from .views import RegisterOrganizationView, org_register_page
 
@@ -42,50 +40,43 @@ urlpatterns = [
     path('api/locations/<int:location_id>/', views.LocationDetailView.as_view(), name='location_detail'),
 
     # ─── ALERTS ─────────────────────────────────────────────────────────
-    path('api/alerts/',                views.AlertListView.as_view(),   name='alerts'),
+    path('api/alerts/',                views.AlertListView.as_view(),  name='alerts'),
     path('api/alerts/<int:alert_id>/', views.AlertDetailView.as_view(), name='alert_detail'),
 
-    # ─── ORGANIZATION REGISTRATION ──────────────────────────────────────
+    # ─── ORGANIZATION REGISTRATION ───────────────────────────────────────
     path('api/register-organization/', RegisterOrganizationView.as_view(), name='register_org'),
 
-    # ─── ORGANIZATION PAGES (HTML views) ────────────────────────────────
-    path('org/<uuid:org_id>/',          org_views.smart_dashboard_redirect, name='org_dashboard'),
-    path('org/<uuid:org_id>/members/',  org_views.org_members,              name='org_members'),
-    path('org/<uuid:org_id>/profile/',  org_views.org_profile,              name='org_profile'),
-    path('org/<uuid:org_id>/settings/', org_views.org_settings,             name='org_settings'),
+    # ─── ORGANIZATIONS ──────────────────────────────────────────────────
+    path('api/organizations/',                          views.MyOrganizationsView.as_view(),    name='my_orgs'),
+    path('api/organizations/create/',                   views.CreateOrganizationView.as_view(), name='create_org'),
+    path('api/organizations/<uuid:org_id>/',            views.OrganizationDetailView.as_view(), name='org_detail'),
+    path('api/organizations/<uuid:org_id>/leave/',      views.LeaveOrganizationView.as_view(),  name='leave_org'),
 
-    # ─── ORGANIZATIONS API ───────────────────────────────────────────────
-    path('api/organizations/',               views.MyOrganizationsView.as_view(),    name='my_orgs'),
-    path('api/organizations/create/',        views.CreateOrganizationView.as_view(), name='create_org'),
-    path('api/organizations/<uuid:org_id>/', views.OrganizationDetailView.as_view(), name='org_detail'),
-    path('api/organizations/<uuid:org_id>/leave/', views.LeaveOrganizationView.as_view(), name='leave_org'),
+     #path('api/organizations/<uuid:org_id>/invitations/<uuid:inv_id>/revoke/', views.RevokeInvitationView.as_view(), name='api_org_invite_revoke'),
 
-    # ─── ORGANIZATION MEMBERS API ────────────────────────────────────────
+    # ─── ORGANIZATION MEMBERS ───────────────────────────────────────────
     path('api/organizations/<uuid:org_id>/members/',
-         views.OrgMembersView.as_view(), name='api_org_members'),
+         views.OrgMembersView.as_view(), name='org_members'),
     path('api/organizations/<uuid:org_id>/members/<int:user_id>/role/',
          views.UpdateMemberRoleView.as_view(), name='update_role'),
     path('api/organizations/<uuid:org_id>/members/<int:user_id>/remove/',
          views.RemoveMemberView.as_view(), name='remove_member'),
 
-    # ─── INVITATIONS API ─────────────────────────────────────────────────
+    # ─── INVITATIONS ────────────────────────────────────────────────────
     path('api/organizations/<uuid:org_id>/invite/',
          views.SendInvitationView.as_view(), name='send_invite'),
-    path('api/organizations/<uuid:org_id>/invitations/<uuid:inv_id>/revoke/',
-         views.RevokeInvitationView.as_view(), name='api_org_invite_revoke'),
     path('api/invitations/<uuid:token>/accept/',
          views.AcceptInvitationView.as_view(), name='accept_invite'),
     path('api/invitations/<uuid:token>/decline/',
          views.DeclineInvitationView.as_view(), name='decline_invite'),
 
-    # ─── WEATHER ─────────────────────────────────────────────────────────
+    # ─── WEATHER ────────────────────────────────────────────────────────
     path('api/weather/', views.WeatherView.as_view(), name='weather_api'),
 
-    # ─── LEGACY ──────────────────────────────────────────────────────────
+    # ─── LEGACY ─────────────────────────────────────────────────────────
     path('api/run/',           views.RunAgentView.as_view(),     name='api_run_legacy'),
     path('api/save-location/', views.LocationListView.as_view(), name='save_location_legacy'),
     path('api/get-locations/', views.LocationListView.as_view(), name='get_locations_legacy'),
     path('api/get-alerts/',    views.AlertListView.as_view(),    name='get_alerts_legacy'),
-    
 ]
 # NOTE: static() removed — handled in root urls.py only

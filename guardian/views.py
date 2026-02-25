@@ -24,6 +24,7 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from organizations.views import _jwt_login_required
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -287,7 +288,41 @@ def dashboard(request):
 
 def org_register_page(request):
     """Serve the 3-step org registration wizard."""
-    return render(request, 'guardian/org_register.html')
+    return render(request, 'organizations/shared/org_register.html')
+
+@_jwt_login_required
+def my_dashboard_page(request):
+    """Main user dashboard (summary of all orgs)"""
+    context = {
+        'page_title': 'My Dashboard',
+    }
+    return render(request, 'guardian/my_dashboard.html', context)
+
+
+@_jwt_login_required
+def profile_page(request):
+    """Global personal profile page"""
+    context = {
+        'page_title': 'My Profile',
+        'user': request.user,
+        'profile': request.user.profile,
+        'memberships': OrganizationMembership.objects.filter(
+            user=request.user, is_active=True
+        ).select_related('organization'),
+    }
+    return render(request, 'organizations/shared/org_profile.html', context)
+
+
+@_jwt_login_required
+def my_organizations_page(request):
+    """List of all organizations the user belongs to"""
+    context = {
+        'page_title': 'My Organizations',
+        'organizations': OrganizationMembership.objects.filter(
+            user=request.user, is_active=True
+        ).select_related('organization').order_by('-joined_at'),
+    }
+    return render(request, 'guardian/my_organizations.html', context)
 
 
 # ─────────────────────────────────────────────
@@ -482,6 +517,7 @@ class RegisterOrganizationView(APIView):
             name=org_name,
             slug=slug,
             org_type=model_org_type,
+            org_subtype=org_type,          # ←←← ADD THIS LINE
             country=data.get('country', 'Kenya'),
             region=data.get('region', ''),
             website=data.get('website', ''),
@@ -800,7 +836,7 @@ class CreateOrganizationView(APIView):
         base, n = slug, 1
         while Organization.objects.filter(slug=slug).exists():
             slug = f"{base}-{n}"; n += 1
-        org = Organization.objects.create(name=name, slug=slug, org_type=org_type, country=country, region=region)
+        org = Organization.objects.create(name=name, slug=slug, org_type=org_type, org_subtype=org_type, country=country, region=region)
         OrganizationMembership.objects.create(user=request.user, organization=org, role='admin', invited_by=request.user)
         if not request.user.profile.default_organization:
             request.user.profile.default_organization = org

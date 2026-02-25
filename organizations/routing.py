@@ -126,7 +126,11 @@ def _resolve_key(org):
 
     # Fallback heuristic for existing orgs
     if model_type == 'enterprise':
-        slug_desc = (org.slug + ' ' + (org.description or '')).lower()
+        slug_desc = (
+            (org.slug or '') + ' ' +
+            (org.name or '') + ' ' +
+            (org.description or '')
+        ).lower()
         if any(kw in slug_desc for kw in ('agri', 'farm', 'crop', 'harvest', 'irrigation')):
             return 'enterprise_agriculture'
 

@@ -29,6 +29,12 @@ class Organization(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
     org_type = models.CharField(max_length=20, choices=ORG_TYPES)
+    org_subtype = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        help_text="Original wizard choice: agriculture, aviation, developer, disaster_relief, etc."
+    )
     country = models.CharField(max_length=100, default="Kenya")
     region = models.CharField(max_length=100, blank=True, null=True)
 
