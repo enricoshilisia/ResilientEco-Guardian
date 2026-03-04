@@ -504,7 +504,7 @@
                 </div>
             </div>
             <div class="success-actions">
-                <a href="/" class="submit-btn">→ Go to Dashboard</a>
+                <a href="/my-dashboard/" class="submit-btn">→ Go to Dashboard</a>
                 <a href="/api/docs/" class="back-btn" id="apiDocsLink" style="display:none;">📖 API Docs</a>
             </div>
         </div>
@@ -699,6 +699,20 @@ function showSuccess(data) {
         document.getElementById('successApiKey').style.display = 'block';
         document.getElementById('apiDocsLink').style.display = 'inline-block';
     }
+
+    // Mirror what login.html does so smart_dashboard_redirect can resolve the org
+    localStorage.setItem('rg_user', JSON.stringify({
+        username:  data.user.username,
+        full_name: data.user.full_name,
+        email:     data.user.email,
+        org_name:  data.organization.name,
+    }));
+
+    // Set the cookie so the @_jwt_login_required decorator can read the token on the next page load
+    if (data.auth && data.auth.access) {
+        document.cookie = 'rg_access=' + data.auth.access + '; path=/; max-age=86400; SameSite=Lax';
+    }
+
     setStep('success');
     showToast('Organization created successfully!', 'success');
 }

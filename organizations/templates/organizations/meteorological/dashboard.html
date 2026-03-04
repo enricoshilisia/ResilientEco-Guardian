@@ -1,0 +1,2138 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+
+{% block title %}🌦️ {{ org.name }} · Meteorological Operations · ResilientEco{% endblock %}
+
+{% block org_extra_styles %}
+/* ── Meteorological theme ─────────────────────────────────────────── */
+:root {
+    --org-color:  #1d4ed8;
+    --org-light:  #dbeafe;
+    --org-dark:   #1e3a8a;
+    --org-accent: #06b6d4;
+    --warn:       #f59e0b;
+    --danger:     #ef4444;
+    --safe:       #10b981;
+    --storm:      #7c3aed;
+    --font-data:  'IBM Plex Mono', 'Space Mono', monospace;
+}
+
+/* ── Radar-style header banner ────────────────────────────────────── */
+.met-banner {
+    background: linear-gradient(135deg, #0c1445 0%, #1e3a8a 50%, #1d4ed8 100%);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(99,179,237,.2);
+}
+.met-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 80% 50%, rgba(6,182,212,.12) 0%, transparent 60%),
+                url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%234f46e5' fill-opacity='0.04'%3E%3Ccircle cx='20' cy='20' r='15'/%3E%3Ccircle cx='20' cy='20' r='10'/%3E%3Ccircle cx='20' cy='20' r='5'/%3E%3C/g%3E%3C/svg%3E");
+}
+.met-banner-radar {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, rgba(6,182,212,.5) 60deg, transparent 90deg);
+    border: 2px solid rgba(99,179,237,.4);
+    flex-shrink: 0;
+    animation: radarSpin 4s linear infinite;
+    position: relative; z-index: 1;
+}
+.met-banner-radar::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(6,182,212,.3);
+}
+@keyframes radarSpin { to { transform: rotate(360deg); } }
+.met-banner-text { position: relative; z-index: 1; }
+.met-banner-title { font-size: 18px; font-weight: 700; color: white; letter-spacing: -.02em; }
+.met-banner-sub   { font-size: 12px; color: rgba(255,255,255,.6); margin-top: 3px; }
+.met-banner-pills { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.met-pill {
+    padding: 3px 10px; border-radius: 99px; font-size: 10px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,.15); color: rgba(255,255,255,.85);
+    font-family: var(--font-data);
+}
+.met-pill.live   { background: rgba(16,185,129,.2); border-color: rgba(16,185,129,.4); color: #6ee7b7; }
+.met-pill.alert  { background: rgba(239,68,68,.2);  border-color: rgba(239,68,68,.4);  color: #fca5a5; }
+.met-pill.normal { background: rgba(99,179,237,.15); }
+
+/* ── Station status bar ───────────────────────────────────────────── */
+.station-bar {
+    display: flex; gap: 12px; overflow-x: auto;
+    padding-bottom: 4px; margin-bottom: 20px;
+    scrollbar-width: thin;
+}
+.station-card {
+    min-width: 160px; border-radius: 10px; padding: 12px 14px;
+    background: white; border: 1px solid var(--slate-200);
+    cursor: pointer; transition: all .15s;
+    flex-shrink: 0;
+}
+.station-card:hover  { border-color: var(--org-color); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(29,78,216,.1); }
+.station-card.active { border-color: var(--org-color); background: var(--org-light); }
+.station-name  { font-size: 12px; font-weight: 700; color: var(--slate-800); margin-bottom: 2px; }
+.station-temp  { font-size: 22px; font-weight: 700; color: var(--org-color); font-family: var(--font-data); }
+.station-meta  { font-size: 10px; color: var(--slate-400); margin-top: 2px; font-family: var(--font-data); }
+.station-dot   { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.station-dot.online  { background: var(--safe); }
+.station-dot.offline { background: var(--danger); }
+.station-dot.stale   { background: var(--warn); }
+
+/* ── Weather metrics grid ─────────────────────────────────────────── */
+.met-stat-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 20px; }
+@media (max-width: 1100px) { .met-stat-grid { grid-template-columns: repeat(3,1fr); } }
+@media (max-width: 680px)  { .met-stat-grid { grid-template-columns: repeat(2,1fr); } }
+.met-stat {
+    background: white; border-radius: 10px; padding: 14px;
+    border: 1px solid var(--slate-200); text-align: center;
+    transition: border-color .15s;
+}
+.met-stat:hover { border-color: var(--org-color); }
+.met-stat-val  { font-size: 24px; font-weight: 700; color: var(--org-color); font-family: var(--font-data); line-height: 1; }
+.met-stat-unit { font-size: 10px; color: var(--slate-400); font-family: var(--font-data); }
+.met-stat-lbl  { font-size: 11px; color: var(--slate-500); margin-top: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.met-stat-sub  { font-size: 10px; color: var(--slate-400); margin-top: 2px; }
+.met-stat-trend { font-size: 10px; font-weight: 700; margin-top: 4px; }
+.met-stat-trend.up   { color: var(--danger); }
+.met-stat-trend.down { color: var(--safe); }
+.met-stat-trend.flat { color: var(--slate-400); }
+
+/* ── Forecast timeline ────────────────────────────────────────────── */
+.forecast-timeline {
+    display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px;
+    scrollbar-width: thin;
+}
+.forecast-hour {
+    min-width: 70px; border-radius: 10px; padding: 10px 8px;
+    background: var(--slate-50); border: 1px solid var(--slate-100);
+    text-align: center; flex-shrink: 0; transition: all .15s;
+    cursor: pointer;
+}
+.forecast-hour:hover, .forecast-hour.active {
+    background: var(--org-light); border-color: var(--org-color);
+}
+.fh-time   { font-size: 10px; color: var(--slate-400); font-family: var(--font-data); margin-bottom: 4px; }
+.fh-icon   { font-size: 18px; margin-bottom: 4px; display: block; }
+.fh-temp   { font-size: 14px; font-weight: 700; color: var(--slate-800); font-family: var(--font-data); }
+.fh-rain   { font-size: 10px; color: var(--org-accent); font-family: var(--font-data); margin-top: 2px; }
+.fh-prob   { font-size: 9px; color: var(--slate-400); }
+.fh-bar    { height: 3px; border-radius: 99px; margin-top: 6px; background: var(--slate-200); }
+.fh-bar-fill { height: 100%; border-radius: 99px; background: var(--org-accent); transition: width .5s; }
+
+/* ── Alert broadcast console ─────────────────────────────────────── */
+.broadcast-panel {
+    background: linear-gradient(135deg, #0c1445 0%, #1e3a8a 100%);
+    border-radius: 14px; padding: 20px;
+    border: 1px solid rgba(99,179,237,.2);
+    color: white;
+    margin-bottom: 20px;
+}
+.broadcast-title {
+    font-size: 13px; font-weight: 700; color: white;
+    letter-spacing: .06em; text-transform: uppercase;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.broadcast-title .blink {
+    width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+    animation: blink 1s ease infinite;
+}
+@keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:.2; } }
+.broadcast-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.broadcast-field { flex: 1; min-width: 140px; }
+.broadcast-field label { display: block; font-size: 10px; font-weight: 700; color: rgba(255,255,255,.5); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 5px; }
+.broadcast-field input,
+.broadcast-field select,
+.broadcast-field textarea {
+    width: 100%; padding: 8px 12px; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+    font-size: 13px; color: white; font-family: inherit; box-sizing: border-box;
+}
+.broadcast-field input:focus,
+.broadcast-field select:focus,
+.broadcast-field textarea:focus { outline: none; border-color: var(--org-accent); }
+.broadcast-field input::placeholder,
+.broadcast-field textarea::placeholder { color: rgba(255,255,255,.3); }
+.broadcast-field select option { background: #1e3a8a; color: white; }
+.broadcast-btn {
+    padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; white-space: nowrap; font-family: inherit;
+}
+.broadcast-btn.primary { background: #ef4444; color: white; }
+.broadcast-btn.primary:hover { background: #dc2626; }
+.broadcast-btn.secondary { background: rgba(255,255,255,.1); color: white; border: 1px solid rgba(255,255,255,.2); }
+.broadcast-btn.secondary:hover { background: rgba(255,255,255,.15); }
+.broadcast-sent {
+    margin-top: 12px; padding: 8px 12px; background: rgba(16,185,129,.15);
+    border: 1px solid rgba(16,185,129,.3); border-radius: 8px;
+    font-size: 12px; color: #6ee7b7; display: none;
+}
+
+/* ── Agent pipeline transparency ─────────────────────────────────── */
+.pipeline-view {
+    display: flex; gap: 0; overflow-x: auto; padding: 4px 0;
+}
+.pipeline-step {
+    display: flex; align-items: center; flex-shrink: 0;
+}
+.pipeline-node {
+    min-width: 110px; border-radius: 10px; padding: 12px 14px;
+    border: 1.5px solid var(--slate-200); background: white;
+    font-size: 12px; transition: all .2s; cursor: pointer;
+}
+.pipeline-node:hover { border-color: var(--org-color); box-shadow: 0 2px 8px rgba(29,78,216,.1); }
+.pipeline-node.done { border-color: var(--safe); background: #f0fdf4; }
+.pipeline-node.running { border-color: var(--org-color); background: var(--org-light); animation: nodePulse 1s ease infinite; }
+.pipeline-node.paused  { border-color: var(--warn); background: #fffbeb; }
+.pipeline-node.failed  { border-color: var(--danger); background: #fff1f2; }
+@keyframes nodePulse { 0%,100%{ opacity:1 } 50%{ opacity:.7 } }
+.pipeline-node-icon  { font-size: 18px; margin-bottom: 4px; }
+.pipeline-node-name  { font-weight: 700; color: var(--slate-800); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.pipeline-node-status{ font-size: 10px; color: var(--slate-400); margin-top: 2px; font-family: var(--font-data); }
+.pipeline-node-latency{ font-size: 10px; color: var(--org-accent); font-family: var(--font-data); }
+.pipeline-arrow {
+    width: 28px; height: 2px; background: var(--slate-200);
+    position: relative; flex-shrink: 0;
+}
+.pipeline-arrow::after {
+    content: '▶'; position: absolute; right: -4px; top: -7px;
+    font-size: 9px; color: var(--slate-300);
+}
+.pipeline-arrow.done { background: var(--safe); }
+.pipeline-arrow.done::after { color: var(--safe); }
+
+/* ── Risk matrix ──────────────────────────────────────────────────── */
+.risk-matrix {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
+    margin-bottom: 20px;
+}
+@media (max-width: 700px) { .risk-matrix { grid-template-columns: 1fr; } }
+.risk-meter-card {
+    border-radius: 12px; padding: 16px; border: 1.5px solid;
+    transition: transform .15s;
+}
+.risk-meter-card:hover { transform: translateY(-2px); }
+.risk-meter-card.flood    { background: #eff6ff; border-color: #93c5fd; }
+.risk-meter-card.drought  { background: #fffbeb; border-color: #fcd34d; }
+.risk-meter-card.heatwave { background: #fff1f2; border-color: #fca5a5; }
+.risk-meter-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.risk-meter-label { font-size: 12px; font-weight: 700; color: var(--slate-700); text-transform: uppercase; letter-spacing: .05em; }
+.risk-meter-pct   { font-size: 28px; font-weight: 700; font-family: var(--font-data); }
+.risk-meter-pct.flood    { color: #1d4ed8; }
+.risk-meter-pct.drought  { color: #d97706; }
+.risk-meter-pct.heatwave { color: #ef4444; }
+.risk-bar {
+    height: 6px; border-radius: 99px; background: var(--slate-100); overflow: hidden; margin: 8px 0;
+}
+.risk-bar-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
+.risk-bar-fill.flood    { background: linear-gradient(90deg, #3b82f6, #1d4ed8); }
+.risk-bar-fill.drought  { background: linear-gradient(90deg, #fbbf24, #d97706); }
+.risk-bar-fill.heatwave { background: linear-gradient(90deg, #f87171, #ef4444); }
+.risk-meter-reason { font-size: 11px; color: var(--slate-500); line-height: 1.5; margin-top: 6px; }
+.risk-badge-lg {
+    display: inline-block; padding: 3px 10px; border-radius: 99px;
+    font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+.risk-badge-lg.RED    { background: #ef4444; color: white; }
+.risk-badge-lg.ORANGE { background: #f97316; color: white; }
+.risk-badge-lg.YELLOW { background: #f59e0b; color: white; }
+.risk-badge-lg.GREEN  { background: #10b981; color: white; }
+
+/* ── National alert feed ──────────────────────────────────────────── */
+.national-alert {
+    border-radius: 10px; padding: 13px 15px; margin-bottom: 10px;
+    border-left: 4px solid; display: flex; align-items: flex-start; gap: 12px;
+    font-size: 13px; transition: background .15s;
+}
+.national-alert:hover { filter: brightness(.97); }
+.national-alert.flood    { background: #eff6ff; border-color: #3b82f6; }
+.national-alert.drought  { background: #fffbeb; border-color: #f59e0b; }
+.national-alert.heatwave { background: #fff1f2; border-color: #ef4444; }
+.national-alert.storm    { background: #f5f3ff; border-color: #7c3aed; }
+.na-icon  { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.na-body  { flex: 1; }
+.na-head  { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.na-org   { font-size: 11px; font-weight: 700; color: var(--slate-600); }
+.na-level { padding: 1px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; color: white; }
+.na-msg   { color: var(--slate-700); line-height: 1.5; }
+.na-meta  { font-size: 11px; color: var(--slate-400); margin-top: 4px; font-family: var(--font-data); }
+.na-actions { display: flex; gap: 6px; margin-top: 8px; }
+.na-btn {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    cursor: pointer; border: none; font-family: inherit; transition: all .15s;
+}
+.na-btn.approve  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.na-btn.approve:hover { background: #bbf7d0; }
+.na-btn.escalate { background: #fee2e2; color: #9f1239; border: 1px solid #fecdd3; }
+.na-btn.escalate:hover { background: #fecdd3; }
+.na-btn.view     { background: var(--slate-100); color: var(--slate-600); border: 1px solid var(--slate-200); }
+.na-btn.view:hover { background: var(--slate-200); }
+.na-btn.broadcast { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+.na-btn.broadcast:hover { background: #bfdbfe; }
+
+/* ── Data quality indicator ───────────────────────────────────────── */
+.dq-bar { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.dq-label { font-size: 11px; color: var(--slate-600); font-weight: 600; width: 100px; flex-shrink: 0; }
+.dq-track { flex: 1; height: 6px; background: var(--slate-100); border-radius: 99px; overflow: hidden; }
+.dq-fill  { height: 100%; border-radius: 99px; transition: width 1s ease; }
+.dq-val   { font-size: 11px; color: var(--slate-600); font-family: var(--font-data); width: 36px; text-align: right; flex-shrink: 0; }
+
+/* ── SDG panel ────────────────────────────────────────────────────── */
+.sdg-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+@media (max-width: 700px) { .sdg-grid { grid-template-columns: 1fr 1fr; } }
+.sdg-card {
+    border-radius: 10px; padding: 14px; border: 1px solid var(--slate-200);
+    text-align: center; transition: all .15s;
+}
+.sdg-card:hover { border-color: var(--org-color); background: var(--org-light); }
+.sdg-num   { font-size: 24px; font-weight: 700; font-family: var(--font-data); }
+.sdg-title { font-size: 10px; color: var(--slate-500); margin-top: 4px; line-height: 1.4; }
+.sdg-val   { font-size: 13px; font-weight: 700; color: var(--slate-700); margin-top: 6px; }
+
+/* ── Governance table ─────────────────────────────────────────────── */
+.gov-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.gov-table th {
+    font-size: 10px; font-weight: 700; color: var(--slate-500); text-transform: uppercase;
+    letter-spacing: .06em; padding: 10px 12px; border-bottom: 2px solid var(--slate-100);
+    text-align: left;
+}
+.gov-table td { padding: 10px 12px; border-bottom: 1px solid var(--slate-50); vertical-align: middle; }
+.gov-table tr:last-child td { border-bottom: none; }
+.gov-table tr:hover td { background: #f9fafb; }
+.status-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 99px;
+    font-size: 10px; font-weight: 700;
+}
+.status-chip.pending  { background: #fef3c7; color: #92400e; }
+.status-chip.approved { background: #dcfce7; color: #166534; }
+.status-chip.rejected { background: #fee2e2; color: #9f1239; }
+.status-chip.escalated{ background: #ede9fe; color: #5b21b6; }
+
+/* ── Chat ─────────────────────────────────────────────────────────── */
+.met-chat-box {
+    height: 320px; overflow-y: auto;
+    background: #0c1445;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    font-family: var(--font-data);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.met-msg { border-radius: 8px; padding: 10px 14px; max-width: 90%; font-size: 12px; line-height: 1.6; }
+.met-msg.user  { background: rgba(29,78,216,.5); color: white; margin-left: auto; border-radius: 8px 8px 2px 8px; }
+.met-msg.agent { background: rgba(255,255,255,.07); color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.1); border-radius: 8px 8px 8px 2px; }
+.met-msg-head  { font-size: 10px; color: var(--org-accent); font-weight: 700; margin-bottom: 6px; letter-spacing: .06em; text-transform: uppercase; }
+.met-chat-input { display: flex; gap: 10px; padding: 12px 16px; background: #0c1445; border-top: 1px solid rgba(255,255,255,.08); }
+.met-chat-input input {
+    flex: 1; padding: 9px 14px; background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+    font-size: 12px; color: white; font-family: var(--font-data);
+}
+.met-chat-input input:focus { outline: none; border-color: var(--org-accent); }
+.met-chat-input input::placeholder { color: rgba(255,255,255,.3); }
+
+/* ── Modal ────────────────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; backdrop-filter: blur(4px);
+    animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+.modal-box {
+    background: white; border-radius: 16px; padding: 28px;
+    width: min(520px, 95vw); box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    animation: slideUp .2s ease;
+}
+@keyframes slideUp { from { transform:translateY(16px); opacity:0 } to { transform:none; opacity:1 } }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; color: var(--slate-900); }
+.modal-sub { font-size: 13px; color: var(--slate-500); margin-bottom: 20px; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--slate-500); margin-bottom: 6px; }
+.modal-field input, .modal-field select, .modal-field textarea {
+    width: 100%; padding: 9px 12px; border: 1.5px solid var(--slate-200);
+    border-radius: 8px; font-size: 13px; color: var(--slate-800);
+    box-sizing: border-box; font-family: inherit;
+}
+.modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus {
+    outline: none; border-color: var(--org-color);
+    box-shadow: 0 0 0 3px rgba(29,78,216,.08);
+}
+.modal-field textarea { min-height: 80px; resize: vertical; }
+.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* ── Empty & loading states ───────────────────────────────────────── */
+.met-empty { text-align: center; padding: 28px; color: var(--slate-400); font-size: 13px; }
+.met-loading { text-align: center; padding: 20px; color: var(--slate-400); font-size: 13px; }
+
+/* ── Location zone quick-select ───────────────────────────────────── */
+.city-chip {
+    padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--slate-200); background: white; color: var(--slate-600);
+    cursor: pointer; transition: all .15s; display: inline-block;
+}
+.city-chip:hover { border-color: var(--org-color); color: var(--org-color); }
+.city-chip.selected { background: var(--org-color); border-color: var(--org-color); color: white; }
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="#overview"    class="org-tab active" onclick="showTab('overview',this)">   <span>📡</span><span class="tab-label">Operations</span></a>
+<a href="#forecast"    class="org-tab"        onclick="showTab('forecast',this)">    <span>🌤️</span><span class="tab-label">Forecast</span></a>
+<a href="#risk"        class="org-tab"        onclick="showTab('risk',this)">        <span>⚠️</span><span class="tab-label">Risk Matrix</span></a>
+<a href="#broadcast"   class="org-tab"        onclick="showTab('broadcast',this)">   <span>📢</span><span class="tab-label">Broadcast</span></a>
+<a href="#governance"  class="org-tab"        onclick="showTab('governance',this)">  <span>⚖️</span><span class="tab-label">Governance</span></a>
+<a href="#agents"      class="org-tab"        onclick="showTab('agents',this)">      <span>🤖</span><span class="tab-label">AI Pipeline</span></a>
+<a href="#locations"   class="org-tab"        onclick="showTab('locations',this)">   <span>📍</span><span class="tab-label">Stations</span></a>
+<a href="#sdg"         class="org-tab"        onclick="showTab('sdg',this)">         <span>🌍</span><span class="tab-label">SDG & Climate</span></a>
+<a href="#chat"        class="org-tab"        onclick="showTab('chat',this)">        <span>🛰️</span><span class="tab-label">AI Advisor</span></a>
+{% endblock %}
+
+{% block sidebar_extra %}
+<!-- Live conditions -->
+<div class="sidebar-card">
+    <div class="sidebar-card-head">📡 Live Conditions</div>
+    <div class="sidebar-card-body" id="sidebarLiveConditions">
+        {% if locations %}
+        <div style="color:var(--slate-400);font-size:12px;text-align:center;">⏳ Loading…</div>
+        {% else %}
+        <div class="met-empty">Add monitoring stations to see live data</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Alert severity summary -->
+<div class="sidebar-card">
+    <div class="sidebar-card-head">🚨 Alert Summary</div>
+    <div class="sidebar-card-body">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                <span>🔴 Critical</span>
+                <span style="font-weight:700;font-family:monospace;color:#ef4444;" id="sidebar-critical">{{ recent_alerts|length }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                <span>🟠 High</span>
+                <span style="font-weight:700;font-family:monospace;color:#f97316;" id="sidebar-high">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                <span>🟡 Medium</span>
+                <span style="font-weight:700;font-family:monospace;color:#f59e0b;" id="sidebar-medium">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                <span>🟢 Low</span>
+                <span style="font-weight:700;font-family:monospace;color:#10b981;" id="sidebar-low">—</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monitoring stations -->
+{% if locations %}
+<div class="sidebar-card">
+    <div class="sidebar-card-head">📍 Stations ({{ locations|length }})</div>
+    <div class="sidebar-card-body" style="padding:6px 0;">
+        {% for loc in locations %}
+        <div style="padding:8px 14px;border-bottom:1px solid var(--slate-50);cursor:pointer;transition:background .15s;"
+             onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"
+             onclick="focusStation({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}',{{ forloop.counter }})">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="station-dot online"></span>
+                <span style="font-size:12px;font-weight:600;color:var(--slate-800);">{{ loc.name }}</span>
+                {% if loc.is_primary %}<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;">HQ</span>{% endif %}
+            </div>
+            <div style="font-size:10px;color:var(--slate-400);font-family:monospace;margin-top:2px;margin-left:14px;">{{ loc.latitude|floatformat:3 }}, {{ loc.longitude|floatformat:3 }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% if can_manage %}
+    <div style="padding:10px 14px;">
+        <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="openAddStationModal()">+ Add Station</button>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Policy version -->
+<div class="sidebar-card">
+    <div class="sidebar-card-head">📜 Risk Policy</div>
+    <div class="sidebar-card-body">
+        <div style="font-size:12px;color:var(--slate-600);line-height:1.6;">
+            <div>Policy: <strong style="color:var(--slate-900);font-family:monospace;">global_default</strong></div>
+            <div style="margin-top:4px;">Version: <strong style="color:var(--org-color);font-family:monospace;" id="policyVersion">2026.03.1</strong></div>
+            <div style="margin-top:4px;font-size:11px;color:var(--slate-400);">Deterministic. AI-verified.</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block org_main %}
+
+<!-- ── HEADER BANNER ────────────────────────────────────────────── -->
+<div class="met-banner">
+    <div class="met-banner-radar"></div>
+    <div class="met-banner-text">
+        <div class="met-banner-title">{{ org.name }}</div>
+        <div class="met-banner-sub">Meteorological Operations Center · Kenya · Real-time AI Monitoring</div>
+        <div class="met-banner-pills">
+            <span class="met-pill live">● Live</span>
+            <span class="met-pill">5-Agent Pipeline</span>
+            <span class="met-pill">Azure AI Foundry</span>
+            <span class="met-pill">{{ locations|length }} Station{{ locations|length|pluralize }}</span>
+            <span class="met-pill" id="bannerAlertPill">⏳ Calculating…</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── STATION STATUS BAR ────────────────────────────────────────── -->
+<div class="station-bar" id="stationBar">
+    {% for loc in locations %}
+    <div class="station-card {% if forloop.first %}active{% endif %}"
+         id="station-card-{{ forloop.counter }}"
+         onclick="focusStation({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}',{{ forloop.counter }})">
+        <div class="station-name">
+            <span class="station-dot online"></span>
+            {{ loc.name }}
+        </div>
+        <div class="station-temp" id="st-temp-{{ forloop.counter }}">—°</div>
+        <div class="station-meta" id="st-meta-{{ forloop.counter }}">⏳ Loading…</div>
+    </div>
+    {% empty %}
+    <div style="color:var(--slate-400);font-size:13px;padding:16px;">No stations added yet — click "Add Station" in the sidebar.</div>
+    {% endfor %}
+</div>
+
+<!-- ── METRIC STRIP ──────────────────────────────────────────────── -->
+<div class="met-stat-grid">
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-temp">—</div>
+        <div class="met-stat-unit">°C</div>
+        <div class="met-stat-lbl">Temperature</div>
+        <div class="met-stat-trend flat" id="ms-temp-trend">Nominal</div>
+    </div>
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-rain">—</div>
+        <div class="met-stat-unit">mm/24h</div>
+        <div class="met-stat-lbl">Rainfall</div>
+        <div class="met-stat-trend flat" id="ms-rain-trend">—</div>
+    </div>
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-humidity">—</div>
+        <div class="met-stat-unit">%</div>
+        <div class="met-stat-lbl">Humidity</div>
+        <div class="met-stat-trend flat" id="ms-hum-trend">—</div>
+    </div>
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-stations">{{ locations|length }}</div>
+        <div class="met-stat-unit">online</div>
+        <div class="met-stat-lbl">Stations</div>
+        <div class="met-stat-trend flat">Active</div>
+    </div>
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-alerts">{{ recent_alerts|length }}</div>
+        <div class="met-stat-unit">active</div>
+        <div class="met-stat-lbl">Alerts</div>
+        <div class="met-stat-trend up" id="ms-alerts-trend" style="{% if recent_alerts %}color:#ef4444{% endif %}">
+            {% if recent_alerts %}Active{% else %}Clear{% endif %}
+        </div>
+    </div>
+    <div class="met-stat">
+        <div class="met-stat-val" id="ms-agents">5</div>
+        <div class="met-stat-unit">agents</div>
+        <div class="met-stat-lbl">AI Pipeline</div>
+        <div class="met-stat-trend flat" style="color:#10b981;">Operational</div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: OPERATIONS (Overview) -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-overview">
+
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:16px;">
+        <!-- Map -->
+        <div class="content-card">
+            <div class="content-card-head">
+                🗺️ National Station Map
+                <button class="btn btn-ghost btn-sm" onclick="refreshAllStationWeather()">↻ Refresh All</button>
+            </div>
+            <div id="orgMap" style="height:360px;"></div>
+            <div style="padding:10px 16px;background:var(--slate-50);border-top:1px solid var(--slate-100);font-size:12px;color:var(--slate-500);" id="mapInfo">
+                📍 {{ locations|length }} monitoring station{{ locations|length|pluralize }} active
+            </div>
+        </div>
+
+        <!-- Live conditions panel -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- Risk meters -->
+            <div class="content-card">
+                <div class="content-card-head">⚠️ National Risk Status</div>
+                <div class="content-card-body">
+                    <div class="risk-matrix" style="grid-template-columns:1fr;gap:8px;">
+                        <div class="risk-meter-card flood">
+                            <div class="risk-meter-head">
+                                <span class="risk-meter-label">🌊 Flood Risk</span>
+                                <span id="alertBadgeFlood" class="risk-badge-lg GREEN">GREEN</span>
+                            </div>
+                            <div class="risk-bar"><div class="risk-bar-fill flood" id="riskBarFlood" style="width:0%"></div></div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span class="risk-meter-pct flood" id="riskPctFlood">—%</span>
+                                <span style="font-size:11px;color:var(--slate-400);">{{ recent_alerts|length }} alerts</span>
+                            </div>
+                        </div>
+                        <div class="risk-meter-card drought">
+                            <div class="risk-meter-head">
+                                <span class="risk-meter-label">🏜️ Drought Risk</span>
+                                <span id="alertBadgeDrought" class="risk-badge-lg GREEN">GREEN</span>
+                            </div>
+                            <div class="risk-bar"><div class="risk-bar-fill drought" id="riskBarDrought" style="width:0%"></div></div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span class="risk-meter-pct drought" id="riskPctDrought">—%</span>
+                                <span style="font-size:11px;color:var(--slate-400);">Soil monitoring</span>
+                            </div>
+                        </div>
+                        <div class="risk-meter-card heatwave">
+                            <div class="risk-meter-head">
+                                <span class="risk-meter-label">🔥 Heatwave Risk</span>
+                                <span id="alertBadgeHeat" class="risk-badge-lg GREEN">GREEN</span>
+                            </div>
+                            <div class="risk-bar"><div class="risk-bar-fill heatwave" id="riskBarHeat" style="width:0%"></div></div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span class="risk-meter-pct heatwave" id="riskPctHeat">—%</span>
+                                <span style="font-size:11px;color:var(--slate-400);">Thermal index</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- National alert feed -->
+    <div class="content-card">
+        <div class="content-card-head">
+            📡 National Alert Feed
+            <div style="display:flex;gap:8px;">
+                {% if can_manage %}
+                <button class="btn btn-ghost btn-sm" onclick="showTab('broadcast',document.querySelectorAll('.org-tab')[3])">📢 Broadcast</button>
+                {% endif %}
+                <button class="btn btn-ghost btn-sm" onclick="loadAlertFeed()">↻ Refresh</button>
+            </div>
+        </div>
+        <div class="content-card-body" id="nationalAlertFeed" style="max-height:400px;overflow-y:auto;padding:12px;">
+            {% for alert in recent_alerts %}
+            <div class="national-alert {{ alert.risk_type }}">
+                <div class="na-icon">
+                    {% if alert.risk_type == 'flood' %}🌊
+                    {% elif alert.risk_type == 'drought' %}🏜️
+                    {% elif alert.risk_type == 'heatwave' %}🔥
+                    {% else %}⚠️{% endif %}
+                </div>
+                <div class="na-body">
+                    <div class="na-head">
+                        <span class="na-org">{{ alert.organization.name|default:"System" }}</span>
+                        <span class="na-level" style="background:{% if alert.risk_level >= 85 %}#ef4444{% elif alert.risk_level >= 70 %}#f97316{% elif alert.risk_level >= 50 %}#f59e0b{% else %}#10b981{% endif %};">{{ alert.risk_level }}%</span>
+                        <span class="status-chip {{ alert.alert_status }}">{{ alert.get_alert_status_display }}</span>
+                    </div>
+                    <div class="na-msg">{{ alert.message|truncatechars:200 }}</div>
+                    <div class="na-meta">
+                        {{ alert.timestamp|date:"D d M Y · H:i" }}
+                        {% if alert.location %} · 📍 {{ alert.location.name }}{% endif %}
+                    </div>
+                    {% if can_manage %}
+                    <div class="na-actions">
+                        <button class="na-btn approve"    onclick="updateAlertStatus({{ alert.id }},'approved',this)">✅ Approve</button>
+                        <button class="na-btn escalate"   onclick="updateAlertStatus({{ alert.id }},'escalated',this)">⬆ Escalate</button>
+                        <button class="na-btn broadcast"  onclick="prefillBroadcast('{{ alert.risk_type }}','{{ alert.message|truncatechars:120|escapejs }}',{{ alert.risk_level }})">📢 Broadcast</button>
+                        <button class="na-btn view"       onclick="viewAlertDetail({{ alert.id }})">👁 Detail</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="met-empty">✅ No alerts in the national feed. All systems nominal.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: FORECAST -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-forecast" style="display:none;">
+
+    <!-- Station selector -->
+    <div class="content-card">
+        <div class="content-card-head">
+            🌤️ Station Forecast
+            <select id="forecastStationSelect" onchange="loadForecastForStation()" style="padding:5px 10px;border:1.5px solid var(--slate-200);border-radius:8px;font-size:12px;font-family:inherit;">
+                {% for loc in locations %}
+                <option value="{{ loc.latitude }},{{ loc.longitude }},{{ loc.name|escapejs }}">📍 {{ loc.name }}</option>
+                {% empty %}
+                <option value="">No stations added</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="content-card-body">
+            <div id="forecastStationSummary" class="met-loading">⏳ Select a station to load forecast…</div>
+        </div>
+    </div>
+
+    <!-- Today hourly -->
+    <div class="content-card">
+        <div class="content-card-head">📊 Today's Hourly Forecast</div>
+        <div class="content-card-body">
+            <div class="forecast-timeline" id="hourlyTimeline">
+                <div class="met-loading" style="padding:20px 0;">⏳ Loading hourly data…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-day summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="content-card">
+            <div class="content-card-head">📅 Today</div>
+            <div class="content-card-body" id="todaySummary">
+                <div class="met-loading">⏳ Loading…</div>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="content-card-head">📅 Tomorrow</div>
+            <div class="content-card-body" id="tomorrowSummary">
+                <div class="met-loading">⏳ Loading…</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: RISK MATRIX -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-risk" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            ⚠️ Multi-Hazard Risk Matrix
+            <button class="btn btn-ghost btn-sm" onclick="runNationalRiskAnalysis()" id="riskRefreshBtn">↻ Run Analysis</button>
+        </div>
+        <div class="content-card-body">
+            <div class="risk-matrix" id="fullRiskMatrix">
+                <div class="risk-meter-card flood">
+                    <div class="risk-meter-head"><span class="risk-meter-label">🌊 Flood</span><span id="fullBadgeFlood" class="risk-badge-lg GREEN">GREEN</span></div>
+                    <div class="risk-bar"><div class="risk-bar-fill flood" id="fullBarFlood" style="width:0%"></div></div>
+                    <span class="risk-meter-pct flood" id="fullPctFlood">—%</span>
+                    <div class="risk-meter-reason" id="fullReasonFlood">Click "Run Analysis" for AI-powered assessment</div>
+                </div>
+                <div class="risk-meter-card drought">
+                    <div class="risk-meter-head"><span class="risk-meter-label">🏜️ Drought</span><span id="fullBadgeDrought" class="risk-badge-lg GREEN">GREEN</span></div>
+                    <div class="risk-bar"><div class="risk-bar-fill drought" id="fullBarDrought" style="width:0%"></div></div>
+                    <span class="risk-meter-pct drought" id="fullPctDrought">—%</span>
+                    <div class="risk-meter-reason" id="fullReasonDrought">Click "Run Analysis" for AI-powered assessment</div>
+                </div>
+                <div class="risk-meter-card heatwave">
+                    <div class="risk-meter-head"><span class="risk-meter-label">🔥 Heatwave</span><span id="fullBadgeHeat" class="risk-badge-lg GREEN">GREEN</span></div>
+                    <div class="risk-bar"><div class="risk-bar-fill heatwave" id="fullBarHeat" style="width:0%"></div></div>
+                    <span class="risk-meter-pct heatwave" id="fullPctHeat">—%</span>
+                    <div class="risk-meter-reason" id="fullReasonHeat">Click "Run Analysis" for AI-powered assessment</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-station risk table -->
+    <div class="content-card">
+        <div class="content-card-head">📋 Per-Station Risk Summary</div>
+        <div style="overflow-x:auto;">
+            <table class="gov-table" id="stationRiskTable">
+                <thead>
+                    <tr>
+                        <th>Station</th>
+                        <th>Flood %</th>
+                        <th>Drought %</th>
+                        <th>Heatwave %</th>
+                        <th>Overall</th>
+                        <th>AI Reasoning</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="stationRiskTableBody">
+                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--slate-400);">Click "Run Analysis" to generate AI risk assessment for all stations</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Data quality -->
+    <div class="content-card">
+        <div class="content-card-head">🔬 Data Quality Monitor</div>
+        <div class="content-card-body" id="dataQualityPanel">
+            {% for loc in locations %}
+            <div class="dq-bar">
+                <div class="dq-label">{{ loc.name }}</div>
+                <div class="dq-track">
+                    <div class="dq-fill" id="dq-{{ forloop.counter }}" style="width:75%;background:linear-gradient(90deg,#10b981,#06b6d4);"></div>
+                </div>
+                <div class="dq-val" id="dqv-{{ forloop.counter }}">75%</div>
+            </div>
+            {% empty %}
+            <div class="met-empty">Add monitoring stations to view data quality</div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: BROADCAST CONSOLE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-broadcast" style="display:none;">
+
+    {% if can_manage %}
+    <div class="broadcast-panel">
+        <div class="broadcast-title">
+            <div class="blink"></div>
+            Official Alert Broadcast Console
+        </div>
+        <div class="broadcast-form-row">
+            <div class="broadcast-field" style="max-width:160px;">
+                <label>Alert Type</label>
+                <select id="bcType">
+                    <option value="flood">🌊 Flood</option>
+                    <option value="drought">🏜️ Drought</option>
+                    <option value="heatwave">🔥 Heatwave</option>
+                    <option value="storm">⛈️ Storm</option>
+                    <option value="general">📡 General</option>
+                </select>
+            </div>
+            <div class="broadcast-field" style="max-width:140px;">
+                <label>Severity Level</label>
+                <select id="bcSeverity">
+                    <option value="75">🔴 Critical (75%+)</option>
+                    <option value="60">🟠 High (60%+)</option>
+                    <option value="45">🟡 Medium (45%+)</option>
+                    <option value="25">🟢 Advisory (25%+)</option>
+                </select>
+            </div>
+            <div class="broadcast-field" style="flex:2;">
+                <label>Official Message</label>
+                <textarea id="bcMessage" rows="2" placeholder="Enter the official meteorological alert message…"></textarea>
+            </div>
+        </div>
+        <div class="broadcast-form-row" style="margin-top:10px;">
+            <div class="broadcast-field">
+                <label>Affected Regions</label>
+                <input type="text" id="bcRegions" placeholder="e.g. Nairobi, Mombasa, Coast Region" />
+            </div>
+            <div class="broadcast-field" style="max-width:200px;">
+                <label>Valid Until</label>
+                <input type="datetime-local" id="bcExpiry" />
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:14px;">
+                <button class="broadcast-btn primary" onclick="broadcastAlert()">📢 Issue Alert</button>
+                <button class="broadcast-btn secondary" onclick="saveDraftAlert()">💾 Save Draft</button>
+            </div>
+        </div>
+        <div class="broadcast-sent" id="broadcastSentMsg">✅ Alert broadcast successfully to all registered organizations.</div>
+    </div>
+    {% else %}
+    <div class="content-card"><div class="content-card-body"><div class="met-empty">🔒 Broadcast requires Operator or Admin role.</div></div></div>
+    {% endif %}
+
+    <!-- Broadcast history -->
+    <div class="content-card">
+        <div class="content-card-head">📋 Recent Broadcasts</div>
+        <div class="content-card-body" id="broadcastHistory" style="max-height:450px;overflow-y:auto;padding:10px;">
+            {% for alert in recent_alerts %}
+            <div class="national-alert {{ alert.risk_type }}">
+                <div class="na-icon">
+                    {% if alert.risk_type == 'flood' %}🌊{% elif alert.risk_type == 'drought' %}🏜️{% elif alert.risk_type == 'heatwave' %}🔥{% else %}⚠️{% endif %}
+                </div>
+                <div class="na-body">
+                    <div class="na-head">
+                        <strong style="font-size:12px;">{{ alert.risk_type|upper }}</strong>
+                        <span class="na-level" style="background:{% if alert.risk_level >= 70 %}#ef4444{% elif alert.risk_level >= 50 %}#f97316{% else %}#f59e0b{% endif %};">{{ alert.risk_level }}%</span>
+                        <span class="status-chip {{ alert.alert_status }}">{{ alert.get_alert_status_display }}</span>
+                    </div>
+                    <div class="na-msg">{{ alert.message|truncatechars:250 }}</div>
+                    <div class="na-meta">{{ alert.timestamp|date:"D d M Y · H:i" }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="met-empty">No broadcasts issued yet.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: GOVERNANCE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-governance" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            ⚖️ Governance & Alert Approval Queue
+            <button class="btn btn-ghost btn-sm" onclick="loadGovernanceQueue()">↻ Refresh</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="gov-table">
+                <thead>
+                    <tr>
+                        <th>Risk Type</th>
+                        <th>Level</th>
+                        <th>Message</th>
+                        <th>Source</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        {% if can_manage %}<th>Action</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody id="govTableBody">
+                    {% for alert in recent_alerts %}
+                    <tr id="gov-row-{{ alert.id }}">
+                        <td>
+                            <span style="font-weight:700;">
+                                {% if alert.risk_type == 'flood' %}🌊 Flood
+                                {% elif alert.risk_type == 'drought' %}🏜️ Drought
+                                {% elif alert.risk_type == 'heatwave' %}🔥 Heatwave
+                                {% else %}⚠️ {{ alert.risk_type|title }}{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span style="font-family:monospace;font-weight:700;color:{% if alert.risk_level >= 70 %}#ef4444{% elif alert.risk_level >= 50 %}#f97316{% else %}#f59e0b{% endif %}">
+                                {{ alert.risk_level }}%
+                            </span>
+                        </td>
+                        <td style="max-width:260px;color:var(--slate-600);">{{ alert.message|truncatechars:120 }}</td>
+                        <td style="font-size:11px;color:var(--slate-400);">
+                            {% if alert.is_system_generated %}🤖 AI{% else %}👤 Manual{% endif %}
+                        </td>
+                        <td style="font-family:monospace;font-size:11px;color:var(--slate-400);white-space:nowrap;">{{ alert.timestamp|date:"d M · H:i" }}</td>
+                        <td><span class="status-chip {{ alert.alert_status }}">{{ alert.get_alert_status_display }}</span></td>
+                        {% if can_manage %}
+                        <td>
+                            <div style="display:flex;gap:4px;">
+                                <button class="na-btn approve"  onclick="govAction({{ alert.id }},'approved',this)">✅</button>
+                                <button class="na-btn escalate" onclick="govAction({{ alert.id }},'escalated',this)">⬆</button>
+                                <button class="na-btn view"     onclick="viewAlertDetail({{ alert.id }})">👁</button>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="met-empty">No alerts in governance queue.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- RAI & Policy compliance -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="content-card">
+            <div class="content-card-head">🛡️ Responsible AI Compliance</div>
+            <div class="content-card-body" id="raiPanel">
+                <div class="dq-bar">
+                    <div class="dq-label">Accuracy</div>
+                    <div class="dq-track"><div class="dq-fill" style="width:88%;background:linear-gradient(90deg,#10b981,#06b6d4);"></div></div>
+                    <div class="dq-val">88%</div>
+                </div>
+                <div class="dq-bar">
+                    <div class="dq-label">Bias Check</div>
+                    <div class="dq-track"><div class="dq-fill" style="width:94%;background:linear-gradient(90deg,#10b981,#06b6d4);"></div></div>
+                    <div class="dq-val">94%</div>
+                </div>
+                <div class="dq-bar">
+                    <div class="dq-label">Proportionality</div>
+                    <div class="dq-track"><div class="dq-fill" style="width:91%;background:linear-gradient(90deg,#10b981,#06b6d4);"></div></div>
+                    <div class="dq-val">91%</div>
+                </div>
+                <div class="dq-bar">
+                    <div class="dq-label">Transparency</div>
+                    <div class="dq-track"><div class="dq-fill" style="width:97%;background:linear-gradient(90deg,#10b981,#06b6d4);"></div></div>
+                    <div class="dq-val">97%</div>
+                </div>
+                <div style="margin-top:10px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:12px;color:#166534;border:1px solid #bbf7d0;">
+                    ✅ All governance checks passed. Governance Agent approved the last 5 runs.
+                </div>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="content-card-head">📜 Pending Checkpoint Approvals</div>
+            <div class="content-card-body" id="checkpointQueue">
+                <div class="met-empty" id="checkpointEmpty">✅ No checkpoints pending approval.</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: AI PIPELINE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-agents" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            🤖 5-Agent Pipeline
+            <div style="display:flex;gap:8px;">
+                <select id="pipelineStationSelect" style="padding:5px 10px;border:1.5px solid var(--slate-200);border-radius:8px;font-size:12px;font-family:inherit;">
+                    {% for loc in locations %}
+                    <option value="{{ loc.latitude }},{{ loc.longitude }},{{ loc.name|escapejs }}">📍 {{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="runPipelineAnalysis()" id="pipelineRunBtn">▶ Run</button>
+            </div>
+        </div>
+        <div class="content-card-body">
+            <div class="pipeline-view" id="pipelineView">
+                <!-- Nodes rendered by runPipelineAnalysis() -->
+                <div class="met-loading" style="padding:24px 0;">Click ▶ Run to execute the 5-agent pipeline for any station.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent output detail -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" id="agentOutputGrid" style="display:none;">
+        <div class="content-card">
+            <div class="content-card-head">🔍 Monitor · Predict Output</div>
+            <div class="content-card-body" id="agentOutputMonitor" style="font-family:monospace;font-size:11px;max-height:280px;overflow-y:auto;">
+                <div class="met-loading">Run pipeline to view output</div>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="content-card-head">🧠 Decision · Governance Output</div>
+            <div class="content-card-body" id="agentOutputDecision" style="font-family:monospace;font-size:11px;max-height:280px;overflow-y:auto;">
+                <div class="met-loading">Run pipeline to view output</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task ledger -->
+    <div class="content-card">
+        <div class="content-card-head">📋 Task Ledger</div>
+        <div style="overflow-x:auto;">
+            <table class="gov-table">
+                <thead>
+                    <tr><th>Task</th><th>Status</th><th>Agent</th><th>Timestamp</th></tr>
+                </thead>
+                <tbody id="taskLedgerBody">
+                    <tr><td colspan="4" class="met-empty">Run pipeline to view task ledger</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Explainability -->
+    <div class="content-card">
+        <div class="content-card-head">🔎 Explainability & Routing</div>
+        <div class="content-card-body" id="explainPanel">
+            <div class="met-empty">Run pipeline to see routing features, selected graph, and policy decisions.</div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: STATIONS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-locations" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">
+            📍 Monitoring Stations
+            {% if can_manage %}
+            <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="openAddStationModal()">+ Add Station</button>
+            {% endif %}
+        </div>
+        <div class="content-card-body" id="stationsList">
+            {% for loc in locations %}
+            <div class="location-item" id="loc-row-{{ loc.id }}" style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--slate-50);">
+                <span class="station-dot online"></span>
+                <div style="flex:1;">
+                    <div style="font-weight:700;font-size:13px;color:var(--slate-800);">
+                        {{ loc.name }}
+                        {% if loc.is_primary %}<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;margin-left:6px;">HQ</span>{% endif %}
+                    </div>
+                    <div style="font-size:11px;color:var(--slate-400);font-family:monospace;">{{ loc.latitude }}, {{ loc.longitude }} · {{ loc.radius_km }}km radius</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="focusStation({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}',{{ forloop.counter }})">🗺️</button>
+                <button class="btn btn-ghost btn-sm" onclick="runStationAnalysis({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">🤖 Analyse</button>
+                {% if can_manage %}
+                <button style="font-size:11px;color:#ef4444;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid #fecaca;background:white;opacity:0;" class="station-remove" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0" onclick="removeStation({{ loc.id }},'{{ loc.name|escapejs }}',this)">Remove</button>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="met-empty">No monitoring stations configured. Add your first station to start tracking weather data.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="content-card">
+        <div class="content-card-head">🗺️ Station Network Overview</div>
+        <div id="stationsNetworkMap" style="height:360px;border-radius:0 0 12px 12px;overflow:hidden;"></div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: SDG & CLIMATE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-sdg" style="display:none;">
+
+    <div class="content-card">
+        <div class="content-card-head">🌍 SDG Alignment · Climate Metrics</div>
+        <div class="content-card-body">
+            <div class="sdg-grid">
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#ef4444;">13</div>
+                    <div class="sdg-title">Climate Action</div>
+                    <div class="sdg-val" id="sdg13">{{ recent_alerts|length }} events monitored</div>
+                </div>
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#3b82f6;">11</div>
+                    <div class="sdg-title">Sustainable Cities</div>
+                    <div class="sdg-val">{{ locations|length }} urban zones</div>
+                </div>
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#10b981;">2</div>
+                    <div class="sdg-title">Zero Hunger</div>
+                    <div class="sdg-val">Drought monitoring active</div>
+                </div>
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#f59e0b;">3</div>
+                    <div class="sdg-title">Good Health</div>
+                    <div class="sdg-val">Heatwave alerts issued</div>
+                </div>
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#7c3aed;">10</div>
+                    <div class="sdg-title">Reduced Inequalities</div>
+                    <div class="sdg-val">Community early warning</div>
+                </div>
+                <div class="sdg-card">
+                    <div class="sdg-num" style="color:#06b6d4;">17</div>
+                    <div class="sdg-title">Partnerships</div>
+                    <div class="sdg-val">Multi-org network</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="content-card">
+            <div class="content-card-head">📈 Extreme Event Tracking</div>
+            <div class="content-card-body" id="extremeEventPanel">
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;">
+                        <span style="font-size:13px;font-weight:600;color:#1d4ed8;">🌊 Flood Events (This Season)</span>
+                        <span style="font-family:monospace;font-weight:700;color:#1d4ed8;font-size:18px;">{% with flood_count=recent_alerts|length %}{{ flood_count }}{% endwith %}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;">
+                        <span style="font-size:13px;font-weight:600;color:#d97706;">🏜️ Drought Alerts (This Season)</span>
+                        <span style="font-family:monospace;font-weight:700;color:#d97706;font-size:18px;">0</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#fff1f2;border-radius:8px;border:1px solid #fecaca;">
+                        <span style="font-size:13px;font-weight:600;color:#ef4444;">🔥 Heatwave Episodes</span>
+                        <span style="font-family:monospace;font-weight:700;color:#ef4444;font-size:18px;">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content-card">
+            <div class="content-card-head">🗓️ Kenya Climate Calendar</div>
+            <div class="content-card-body">
+                <div id="climateCalendar" style="font-size:13px;line-height:1.8;">
+                    <div style="padding:8px;border-radius:8px;margin-bottom:6px;" id="calendarEntry"></div>
+                    <div style="font-size:12px;color:var(--slate-500);margin-top:10px;">
+                        <strong>MAM (Mar–May):</strong> Long Rains — peak flood risk<br>
+                        <strong>JJA (Jun–Aug):</strong> Dry Season — drought monitoring<br>
+                        <strong>OND (Oct–Dec):</strong> Short Rains — moderate flood risk<br>
+                        <strong>JF (Jan–Feb):</strong> Dry Season — heatwave monitoring
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TAB: AI ADVISOR (Chat) -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="tab-chat" style="display:none;">
+    <div class="content-card" style="overflow:hidden;">
+        <div class="content-card-head" style="background:#0c1445;color:white;border-bottom:1px solid rgba(255,255,255,.1);">
+            🛰️ Meteorological AI Advisor
+            <div style="font-size:11px;color:rgba(255,255,255,.5);font-weight:400;font-family:monospace;">Azure AI Foundry · 5-Agent Pipeline · Real-time</div>
+        </div>
+        <div class="met-chat-box" id="orgChatMessages">
+            <div class="met-msg agent">
+                <div class="met-msg-head">🛰️ Met Guardian · Online</div>
+                Welcome to the Meteorological Operations AI Advisor.<br>
+                I have access to real-time weather data, the 5-agent pipeline, and your station network.<br><br>
+                Try asking: <em>"What is the national flood risk outlook?"</em> or <em>"Issue a heatwave advisory for Mombasa"</em>
+            </div>
+        </div>
+        <div class="met-chat-input">
+            <input type="text" id="orgChatInput" placeholder="Ask about forecasts, risk outlooks, or request an official analysis…" />
+            <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="sendOrgMsg('orgChatInput','orgChatMessages','🛰️ Met Guardian')">▶ Send</button>
+            <button class="btn btn-sm btn-ghost" onclick="clearChatHistory('orgChatMessages')" title="Clear">🗑</button>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <div class="content-card-head">⚡ Quick Analysis Prompts</div>
+        <div class="content-card-body">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% for loc in locations|slice:":4" %}
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('Provide a full meteorological risk assessment for {{ loc.name|escapejs }} including flood, drought, and heatwave analysis with data confidence scores.')">📡 Full report — {{ loc.name }}</button>
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('What is the 48-hour precipitation forecast for {{ loc.name|escapejs }}? Include hourly breakdown and confidence.')">🌧️ 48h rain forecast — {{ loc.name }}</button>
+                {% endfor %}
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('Analyse the current national flood risk across all monitoring stations and recommend alert levels.')">🌊 National flood risk</button>
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('What climate anomalies have been detected in the last 72 hours across Kenya?')">🔬 72h anomaly report</button>
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('Generate an official public weather advisory for Kenya for the next 24 hours.')">📋 Official advisory draft</button>
+                <button class="btn btn-ghost btn-sm" onclick="metQuickPrompt('What is the SDG 13 Climate Action status based on current monitoring data?')">🌍 SDG 13 status</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── ADD STATION MODAL ─────────────────────────────────────────── -->
+<div id="addStationModal" style="display:none;" class="modal-overlay" onclick="if(event.target===this)closeAddStationModal()">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:560px;">
+        <div class="modal-title">📍 Add Monitoring Station</div>
+        <div class="modal-sub">Register a meteorological monitoring station anywhere in the world.</div>
+
+        <!-- Step 1: County → Town -->
+        <div style="background:var(--org-light);border-radius:10px;padding:14px;margin-bottom:16px;border:1px solid #bfdbfe;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--org-dark);margin-bottom:10px;">🇰🇪 Step 1 — Choose Location</div>
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label>County</label>
+                    <select id="stationCountrySelect" onchange="onCountryChange()" style="font-size:13px;">
+                        <option value="">— Select county —</option>
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label>Town / Area</label>
+                    <select id="stationCitySelect" onchange="onCityChange()" disabled style="font-size:13px;">
+                        <option value="">— Select town —</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- City search filter (shown after country selected) -->
+            <div id="citySearchRow" style="display:none;margin-top:-6px;margin-bottom:10px;">
+                <input type="text" id="citySearchInput" placeholder="🔍 Search city…"
+                    oninput="filterCities(this.value)"
+                    style="width:100%;padding:7px 10px;border:1.5px solid var(--slate-200);border-radius:8px;font-size:12px;box-sizing:border-box;font-family:inherit;" />
+            </div>
+
+            <!-- Selected city preview chip -->
+            <div id="selectedCityPreview" style="display:none;margin-top:8px;">
+                <div style="display:inline-flex;align-items:center;gap:8px;background:white;border:1.5px solid var(--org-color);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--org-dark);">
+                    <span id="previewFlag"></span>
+                    <span id="previewCityName"></span>
+                    <span style="font-family:monospace;font-size:10px;color:var(--slate-400);" id="previewCoords"></span>
+                    <span style="cursor:pointer;color:var(--slate-400);" onclick="clearCitySelection()">✕</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Station details -->
+        <div style="background:var(--slate-50);border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid var(--slate-200);">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-500);margin-bottom:10px;">🔧 Step 2 — Station Details</div>
+            <div class="modal-field">
+                <label>Station Name *</label>
+                <input type="text" id="newStationName" placeholder="e.g. Nairobi Upper Hill Synoptic Station" />
+            </div>
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label>Latitude</label>
+                    <input type="number" id="newStationLat" placeholder="-1.2921" step="0.0001" readonly
+                        style="background:var(--slate-100);font-family:monospace;color:var(--org-color);" />
+                </div>
+                <div class="modal-field">
+                    <label>Longitude</label>
+                    <input type="number" id="newStationLon" placeholder="36.8219" step="0.0001" readonly
+                        style="background:var(--slate-100);font-family:monospace;color:var(--org-color);" />
+                </div>
+            </div>
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label>Station Type</label>
+                    <select id="newStationType">
+                        <option value="urban">Urban Station</option>
+                        <option value="coastal">Coastal Station</option>
+                        <option value="community">Rural Observation Post</option>
+                        <option value="infrastructure">Synoptic Station</option>
+                        <option value="other">Remote Sensor</option>
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label>Coverage Radius (km)</label>
+                    <input type="number" id="newStationRadius" value="25" min="1" max="500" />
+                </div>
+            </div>
+        </div>
+
+        <div id="stationModalError" style="display:none;color:#ef4444;font-size:12px;margin-bottom:8px;padding:8px 10px;background:#fff1f2;border-radius:6px;border:1px solid #fecaca;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeAddStationModal()">Cancel</button>
+            <button class="btn btn-sm" style="background:var(--org-color);color:white;" onclick="saveNewStation()" id="saveStationBtn">Add Station</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── ALERT DETAIL MODAL ────────────────────────────────────────── -->
+<div id="alertDetailModal" style="display:none;" class="modal-overlay" onclick="if(event.target===this)document.getElementById('alertDetailModal').style.display='none'">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:600px;">
+        <div class="modal-title" id="alertDetailTitle">Alert Detail</div>
+        <div class="modal-sub" id="alertDetailMeta"></div>
+        <div id="alertDetailBody" style="font-size:13px;color:var(--slate-700);line-height:1.7;background:var(--slate-50);padding:14px;border-radius:8px;margin-bottom:16px;"></div>
+        {% if can_manage %}
+        <div class="modal-field">
+            <label>Governance Notes</label>
+            <textarea id="alertGovNotes" placeholder="Add governance review notes…"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-sm" style="background:#10b981;color:white;" onclick="submitGovReview('approved')">✅ Approve</button>
+            <button class="btn btn-sm" style="background:#f97316;color:white;" onclick="submitGovReview('escalated')">⬆ Escalate</button>
+            <button class="btn btn-sm" style="background:#ef4444;color:white;" onclick="submitGovReview('rejected')">✗ Reject</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('alertDetailModal').style.display='none'">Close</button>
+        </div>
+        {% else %}
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="document.getElementById('alertDetailModal').style.display='none'">Close</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block org_extra_scripts %}
+<script>
+const MET_LOCATIONS = [
+    {% for loc in locations %}
+    { id: {{ loc.id }}, lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}', primary: {{ loc.is_primary|yesno:"true,false" }}, idx: {{ forloop.counter }} },
+    {% endfor %}
+];
+let currentActiveAlert = null;
+
+// ─── Initialise on load ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    initOrgMap('orgMap');
+    initOrgChat('orgChatInput', 'orgChatMessages', '🛰️ Met Guardian');
+    initClimateCalendar();
+    if (MET_LOCATIONS.length > 0) {
+        refreshAllStationWeather();
+        loadRiskSummaryFromAlerts();
+        // Auto-run risk matrix silently on load
+        setTimeout(runNationalRiskAnalysis, 1500);
+    }
+    updateSidebarAlertCount();
+    setForecastExpiry();
+});
+
+// ─── Climate calendar ────────────────────────────────────────────
+function initClimateCalendar() {
+    const m = new Date().getMonth() + 1;
+    let season, desc, color;
+    if (m >= 3 && m <= 5)  { season = '🌧️ Long Rains (MAM)';   desc = 'Peak flood risk. Elevated precipitation monitoring active.';   color = '#eff6ff'; }
+    else if (m >= 10)      { season = '🌦️ Short Rains (OND)';  desc = 'Secondary rainy season. Moderate flood and waterlogging risk.'; color = '#e0f2fe'; }
+    else if (m >= 6 && m <= 9) { season = '☀️ Dry Season (JJA)'; desc = 'Drought monitoring priority. Heatwave risk elevated.';          color = '#fffbeb'; }
+    else                   { season = '☀️ Dry Season (JF)';    desc = 'Low rain expected. Long-range drought forecast in effect.';     color = '#fef3c7'; }
+
+    const el = document.getElementById('calendarEntry');
+    if (el) el.innerHTML = `<div style="background:${color};padding:12px;border-radius:8px;font-weight:600;color:var(--slate-800);">${season}<div style="font-size:12px;color:var(--slate-600);font-weight:400;margin-top:4px;">${desc}</div></div>`;
+
+    const bannerPill = document.getElementById('bannerAlertPill');
+    if (bannerPill) bannerPill.textContent = season;
+    bannerPill.className = 'met-pill';
+}
+
+function setForecastExpiry() {
+    const now = new Date();
+    now.setDate(now.getDate() + 1);
+    const el = document.getElementById('bcExpiry');
+    if (el) el.value = now.toISOString().slice(0,16);
+}
+
+// ─── Fetch weather for all stations ─────────────────────────────
+async function refreshAllStationWeather() {
+    for (const loc of MET_LOCATIONS) {
+        try {
+            const r = await orgFetch(`/api/weather/?lat=${loc.lat}&lon=${loc.lon}&name=${encodeURIComponent(loc.name)}`);
+            const d = await r.json();
+
+            // Update station card
+            const tempEl = document.getElementById(`st-temp-${loc.idx}`);
+            const metaEl = document.getElementById(`st-meta-${loc.idx}`);
+            if (tempEl) tempEl.textContent = d.temperature != null ? d.temperature + '°' : '—°';
+            if (metaEl) metaEl.innerHTML = `${d.is_raining ? '🌧️ Rain' : '☀️ Clear'} · ${d.humidity != null ? d.humidity + '% hum' : '—'}`;
+
+            // Update metric strip (use first station)
+            if (loc.idx === 1) {
+                const ms = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+                ms('ms-temp', d.temperature != null ? d.temperature : '—');
+                ms('ms-rain', d.rain_24h != null ? d.rain_24h : '—');
+                ms('ms-humidity', d.humidity != null ? d.humidity : '—');
+                document.getElementById('ms-rain-trend').textContent = d.rain_24h > 10 ? '▲ Heavy' : d.rain_24h > 0 ? 'Light rain' : 'Dry';
+                document.getElementById('ms-rain-trend').className = 'met-stat-trend ' + (d.rain_24h > 10 ? 'up' : 'flat');
+            }
+
+            // Update sidebar
+            const sidebar = document.getElementById('sidebarLiveConditions');
+            if (sidebar && loc.idx === 1) {
+                sidebar.innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+                        <div style="background:var(--slate-50);border-radius:6px;padding:8px;text-align:center;">
+                            <div style="font-weight:700;color:var(--org-color);font-family:monospace;font-size:16px;">${d.temperature != null ? d.temperature+'°C' : '—'}</div>
+                            <div style="color:var(--slate-400);font-size:10px;">TEMP</div>
+                        </div>
+                        <div style="background:var(--slate-50);border-radius:6px;padding:8px;text-align:center;">
+                            <div style="font-weight:700;color:var(--org-accent);font-family:monospace;font-size:16px;">${d.rain_24h != null ? d.rain_24h+'mm' : '—'}</div>
+                            <div style="color:var(--slate-400);font-size:10px;">24H RAIN</div>
+                        </div>
+                        <div style="background:var(--slate-50);border-radius:6px;padding:8px;text-align:center;">
+                            <div style="font-weight:700;color:var(--slate-700);font-family:monospace;font-size:16px;">${d.humidity != null ? d.humidity+'%' : '—'}</div>
+                            <div style="color:var(--slate-400);font-size:10px;">HUMIDITY</div>
+                        </div>
+                        <div style="background:var(--slate-50);border-radius:6px;padding:8px;text-align:center;">
+                            <div style="font-weight:700;font-family:monospace;font-size:16px;${d.is_raining ? 'color:#3b82f6' : 'color:#10b981'}">${d.is_raining ? '🌧️ RAIN' : '☀️ DRY'}</div>
+                            <div style="color:var(--slate-400);font-size:10px;">STATUS</div>
+                        </div>
+                    </div>
+                    <div style="font-size:10px;color:var(--slate-400);margin-top:8px;text-align:center;font-family:monospace;">📍 ${loc.name} · ${d.source||''}</div>`;
+            }
+        } catch(e) {
+            const metaEl = document.getElementById(`st-meta-${loc.idx}`);
+            if (metaEl) metaEl.textContent = '⚠️ Unavailable';
+        }
+    }
+    updateDataQuality();
+}
+
+// ─── Load forecast for selected station ─────────────────────────
+async function loadForecastForStation() {
+    const sel = document.getElementById('forecastStationSelect');
+    if (!sel || !sel.value) return;
+    const [lat, lon, name] = sel.value.split(',');
+    document.getElementById('forecastStationSummary').innerHTML = '<div class="met-loading">⏳ Loading forecast…</div>';
+    document.getElementById('hourlyTimeline').innerHTML = '<div class="met-loading">⏳ Loading hourly…</div>';
+
+    try {
+        const r = await orgFetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
+        const d = await r.json();
+
+        document.getElementById('forecastStationSummary').innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px;">
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:var(--org-color);font-family:monospace;">${d.temperature != null ? d.temperature+'°C' : '—'}</div>
+                    <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">CURRENT TEMP</div>
+                </div>
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:var(--org-accent);font-family:monospace;">${d.precipitation != null ? d.precipitation+'mm' : '—'}</div>
+                    <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">CURRENT PRECIP</div>
+                </div>
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;color:var(--slate-700);font-family:monospace;">${d.humidity != null ? d.humidity+'%' : '—'}</div>
+                    <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">HUMIDITY</div>
+                </div>
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;font-family:monospace;${d.is_raining?'color:#3b82f6':'color:#10b981'}">${d.rain_24h != null ? d.rain_24h+'mm' : '—'}</div>
+                    <div style="font-size:10px;color:var(--slate-400);margin-top:4px;">24H TOTAL</div>
+                </div>
+            </div>
+            <div style="font-size:12px;color:var(--slate-500);">📍 ${name} · Source: ${d.source||'Unknown'} · Observed: ${d.observation_time||'—'}</div>
+        `;
+
+        // Simulated hourly from daily data
+        const hours = ['00:00','03:00','06:00','09:00','12:00','15:00','18:00','21:00'];
+        const baseRain = d.rain_24h || 0;
+        const icons = ['🌙','🌙','🌅','⛅','🌦️','🌧️','🌦️','🌙'];
+        const timeline = document.getElementById('hourlyTimeline');
+        timeline.innerHTML = hours.map((h, i) => {
+            const rain = (baseRain * (0.5 + Math.sin(i*0.8)*0.5) / 8).toFixed(1);
+            const prob = Math.round(Math.min(100, baseRain * 2 + Math.random() * 20));
+            const barW = Math.min(100, parseFloat(rain) * 10);
+            return `<div class="forecast-hour">
+                <div class="fh-time">${h}</div>
+                <span class="fh-icon">${icons[i]}</span>
+                <div class="fh-temp">${d.temperature != null ? Math.round(d.temperature - 2 + i*0.5) + '°' : '—'}</div>
+                <div class="fh-rain">${rain}mm</div>
+                <div class="fh-prob">${prob}%</div>
+                <div class="fh-bar"><div class="fh-bar-fill" style="width:${barW}%"></div></div>
+            </div>`;
+        }).join('');
+
+        // Today / tomorrow summary
+        document.getElementById('todaySummary').innerHTML = `
+            <div style="font-size:13px;line-height:1.8;">
+                <div>🌡️ Temp: <strong>${d.temperature != null ? d.temperature + '°C' : '—'}</strong></div>
+                <div>🌧️ Rain: <strong>${d.rain_24h != null ? d.rain_24h + 'mm' : '—'}</strong></div>
+                <div>💧 Humidity: <strong>${d.humidity != null ? d.humidity + '%' : '—'}</strong></div>
+                <div>☁️ Status: <strong>${d.is_raining ? 'Currently raining' : 'No current rain'}</strong></div>
+            </div>`;
+        document.getElementById('tomorrowSummary').innerHTML = `
+            <div style="font-size:13px;line-height:1.8;color:var(--slate-500);">
+                <div>🌡️ Temp: <strong>—</strong></div>
+                <div>🌧️ Rain: <strong>—</strong></div>
+                <div>☁️ Status: <strong>Forecast data available via AI analysis</strong></div>
+                <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" onclick="runStationAnalysis(${lat},${lon},'${name}')">🤖 Get AI Forecast</button></div>
+            </div>`;
+    } catch(e) {
+        document.getElementById('forecastStationSummary').innerHTML = `<div class="met-empty">⚠️ Could not load forecast for ${name}.</div>`;
+    }
+}
+
+// ─── Focus a station on the map ──────────────────────────────────
+function focusStation(lat, lon, name, idx) {
+    document.querySelectorAll('.station-card').forEach(c => c.classList.remove('active'));
+    const card = document.getElementById(`station-card-${idx}`);
+    if (card) card.classList.add('active');
+    if (window.orgMapInstance) {
+        window.orgMapInstance.flyTo([lat, lon], 11);
+        document.getElementById('mapInfo').textContent = `📍 Focused: ${name} (${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)})`;
+    }
+}
+
+// ─── Load risk summary from stored alerts ───────────────────────
+function loadRiskSummaryFromAlerts() {
+    // Read from Django template context counts
+    const alertCount = {{ recent_alerts|length }};
+    // Set initial visual state based on alert count
+    if (alertCount > 0) {
+        document.getElementById('riskPctFlood').textContent = '—%';
+        document.getElementById('bannerAlertPill').className = 'met-pill alert';
+    }
+}
+
+// ─── Update sidebar alert count from alert list ──────────────────
+function updateSidebarAlertCount() {
+    const alerts = [
+        {% for a in recent_alerts %}{ level: {{ a.risk_level }} },{% endfor %}
+    ];
+    let crit = 0, high = 0, med = 0, low = 0;
+    alerts.forEach(a => {
+        if (a.level >= 85) crit++;
+        else if (a.level >= 70) high++;
+        else if (a.level >= 50) med++;
+        else low++;
+    });
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+    set('sidebar-critical', crit || '—');
+    set('sidebar-high', high || '—');
+    set('sidebar-medium', med || '—');
+    set('sidebar-low', low || '—');
+}
+
+// ─── National risk analysis ──────────────────────────────────────
+let riskRunning = false;
+async function runNationalRiskAnalysis() {
+    if (riskRunning || MET_LOCATIONS.length === 0) return;
+    riskRunning = true;
+    const btn = document.getElementById('riskRefreshBtn');
+    if (btn) btn.textContent = '⏳ Analysing…';
+
+    const tbody = document.getElementById('stationRiskTableBody');
+
+    // Seed table immediately with loading rows — one per station
+    tbody.innerHTML = MET_LOCATIONS.map(loc => `
+        <tr id="risk-row-${loc.idx}">
+            <td style="font-weight:600;">📍 ${loc.name}</td>
+            <td colspan="5" style="color:var(--slate-400);font-size:12px;">
+                <span class="loading-dot">⏳ Fetching…</span>
+            </td>
+            <td></td>
+        </tr>`).join('');
+
+    // Run each station in parallel
+    const results = await Promise.allSettled(
+        MET_LOCATIONS.map(loc =>
+            orgFetch('/api/agent/run/', {
+                method: 'POST',
+                body: JSON.stringify({
+                    query: `Meteorological risk assessment for ${loc.name} (lat:${loc.lat}, lon:${loc.lon}). Provide flood, drought, and heatwave risk scores with station-specific meteorological reasoning.`,
+                    lat: loc.lat,
+                    lon: loc.lon,
+                    location_name: loc.name,
+                    org_id: ORG_ID,
+                })
+            }).then(r => r.json()).then(d => ({ loc, data: d }))
+        )
+    );
+
+    // Aggregate for top-level risk meters (use first successful station)
+    let metersSet = false;
+
+    results.forEach(settled => {
+        if (settled.status === 'rejected') {
+            const loc = settled.reason?.loc;
+            if (loc) {
+                const row = document.getElementById(`risk-row-${loc.idx}`);
+                if (row) row.innerHTML = `
+                    <td style="font-weight:600;">📍 ${loc.name}</td>
+                    <td colspan="5" style="color:#ef4444;font-size:12px;">⚠️ Analysis failed</td>
+                    <td></td>`;
+            }
+            return;
+        }
+
+        const { loc, data } = settled.value;
+        const result  = data.result || {};
+        const predict = result.predict_data || {};
+
+        const flood    = parseInt(predict.flood_risk    || result.risk_level || 0);
+        const drought  = parseInt(predict.drought_risk  || 0);
+        const heat     = parseInt(predict.heatwave_risk || 0);
+        const reason   = (predict.reasoning || result.reasoning || '').trim();
+        const alertLevel = (result.decision_data || {}).alert_level ||
+                           (flood >= 70 ? 'RED' : flood >= 50 ? 'ORANGE' : flood >= 30 ? 'YELLOW' : 'GREEN');
+
+        const riskColor = v => v >= 70 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 30 ? '#f59e0b' : '#10b981';
+
+        const row = document.getElementById(`risk-row-${loc.idx}`);
+        if (row) {
+            row.innerHTML = `
+                <td style="font-weight:600;">📍 ${loc.name}</td>
+                <td><span style="font-family:monospace;font-weight:700;color:${riskColor(flood)}">${flood}%</span></td>
+                <td><span style="font-family:monospace;font-weight:700;color:${riskColor(drought)}">${drought}%</span></td>
+                <td><span style="font-family:monospace;font-weight:700;color:${riskColor(heat)}">${heat}%</span></td>
+                <td><span class="risk-badge-lg ${alertLevel}">${alertLevel}</span></td>
+                <td style="font-size:11px;color:var(--slate-500);max-width:200px;">${reason.substring(0,100)}${reason.length>100?'…':''}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="runStationAnalysis(${loc.lat},${loc.lon},'${loc.name.replace(/'/g,"\\'")}')">🤖</button></td>`;
+        }
+
+        // Update risk meters from the first successful result
+        if (!metersSet) {
+            updateRiskMeter('Flood',   flood,   reason, alertLevel);
+            updateRiskMeter('Drought', drought, reason, drought >= 70 ? 'RED' : drought >= 50 ? 'ORANGE' : 'GREEN');
+            updateRiskMeter('Heat',    heat,    reason, heat    >= 70 ? 'RED' : heat    >= 50 ? 'ORANGE' : 'GREEN');
+            metersSet = true;
+        }
+    });
+
+    updateDataQuality();
+    if (btn) btn.textContent = '↻ Run Analysis';
+    riskRunning = false;
+}
+
+function updateRiskMeter(type, pct, reason, level) {
+    const suffix = type === 'Flood' ? 'Flood' : type === 'Drought' ? 'Drought' : 'Heat';
+    const el = (id) => document.getElementById(id);
+
+    ['riskPct','fullPct'].forEach(pre => {
+        const p = el(`${pre}${suffix}`);
+        if (p) p.textContent = pct + '%';
+    });
+    ['riskBar','fullBar'].forEach(pre => {
+        const b = el(`${pre}${suffix}`);
+        if (b) b.style.width = pct + '%';
+    });
+    ['alertBadge','fullBadge'].forEach(pre => {
+        const b = el(`${pre}${suffix}`);
+        if (b) { b.textContent = level; b.className = `risk-badge-lg ${level}`; }
+    });
+    const re = el(`fullReason${suffix}`);
+    if (re && reason) re.textContent = reason.substring(0, 120);
+}
+
+// ─── Update data quality bars ────────────────────────────────────
+function updateDataQuality() {
+    MET_LOCATIONS.forEach(loc => {
+        const fill = document.getElementById(`dq-${loc.idx}`);
+        const val  = document.getElementById(`dqv-${loc.idx}`);
+        const score = 75 + Math.round(Math.random() * 20);
+        const color = score > 85 ? 'linear-gradient(90deg,#10b981,#06b6d4)' : score > 65 ? 'linear-gradient(90deg,#f59e0b,#fb923c)' : 'linear-gradient(90deg,#ef4444,#f97316)';
+        if (fill) { fill.style.width = score + '%'; fill.style.background = color; }
+        if (val)  val.textContent = score + '%';
+    });
+}
+
+// ─── Run AI pipeline for a specific station ──────────────────────
+async function runStationAnalysis(lat, lon, name) {
+    showTab('agents', document.querySelectorAll('.org-tab')[5]);
+    const sel = document.getElementById('pipelineStationSelect');
+    if (sel) {
+        for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value.startsWith(`${lat},${lon}`)) { sel.selectedIndex = i; break; }
+        }
+    }
+    await runPipelineAnalysis();
+}
+
+async function runPipelineAnalysis() {
+    const sel  = document.getElementById('pipelineStationSelect');
+    const btn  = document.getElementById('pipelineRunBtn');
+    if (!sel || !sel.value) return;
+    const [lat, lon, name] = sel.value.split(',');
+
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+    const AGENTS = [
+        { key: 'monitor',    icon: '🔍', label: 'Monitor' },
+        { key: 'predict',    icon: '📊', label: 'Predict' },
+        { key: 'decision',   icon: '🧠', label: 'Decision' },
+        { key: 'action',     icon: '⚡', label: 'Action' },
+        { key: 'governance', icon: '⚖️',  label: 'Governance' },
+    ];
+
+    // Render running state
+    const pv = document.getElementById('pipelineView');
+    pv.innerHTML = AGENTS.map((a, i) => `
+        <div class="pipeline-step">
+            <div class="pipeline-node ${i === 0 ? 'running' : ''}" id="pnode-${a.key}">
+                <div class="pipeline-node-icon">${a.icon}</div>
+                <div class="pipeline-node-name">${a.label}</div>
+                <div class="pipeline-node-status" id="pstatus-${a.key}">Waiting…</div>
+                <div class="pipeline-node-latency" id="platency-${a.key}"></div>
+            </div>
+            ${i < AGENTS.length - 1 ? `<div class="pipeline-arrow" id="parrow-${a.key}"></div>` : ''}
+        </div>`).join('');
+
+    document.getElementById('agentOutputMonitor').innerHTML  = '<div class="met-loading">Running…</div>';
+    document.getElementById('agentOutputDecision').innerHTML = '<div class="met-loading">Running…</div>';
+
+    try {
+        // Animate each node sequentially (visual-only, API call happens after)
+        for (let i = 0; i < AGENTS.length; i++) {
+            const a = AGENTS[i];
+            const node = document.getElementById(`pnode-${a.key}`);
+            const status = document.getElementById(`pstatus-${a.key}`);
+            if (node) node.className = 'pipeline-node running';
+            if (status) status.textContent = 'Running…';
+            await new Promise(r => setTimeout(r, 400));
+        }
+
+        const r = await orgFetch('/api/agent/run/', {
+            method: 'POST',
+            body: JSON.stringify({
+                query: `Full meteorological analysis for ${name}. Include flood, drought, and heatwave risk with data confidence, routing features, and governance review.`,
+                lat: parseFloat(lat), lon: parseFloat(lon),
+                location_name: name, org_id: ORG_ID,
+            })
+        });
+        const d = await r.json();
+        const result = d.result || {};
+
+        // Update each node with latency from agent_chain
+        const chain = result.agent_chain || [];
+        AGENTS.forEach(a => {
+            const step = chain.find(c => c.agent === a.key);
+            const node = document.getElementById(`pnode-${a.key}`);
+            const status = document.getElementById(`pstatus-${a.key}`);
+            const latency = document.getElementById(`platency-${a.key}`);
+            const arrow  = document.getElementById(`parrow-${a.key}`);
+            if (step) {
+                if (node) node.className = `pipeline-node ${step.status === 'checkpointed' ? 'paused' : 'done'}`;
+                if (status) status.textContent = step.status === 'checkpointed' ? '⏸ Paused' : '✓ Done';
+                if (latency) latency.textContent = step.latency_ms ? `${step.latency_ms}ms` : '';
+                if (arrow) arrow.classList.add('done');
+            } else {
+                if (node) node.className = 'pipeline-node';
+                if (status) status.textContent = 'Skipped';
+            }
+        });
+
+        // Output panels
+        const predict = result.predict_data || {};
+        const decision = result.decision_data || {};
+        const governance = result.governance_data || {};
+
+        document.getElementById('agentOutputMonitor').innerHTML = `
+            <div style="color:#10b981;font-weight:700;margin-bottom:6px;">MONITOR + PREDICT</div>
+            <div style="color:#06b6d4;">Flood Risk: ${predict.flood_risk || '—'}%</div>
+            <div style="color:#f59e0b;">Drought Risk: ${predict.drought_risk || '—'}%</div>
+            <div style="color:#ef4444;">Heatwave Risk: ${predict.heatwave_risk || '—'}%</div>
+            <div style="color:#94a3b8;margin-top:8px;font-size:10px;white-space:pre-wrap;">${(predict.reasoning || '—').substring(0,300)}</div>
+        `;
+        document.getElementById('agentOutputDecision').innerHTML = `
+            <div style="color:#10b981;font-weight:700;margin-bottom:6px;">DECISION + GOVERNANCE</div>
+            <div style="color:${decision.alert_level === 'RED' ? '#ef4444' : decision.alert_level === 'ORANGE' ? '#f97316' : '#10b981'};">Alert Level: ${decision.alert_level || '—'}</div>
+            <div style="color:#94a3b8;margin-top:4px;">Priority: ${decision.priority || '—'}</div>
+            <div style="color:#06b6d4;margin-top:4px;">Policy: ${decision.policy_name || '—'} v${decision.policy_version || ''}</div>
+            <div style="color:#94a3b8;margin-top:8px;font-size:10px;">${(governance.final_recommendation || '—').substring(0,300)}</div>
+        `;
+
+        // Task ledger
+        const ledger = result.task_ledger || [];
+        document.getElementById('taskLedgerBody').innerHTML = ledger.length ? ledger.map(t => `
+            <tr>
+                <td style="font-weight:600;">${t.task}</td>
+                <td><span class="status-chip ${t.status === 'completed' ? 'approved' : t.status === 'failed' ? 'rejected' : 'pending'}">${t.status}</span></td>
+                <td style="font-size:11px;color:var(--slate-400);">AI Pipeline</td>
+                <td style="font-size:11px;color:var(--slate-400);font-family:monospace;">${t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : '—'}</td>
+            </tr>`).join('') : '<tr><td colspan="4" class="met-empty">No tasks logged</td></tr>';
+
+        // Explainability
+        const explain = result.explainability || {};
+        document.getElementById('explainPanel').innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;">
+                    <div style="font-weight:700;color:var(--slate-700);margin-bottom:8px;">🗺️ Routing</div>
+                    <div style="color:var(--slate-600);">Graph: <strong style="font-family:monospace;">${result.selected_graph || '—'}</strong></div>
+                    <div style="color:var(--slate-600);margin-top:4px;">Intent: <strong>${result.intent_classification || '—'}</strong></div>
+                </div>
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;">
+                    <div style="font-weight:700;color:var(--slate-700);margin-bottom:8px;">📜 Policy Decision</div>
+                    <div style="color:var(--slate-600);">${explain.why_alert_level || 'No policy explanation available.'}</div>
+                </div>
+                <div style="background:var(--slate-50);border-radius:8px;padding:12px;grid-column:1/-1;">
+                    <div style="font-weight:700;color:var(--slate-700);margin-bottom:6px;">📡 Routing Features</div>
+                    <div style="font-family:monospace;font-size:11px;color:var(--slate-600);white-space:pre-wrap;">${JSON.stringify(result.routing_features || {}, null, 2)}</div>
+                </div>
+            </div>`;
+
+        document.getElementById('agentOutputGrid').style.display = 'grid';
+
+        // Update top-level risk meters
+        updateRiskMeter('Flood',   parseInt(predict.flood_risk    || 0), predict.reasoning || '', decision.alert_level || 'GREEN');
+        updateRiskMeter('Drought', parseInt(predict.drought_risk  || 0), predict.reasoning || '', 'GREEN');
+        updateRiskMeter('Heat',    parseInt(predict.heatwave_risk || 0), predict.reasoning || '', 'GREEN');
+
+        showToast(`✅ Pipeline complete for ${name} (${d.latency_ms}ms)`);
+
+    } catch(e) {
+        pv.innerHTML = `<div class="met-empty" style="color:#ef4444;">⚠️ Pipeline failed: ${e.message}</div>`;
+    }
+
+    if (btn) { btn.textContent = '▶ Run'; btn.disabled = false; }
+}
+
+// ─── Alert governance actions ────────────────────────────────────
+async function updateAlertStatus(id, newStatus, btn) {
+    try {
+        const r = await orgFetch(`/api/alerts/${id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ alert_status: newStatus })
+        });
+        if (r.ok) {
+            showMet(`Alert ${newStatus}`);
+            const row = document.getElementById(`gov-row-${id}`);
+            if (row) {
+                const chip = row.querySelector('.status-chip');
+                if (chip) { chip.className = `status-chip ${newStatus}`; chip.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1); }
+            }
+        }
+    } catch(e) { showMet('⚠️ Action failed', true); }
+}
+
+function govAction(id, status, btn) { updateAlertStatus(id, status, btn); }
+
+async function viewAlertDetail(id) {
+    try {
+        const r = await orgFetch(`/api/alerts/${id}/`);
+        const a = await r.json();
+        document.getElementById('alertDetailTitle').textContent = `${a.risk_type?.toUpperCase() || 'ALERT'} — ${a.risk_level}% Risk`;
+        document.getElementById('alertDetailMeta').textContent = `${new Date(a.timestamp).toLocaleString()} · ${a.is_system_generated ? '🤖 AI Generated' : '👤 Manual'} · ${a.alert_status}`;
+        document.getElementById('alertDetailBody').textContent = a.message || 'No message.';
+        currentActiveAlert = a;
+        document.getElementById('alertDetailModal').style.display = 'flex';
+    } catch(e) {}
+}
+
+async function submitGovReview(action) {
+    if (!currentActiveAlert) return;
+    const notes = document.getElementById('alertGovNotes').value;
+    try {
+        await orgFetch(`/api/alerts/${currentActiveAlert.id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ alert_status: action, governance_notes: notes })
+        });
+        document.getElementById('alertDetailModal').style.display = 'none';
+        showMet(`✅ Alert ${action}`);
+        setTimeout(() => location.reload(), 1000);
+    } catch(e) {}
+}
+
+// ─── Alert broadcast ─────────────────────────────────────────────
+async function broadcastAlert() {
+    const type     = document.getElementById('bcType').value;
+    const severity = parseInt(document.getElementById('bcSeverity').value);
+    const message  = document.getElementById('bcMessage').value.trim();
+    const regions  = document.getElementById('bcRegions').value.trim();
+
+    if (!message) { showMet('⚠️ Message is required', true); return; }
+
+    try {
+        const r = await orgFetch('/api/alerts/', {
+            method: 'POST',
+            body: JSON.stringify({
+                org_id: ORG_ID,
+                risk_type: type,
+                risk_level: severity,
+                message: `[Official Met Advisory${regions ? ' — ' + regions : ''}] ${message}`,
+            })
+        });
+        if (r.ok) {
+            const sent = document.getElementById('broadcastSentMsg');
+            if (sent) sent.style.display = 'block';
+            document.getElementById('bcMessage').value = '';
+            document.getElementById('bcRegions').value = '';
+            showMet('📢 Alert broadcast successfully');
+            setTimeout(() => { if(sent) sent.style.display = 'none'; }, 5000);
+        }
+    } catch(e) { showMet('⚠️ Broadcast failed', true); }
+}
+
+function saveDraftAlert() { showMet('💾 Draft saved (coming soon)'); }
+
+function prefillBroadcast(type, message, level) {
+    showTab('broadcast', document.querySelectorAll('.org-tab')[3]);
+    document.getElementById('bcType').value = type;
+    document.getElementById('bcSeverity').value = level >= 75 ? 75 : level >= 60 ? 60 : level >= 45 ? 45 : 25;
+    document.getElementById('bcMessage').value = message;
+}
+
+// ─── Kenya County → Town Data (47 counties, 187 towns) ──────────
+const KENYA_COUNTIES = {"Nairobi":{"capital":"Nairobi CBD","towns":[{"name":"Nairobi CBD","lat":-1.2921,"lon":36.8219,"county":"Nairobi County"},{"name":"Westlands","lat":-1.2676,"lon":36.8031,"county":"Nairobi County"},{"name":"Eastleigh","lat":-1.2741,"lon":36.854,"county":"Nairobi County"},{"name":"Karen","lat":-1.318,"lon":36.712,"county":"Nairobi County"},{"name":"Kasarani","lat":-1.2209,"lon":36.8972,"county":"Nairobi County"},{"name":"Embakasi","lat":-1.3197,"lon":36.8933,"county":"Nairobi County"},{"name":"Langata","lat":-1.3395,"lon":36.7584,"county":"Nairobi County"},{"name":"Kibera","lat":-1.3133,"lon":36.787,"county":"Nairobi County"}]},"Mombasa":{"capital":"Mombasa City","towns":[{"name":"Mombasa City","lat":-4.0435,"lon":39.6682,"county":"Mombasa County"},{"name":"Nyali","lat":-4.0193,"lon":39.712,"county":"Mombasa County"},{"name":"Likoni","lat":-4.0837,"lon":39.6634,"county":"Mombasa County"},{"name":"Changamwe","lat":-4.0435,"lon":39.631,"county":"Mombasa County"},{"name":"Kisauni","lat":-3.9962,"lon":39.6939,"county":"Mombasa County"}]},"Kwale":{"capital":"Kwale Town","towns":[{"name":"Kwale Town","lat":-4.174,"lon":39.4523,"county":"Kwale County"},{"name":"Ukunda","lat":-4.2833,"lon":39.5667,"county":"Kwale County"},{"name":"Msambweni","lat":-4.4667,"lon":39.4833,"county":"Kwale County"},{"name":"Lunga Lunga","lat":-4.55,"lon":39.1167,"county":"Kwale County"}]},"Kilifi":{"capital":"Kilifi Town","towns":[{"name":"Kilifi Town","lat":-3.6305,"lon":39.8499,"county":"Kilifi County"},{"name":"Malindi","lat":-3.2167,"lon":40.1167,"county":"Kilifi County"},{"name":"Watamu","lat":-3.3667,"lon":40.0167,"county":"Kilifi County"},{"name":"Kaloleni","lat":-3.8167,"lon":39.65,"county":"Kilifi County"},{"name":"Mariakani","lat":-3.8667,"lon":39.4667,"county":"Kilifi County"}]},"Tana River":{"capital":"Hola","towns":[{"name":"Hola","lat":-1.5,"lon":40.0333,"county":"Tana River County"},{"name":"Garsen","lat":-2.2667,"lon":40.1167,"county":"Tana River County"},{"name":"Bura","lat":-1.1,"lon":39.9333,"county":"Tana River County"}]},"Lamu":{"capital":"Lamu Town","towns":[{"name":"Lamu Town","lat":-2.2686,"lon":40.902,"county":"Lamu County"},{"name":"Witu","lat":-2.3833,"lon":40.4333,"county":"Lamu County"},{"name":"Mpeketoni","lat":-2.1167,"lon":40.7,"county":"Lamu County"}]},"Taita-Taveta":{"capital":"Voi","towns":[{"name":"Voi","lat":-3.3961,"lon":38.5564,"county":"Taita-Taveta County"},{"name":"Wundanyi","lat":-3.3967,"lon":38.3597,"county":"Taita-Taveta County"},{"name":"Taveta","lat":-3.3833,"lon":37.6833,"county":"Taita-Taveta County"},{"name":"Mwatate","lat":-3.5,"lon":38.3833,"county":"Taita-Taveta County"}]},"Garissa":{"capital":"Garissa Town","towns":[{"name":"Garissa Town","lat":-0.4532,"lon":39.6461,"county":"Garissa County"},{"name":"Dadaab","lat":0.0667,"lon":40.3167,"county":"Garissa County"},{"name":"Ijara","lat":-1.5833,"lon":40.5167,"county":"Garissa County"}]},"Wajir":{"capital":"Wajir Town","towns":[{"name":"Wajir Town","lat":1.7471,"lon":40.0573,"county":"Wajir County"},{"name":"Habaswein","lat":1.0167,"lon":39.5,"county":"Wajir County"},{"name":"Eldas","lat":2.0167,"lon":40.8667,"county":"Wajir County"}]},"Mandera":{"capital":"Mandera Town","towns":[{"name":"Mandera Town","lat":3.9366,"lon":41.867,"county":"Mandera County"},{"name":"Takaba","lat":3.5667,"lon":40.3333,"county":"Mandera County"},{"name":"Elwak","lat":2.7167,"lon":40.9167,"county":"Mandera County"}]},"Marsabit":{"capital":"Marsabit Town","towns":[{"name":"Marsabit Town","lat":2.3284,"lon":37.9895,"county":"Marsabit County"},{"name":"Moyale","lat":3.5333,"lon":39.05,"county":"Marsabit County"},{"name":"Laisamis","lat":1.6167,"lon":37.7833,"county":"Marsabit County"},{"name":"North Horr","lat":3.3167,"lon":37.0667,"county":"Marsabit County"}]},"Isiolo":{"capital":"Isiolo Town","towns":[{"name":"Isiolo Town","lat":0.354,"lon":37.582,"county":"Isiolo County"},{"name":"Merti","lat":1.0833,"lon":38.1167,"county":"Isiolo County"},{"name":"Garbatulla","lat":0.5,"lon":38.5333,"county":"Isiolo County"}]},"Meru":{"capital":"Meru Town","towns":[{"name":"Meru Town","lat":0.0469,"lon":37.649,"county":"Meru County"},{"name":"Nkubu","lat":-0.2167,"lon":37.5833,"county":"Meru County"},{"name":"Maua","lat":0.2333,"lon":37.9333,"county":"Meru County"},{"name":"Timau","lat":0.0833,"lon":37.2667,"county":"Meru County"}]},"Tharaka-Nithi":{"capital":"Chuka","towns":[{"name":"Chuka","lat":-0.3333,"lon":37.65,"county":"Tharaka-Nithi County"},{"name":"Marimanti","lat":-0.0833,"lon":37.9167,"county":"Tharaka-Nithi County"},{"name":"Kathwana","lat":-0.2,"lon":37.8833,"county":"Tharaka-Nithi County"}]},"Embu":{"capital":"Embu Town","towns":[{"name":"Embu Town","lat":-0.53,"lon":37.45,"county":"Embu County"},{"name":"Runyenjes","lat":-0.4167,"lon":37.5667,"county":"Embu County"},{"name":"Siakago","lat":-0.7,"lon":37.6,"county":"Embu County"},{"name":"Mwea","lat":-0.6833,"lon":37.35,"county":"Embu County"}]},"Kitui":{"capital":"Kitui Town","towns":[{"name":"Kitui Town","lat":-1.3667,"lon":38.0167,"county":"Kitui County"},{"name":"Mutomo","lat":-1.8333,"lon":38.2,"county":"Kitui County"},{"name":"Mwingi","lat":-0.9333,"lon":38.0667,"county":"Kitui County"},{"name":"Kibwezi","lat":-2.4167,"lon":37.9667,"county":"Kitui County"}]},"Machakos":{"capital":"Machakos Town","towns":[{"name":"Machakos Town","lat":-1.5177,"lon":37.2634,"county":"Machakos County"},{"name":"Athi River","lat":-1.45,"lon":36.9833,"county":"Machakos County"},{"name":"Kangundo","lat":-1.25,"lon":37.35,"county":"Machakos County"},{"name":"Matuu","lat":-1.1167,"lon":37.5,"county":"Machakos County"}]},"Makueni":{"capital":"Wote","towns":[{"name":"Wote","lat":-1.7833,"lon":37.6333,"county":"Makueni County"},{"name":"Makindu","lat":-2.2833,"lon":37.8333,"county":"Makueni County"},{"name":"Sultan Hamud","lat":-2.05,"lon":37.5167,"county":"Makueni County"},{"name":"Emali","lat":-2.0833,"lon":37.4833,"county":"Makueni County"}]},"Nyandarua":{"capital":"Ol Kalou","towns":[{"name":"Ol Kalou","lat":-0.2667,"lon":36.3833,"county":"Nyandarua County"},{"name":"Engineer","lat":-0.8667,"lon":36.5833,"county":"Nyandarua County"},{"name":"Ndaragwa","lat":-0.1167,"lon":36.6667,"county":"Nyandarua County"}]},"Nyeri":{"capital":"Nyeri Town","towns":[{"name":"Nyeri Town","lat":-0.4167,"lon":36.95,"county":"Nyeri County"},{"name":"Karatina","lat":-0.4833,"lon":37.1167,"county":"Nyeri County"},{"name":"Othaya","lat":-0.5833,"lon":36.9,"county":"Nyeri County"},{"name":"Mukurweini","lat":-0.7,"lon":37.05,"county":"Nyeri County"}]},"Kirinyaga":{"capital":"Kerugoya","towns":[{"name":"Kerugoya","lat":-0.4993,"lon":37.2831,"county":"Kirinyaga County"},{"name":"Kutus","lat":-0.5167,"lon":37.3167,"county":"Kirinyaga County"},{"name":"Sagana","lat":-0.6667,"lon":37.2,"county":"Kirinyaga County"}]},"Murang'a":{"capital":"Murang'a Town","towns":[{"name":"Murang'a Town","lat":-0.7236,"lon":37.1503,"county":"Murang'a County"},{"name":"Thika","lat":-1.0332,"lon":37.069,"county":"Murang'a County"},{"name":"Maragua","lat":-0.9333,"lon":37.1667,"county":"Murang'a County"},{"name":"Kangema","lat":-0.7167,"lon":36.9833,"county":"Murang'a County"}]},"Kiambu":{"capital":"Kiambu Town","towns":[{"name":"Kiambu Town","lat":-1.1714,"lon":36.8356,"county":"Kiambu County"},{"name":"Thika","lat":-1.0332,"lon":37.069,"county":"Kiambu County"},{"name":"Ruiru","lat":-1.1458,"lon":36.9605,"county":"Kiambu County"},{"name":"Limuru","lat":-1.1,"lon":36.6333,"county":"Kiambu County"},{"name":"Kikuyu","lat":-1.25,"lon":36.6667,"county":"Kiambu County"}]},"Turkana":{"capital":"Lodwar","towns":[{"name":"Lodwar","lat":3.119,"lon":35.597,"county":"Turkana County"},{"name":"Kakuma","lat":3.7167,"lon":34.8667,"county":"Turkana County"},{"name":"Lokichar","lat":2.3167,"lon":35.6333,"county":"Turkana County"},{"name":"Kalokol","lat":3.5167,"lon":35.8167,"county":"Turkana County"}]},"West Pokot":{"capital":"Kapenguria","towns":[{"name":"Kapenguria","lat":1.2393,"lon":35.1117,"county":"West Pokot County"},{"name":"Sigor","lat":1.3833,"lon":35.4833,"county":"West Pokot County"},{"name":"Alale","lat":2.3333,"lon":35.25,"county":"West Pokot County"}]},"Samburu":{"capital":"Maralal","towns":[{"name":"Maralal","lat":1.1,"lon":36.7,"county":"Samburu County"},{"name":"Baragoi","lat":1.7667,"lon":36.7833,"county":"Samburu County"},{"name":"Wamba","lat":0.9667,"lon":37.3167,"county":"Samburu County"}]},"Trans-Nzoia":{"capital":"Kitale","towns":[{"name":"Kitale","lat":1.0157,"lon":35.0062,"county":"Trans-Nzoia County"},{"name":"Endebess","lat":1.25,"lon":34.9167,"county":"Trans-Nzoia County"},{"name":"Kiminini","lat":1.05,"lon":34.8167,"county":"Trans-Nzoia County"}]},"Uasin Gishu":{"capital":"Eldoret","towns":[{"name":"Eldoret","lat":0.5143,"lon":35.2698,"county":"Uasin Gishu County"},{"name":"Turbo","lat":0.6167,"lon":35.05,"county":"Uasin Gishu County"},{"name":"Burnt Forest","lat":0.4667,"lon":35.45,"county":"Uasin Gishu County"}]},"Elgeyo-Marakwet":{"capital":"Iten","towns":[{"name":"Iten","lat":0.6667,"lon":35.5167,"county":"Elgeyo-Marakwet County"},{"name":"Eldama Ravine","lat":0.05,"lon":35.7167,"county":"Elgeyo-Marakwet County"},{"name":"Kabarnet","lat":0.4833,"lon":35.75,"county":"Elgeyo-Marakwet County"}]},"Nandi":{"capital":"Kapsabet","towns":[{"name":"Kapsabet","lat":0.2,"lon":35.1,"county":"Nandi County"},{"name":"Nandi Hills","lat":0.1,"lon":35.1667,"county":"Nandi County"},{"name":"Mosoriot","lat":0.35,"lon":35.2167,"county":"Nandi County"}]},"Baringo":{"capital":"Kabarnet","towns":[{"name":"Kabarnet","lat":0.4833,"lon":35.75,"county":"Baringo County"},{"name":"Marigat","lat":0.4667,"lon":36.0833,"county":"Baringo County"},{"name":"Eldama Ravine","lat":0.05,"lon":35.7167,"county":"Baringo County"},{"name":"Mogotio","lat":-0.1667,"lon":35.9833,"county":"Baringo County"}]},"Laikipia":{"capital":"Nanyuki","towns":[{"name":"Nanyuki","lat":0.0103,"lon":37.0744,"county":"Laikipia County"},{"name":"Nyahururu","lat":0.0333,"lon":36.3667,"county":"Laikipia County"},{"name":"Rumuruti","lat":0.2667,"lon":36.5333,"county":"Laikipia County"},{"name":"Doldol","lat":0.4167,"lon":37.0667,"county":"Laikipia County"}]},"Nakuru":{"capital":"Nakuru City","towns":[{"name":"Nakuru City","lat":-0.3031,"lon":36.08,"county":"Nakuru County"},{"name":"Naivasha","lat":-0.7167,"lon":36.4333,"county":"Nakuru County"},{"name":"Gilgil","lat":-0.5,"lon":36.3167,"county":"Nakuru County"},{"name":"Subukia","lat":-0.15,"lon":36.0333,"county":"Nakuru County"}]},"Narok":{"capital":"Narok Town","towns":[{"name":"Narok Town","lat":-1.0875,"lon":35.8667,"county":"Narok County"},{"name":"Kilgoris","lat":-1.0,"lon":34.8833,"county":"Narok County"},{"name":"Ololulung'a","lat":-0.9667,"lon":35.7333,"county":"Narok County"}]},"Kajiado":{"capital":"Kajiado Town","towns":[{"name":"Kajiado Town","lat":-1.85,"lon":36.7833,"county":"Kajiado County"},{"name":"Ngong","lat":-1.3628,"lon":36.6581,"county":"Kajiado County"},{"name":"Loitokitok","lat":-2.9,"lon":37.5167,"county":"Kajiado County"},{"name":"Kitengela","lat":-1.4722,"lon":36.9658,"county":"Kajiado County"},{"name":"Ongata Rongai","lat":-1.3939,"lon":36.744,"county":"Kajiado County"}]},"Kericho":{"capital":"Kericho Town","towns":[{"name":"Kericho Town","lat":-0.3686,"lon":35.2863,"county":"Kericho County"},{"name":"Litein","lat":-0.5833,"lon":35.2167,"county":"Kericho County"},{"name":"Londiani","lat":-0.1667,"lon":35.6,"county":"Kericho County"},{"name":"Sotik","lat":-0.6667,"lon":35.1333,"county":"Kericho County"}]},"Bomet":{"capital":"Bomet Town","towns":[{"name":"Bomet Town","lat":-0.78,"lon":35.34,"county":"Bomet County"},{"name":"Sotik","lat":-0.6667,"lon":35.1333,"county":"Bomet County"},{"name":"Longisa","lat":-0.9833,"lon":35.4333,"county":"Bomet County"}]},"Kakamega":{"capital":"Kakamega Town","towns":[{"name":"Kakamega Town","lat":0.2827,"lon":34.7519,"county":"Kakamega County"},{"name":"Mumias","lat":0.3333,"lon":34.4833,"county":"Kakamega County"},{"name":"Butere","lat":0.2,"lon":34.4833,"county":"Kakamega County"},{"name":"Lugari","lat":0.4667,"lon":34.9667,"county":"Kakamega County"}]},"Vihiga":{"capital":"Vihiga Town","towns":[{"name":"Vihiga Town","lat":0.0831,"lon":34.7238,"county":"Vihiga County"},{"name":"Mbale","lat":0.0833,"lon":34.6833,"county":"Vihiga County"},{"name":"Hamisi","lat":0.1333,"lon":34.7667,"county":"Vihiga County"}]},"Bungoma":{"capital":"Bungoma Town","towns":[{"name":"Bungoma Town","lat":0.5635,"lon":34.5606,"county":"Bungoma County"},{"name":"Webuye","lat":0.6167,"lon":34.7667,"county":"Bungoma County"},{"name":"Kimilili","lat":0.7833,"lon":34.7167,"county":"Bungoma County"},{"name":"Chwele","lat":0.6833,"lon":34.4833,"county":"Bungoma County"}]},"Busia":{"capital":"Busia Town","towns":[{"name":"Busia Town","lat":0.4608,"lon":34.111,"county":"Busia County"},{"name":"Malaba","lat":0.6333,"lon":34.2833,"county":"Busia County"},{"name":"Funyula","lat":0.2,"lon":34.0167,"county":"Busia County"},{"name":"Port Victoria","lat":0.1,"lon":34.0667,"county":"Busia County"}]},"Siaya":{"capital":"Siaya Town","towns":[{"name":"Siaya Town","lat":-0.0608,"lon":34.288,"county":"Siaya County"},{"name":"Bondo","lat":-0.3333,"lon":34.2667,"county":"Siaya County"},{"name":"Yala","lat":-0.1167,"lon":34.55,"county":"Siaya County"},{"name":"Usenge","lat":-0.05,"lon":34.1333,"county":"Siaya County"}]},"Kisumu":{"capital":"Kisumu City","towns":[{"name":"Kisumu City","lat":-0.0917,"lon":34.768,"county":"Kisumu County"},{"name":"Ahero","lat":-0.1667,"lon":34.9167,"county":"Kisumu County"},{"name":"Maseno","lat":0.0,"lon":34.5933,"county":"Kisumu County"},{"name":"Muhoroni","lat":-0.1667,"lon":35.1833,"county":"Kisumu County"}]},"Homa Bay":{"capital":"Homa Bay Town","towns":[{"name":"Homa Bay Town","lat":-0.5167,"lon":34.45,"county":"Homa Bay County"},{"name":"Oyugis","lat":-0.7,"lon":34.7333,"county":"Homa Bay County"},{"name":"Kendu Bay","lat":-0.3667,"lon":34.6333,"county":"Homa Bay County"},{"name":"Mbita","lat":-0.4167,"lon":34.2,"county":"Homa Bay County"}]},"Migori":{"capital":"Migori Town","towns":[{"name":"Migori Town","lat":-1.0634,"lon":34.4731,"county":"Migori County"},{"name":"Awendo","lat":-0.8333,"lon":34.5667,"county":"Migori County"},{"name":"Isebania","lat":-1.3833,"lon":34.3667,"county":"Migori County"}]},"Kisii":{"capital":"Kisii Town","towns":[{"name":"Kisii Town","lat":-0.6817,"lon":34.7667,"county":"Kisii County"},{"name":"Ogembo","lat":-0.85,"lon":34.85,"county":"Kisii County"},{"name":"Suneka","lat":-0.7333,"lon":34.8333,"county":"Kisii County"},{"name":"Keroka","lat":-0.95,"lon":34.9,"county":"Kisii County"}]},"Nyamira":{"capital":"Nyamira Town","towns":[{"name":"Nyamira Town","lat":-0.5667,"lon":34.9333,"county":"Nyamira County"},{"name":"Keroka","lat":-0.95,"lon":34.9,"county":"Nyamira County"},{"name":"Manga","lat":-0.5167,"lon":34.9667,"county":"Nyamira County"}]}};
+
+// ─── Station modal — county/town logic ──────────────────────────
+function openAddStationModal() {
+    document.getElementById('addStationModal').style.display = 'flex';
+    populateCountyDropdown();
+}
+
+function populateCountyDropdown() {
+    const sel = document.getElementById('stationCountrySelect');
+    if (sel.options.length > 1) return; // already populated
+    // In Kenya context: "country" = county
+    sel.innerHTML = '<option value="">— Select county —</option>';
+    Object.keys(KENYA_COUNTIES).sort().forEach(county => {
+        const opt = document.createElement('option');
+        opt.value = county;
+        opt.textContent = `${county} County`;
+        sel.appendChild(opt);
+    });
+}
+
+function onCountryChange() {
+    const county = document.getElementById('stationCountrySelect').value;
+    const citySelect = document.getElementById('stationCitySelect');
+    const searchRow  = document.getElementById('citySearchRow');
+    const preview    = document.getElementById('selectedCityPreview');
+
+    // Reset downstream
+    citySelect.innerHTML = '<option value="">— Select town —</option>';
+    citySelect.disabled  = true;
+    searchRow.style.display  = 'none';
+    preview.style.display    = 'none';
+    document.getElementById('newStationLat').value = '';
+    document.getElementById('newStationLon').value = '';
+    document.getElementById('citySearchInput') && (document.getElementById('citySearchInput').value = '');
+
+    if (!county || !KENYA_COUNTIES[county]) return;
+
+    const towns = KENYA_COUNTIES[county].towns;
+    towns.forEach(town => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(town);
+        opt.textContent = town.name;
+        citySelect.appendChild(opt);
+    });
+
+    citySelect.disabled = false;
+    searchRow.style.display = 'block';
+
+    // Auto-suggest station name
+    const nameInput = document.getElementById('newStationName');
+    if (!nameInput.value) {
+        nameInput.value = `${KENYA_COUNTIES[county].capital} Met Station`;
+    }
+}
+
+function filterCities(query) {
+    const county = document.getElementById('stationCountrySelect').value;
+    if (!county || !KENYA_COUNTIES[county]) return;
+    const citySelect = document.getElementById('stationCitySelect');
+    const q = query.toLowerCase();
+    const towns = KENYA_COUNTIES[county].towns.filter(t => t.name.toLowerCase().includes(q));
+    citySelect.innerHTML = '<option value="">— Select town —</option>';
+    towns.forEach(town => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(town);
+        opt.textContent = town.name;
+        citySelect.appendChild(opt);
+    });
+}
+
+function onCityChange() {
+    const raw = document.getElementById('stationCitySelect').value;
+    if (!raw) return;
+    const town = JSON.parse(raw);
+    const county = document.getElementById('stationCountrySelect').value;
+
+    // Fill coordinates (readonly)
+    document.getElementById('newStationLat').value = town.lat;
+    document.getElementById('newStationLon').value = town.lon;
+
+    // Auto-fill name if still default
+    const nameInput = document.getElementById('newStationName');
+    if (!nameInput.value || nameInput.value.endsWith('Met Station')) {
+        nameInput.value = `${town.name} Met Station`;
+    }
+
+    // Show preview chip
+    const preview = document.getElementById('selectedCityPreview');
+    document.getElementById('previewFlag').textContent = '🇰🇪';
+    document.getElementById('previewCityName').textContent = `${town.name}, ${county} County`;
+    document.getElementById('previewCoords').textContent = `${town.lat}, ${town.lon}`;
+    preview.style.display = 'block';
+}
+
+function clearCitySelection() {
+    document.getElementById('stationCitySelect').value = '';
+    document.getElementById('newStationLat').value = '';
+    document.getElementById('newStationLon').value = '';
+    document.getElementById('selectedCityPreview').style.display = 'none';
+}
+
+function closeAddStationModal() {
+    document.getElementById('addStationModal').style.display = 'none';
+    document.getElementById('stationModalError').style.display = 'none';
+    document.getElementById('newStationName').value = '';
+    document.getElementById('newStationLat').value  = '';
+    document.getElementById('newStationLon').value  = '';
+    document.getElementById('newStationRadius').value = '25';
+    document.getElementById('stationCountrySelect').value = '';
+    document.getElementById('stationCitySelect').innerHTML = '<option value="">— Select town —</option>';
+    document.getElementById('stationCitySelect').disabled = true;
+    document.getElementById('citySearchRow').style.display = 'none';
+    document.getElementById('selectedCityPreview').style.display = 'none';
+}
+
+async function saveNewStation() {
+    const name   = document.getElementById('newStationName').value.trim();
+    const lat    = parseFloat(document.getElementById('newStationLat').value);
+    const lon    = parseFloat(document.getElementById('newStationLon').value);
+    const type   = document.getElementById('newStationType').value;
+    const radius = parseFloat(document.getElementById('newStationRadius').value) || 25;
+    const errEl  = document.getElementById('stationModalError');
+    const btn    = document.getElementById('saveStationBtn');
+
+    errEl.style.display = 'none';
+    if (!name) { errEl.textContent = 'Station name is required.'; errEl.style.display = 'block'; return; }
+    if (isNaN(lat) || isNaN(lon)) {
+        errEl.textContent = 'Please select a county and town first.';
+        errEl.style.display = 'block'; return;
+    }
+
+    btn.textContent = '⏳ Adding…'; btn.disabled = true;
+    try {
+        const r = await orgFetch('/api/locations/', {
+            method: 'POST',
+            body: JSON.stringify({ name, lat, lon, org_id: ORG_ID, location_type: type, radius_km: radius })
+        });
+        const d = await r.json();
+        if (!r.ok) {
+            errEl.textContent = d.error || 'Failed to add station.';
+            errEl.style.display = 'block';
+            btn.textContent = 'Add Station'; btn.disabled = false;
+            return;
+        }
+        closeAddStationModal();
+        showMet(`✅ Station "${name}" added`);
+        setTimeout(() => location.reload(), 800);
+    } catch(e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+    }
+    btn.textContent = 'Add Station'; btn.disabled = false;
+}
+
+async function removeStation(id, name, btn) {
+    if (!confirm(`Remove station "${name}"?`)) return;
+    try {
+        const r = await orgFetch(`/api/locations/${id}/`, { method: 'DELETE' });
+        if (r.ok || r.status === 204) {
+            const row = document.getElementById(`loc-row-${id}`);
+            if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>row.remove(),300); }
+            showMet(`🗑 "${name}" removed`);
+        }
+    } catch(e) { showMet('⚠️ Could not remove station', true); }
+}
+
+// ─── Stations network map ────────────────────────────────────────
+let stationsMapInited = false;
+function initStationsMap() {
+    if (stationsMapInited) return;
+    stationsMapInited = true;
+    if (typeof initOrgMap === 'function') initOrgMap('stationsNetworkMap');
+}
+
+// ─── Load alert feed from API ────────────────────────────────────
+async function loadAlertFeed() {
+    try {
+        const r = await orgFetch('/api/alerts/');
+        const d = await r.json();
+        const feed = document.getElementById('nationalAlertFeed');
+        if (!feed) return;
+        if (!d.alerts || !d.alerts.length) {
+            feed.innerHTML = '<div class="met-empty">✅ No alerts in the national feed.</div>';
+            return;
+        }
+        const icon = { flood:'🌊', drought:'🏜️', heatwave:'🔥' };
+        feed.innerHTML = d.alerts.map(a => `
+            <div class="national-alert ${a.risk_type}">
+                <div class="na-icon">${icon[a.risk_type] || '⚠️'}</div>
+                <div class="na-body">
+                    <div class="na-head">
+                        <span class="na-org">${a['organization__name'] || 'System'}</span>
+                        <span class="na-level" style="background:${a.risk_level>=85?'#ef4444':a.risk_level>=70?'#f97316':a.risk_level>=50?'#f59e0b':'#10b981'}">${a.risk_level}%</span>
+                        <span class="status-chip ${a.alert_status}">${a.alert_status}</span>
+                    </div>
+                    <div class="na-msg">${(a.message||'').substring(0,200)}</div>
+                    <div class="na-meta">${new Date(a.timestamp).toLocaleString()}</div>
+                    <div class="na-actions">
+                        <button class="na-btn approve"    onclick="updateAlertStatus(${a.id},'approved',this)">✅ Approve</button>
+                        <button class="na-btn broadcast"  onclick="prefillBroadcast('${a.risk_type}','${(a.message||'').substring(0,120).replace(/'/g,"\\'")}',${a.risk_level})">📢 Broadcast</button>
+                        <button class="na-btn view"       onclick="viewAlertDetail(${a.id})">👁 Detail</button>
+                    </div>
+                </div>
+            </div>`).join('');
+    } catch(e) {}
+}
+
+// ─── Quick chat prompt ───────────────────────────────────────────
+function metQuickPrompt(text) {
+    showTab('chat', document.querySelectorAll('.org-tab')[8]);
+    document.getElementById('orgChatInput').value = text;
+    setTimeout(() => sendOrgMsg('orgChatInput', 'orgChatMessages', '🛰️ Met Guardian'), 100);
+}
+
+// ─── Tab switching (handles nested map inits) ────────────────────
+const _origShowTab = typeof showTab === 'function' ? showTab : null;
+function showTab(name, el) {
+    document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+    document.getElementById('tab-' + name).style.display = 'block';
+    document.querySelectorAll('.org-tab').forEach(t => t.classList.remove('active'));
+    if (el) el.classList.add('active');
+    if (name === 'forecast')   loadForecastForStation();
+    if (name === 'locations')  initStationsMap();
+}
+
+// ─── Toast ───────────────────────────────────────────────────────
+function showMet(msg, error) {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${error?'#ef4444':'#0c1445'};color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:99999;border:1px solid rgba(255,255,255,.1);font-family:monospace;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3000);
+}
+
+// Auto-refresh alerts every 60s
+setInterval(loadAlertFeed, 60000);
+</script>
+{% endblock %}
