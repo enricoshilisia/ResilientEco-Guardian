@@ -361,6 +361,79 @@ class AgentExecutionLog(models.Model):
 # ACCOUNT ACTIVITY LOG
 # ─────────────────────────────────────────────
 
+class RiskPolicyVersion(models.Model):
+    name = models.CharField(max_length=100, default='global_default')
+    version = models.CharField(max_length=30)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=False)
+    rules = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['name', 'version']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        active = "active" if self.is_active else "inactive"
+        return f"{self.name}@{self.version} ({active})"
+
+
+class WorkflowCheckpoint(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('resumed', 'Resumed'),
+        ('expired', 'Expired'),
+        ('rejected', 'Rejected'),
+    ]
+
+    session_id = models.CharField(max_length=64, unique=True)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, null=True, blank=True, related_name='workflow_checkpoints'
+    )
+    execution_log = models.ForeignKey(
+        AgentExecutionLog, on_delete=models.SET_NULL, null=True, blank=True, related_name='workflow_checkpoints'
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_workflow_checkpoints'
+    )
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_workflow_checkpoints'
+    )
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    required_role = models.CharField(max_length=20, default='admin')
+    paused_at_step = models.CharField(max_length=40, blank=True, null=True)
+    resume_from_step = models.CharField(max_length=40, blank=True, null=True)
+    pending_action = models.CharField(max_length=120, blank=True, null=True)
+
+    user_query = models.TextField(blank=True, default='')
+    location_name = models.CharField(max_length=255, blank=True, default='Location')
+    lat = models.FloatField(default=0.0)
+    lon = models.FloatField(default=0.0)
+    selected_graph = models.CharField(max_length=80, default='standard_forecast_graph')
+
+    pipeline = models.JSONField(default=list, blank=True)
+    task_ledger = models.JSONField(default=list, blank=True)
+    partial_results = models.JSONField(default=dict, blank=True)
+    message_state = models.JSONField(default=dict, blank=True)
+    checkpoint_payload = models.JSONField(default=dict, blank=True)
+
+    expires_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    resumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.session_id} [{self.status}]"
+
+
 class AccountActivityLog(models.Model):
 
     ACTION_TYPES = [

@@ -34,6 +34,7 @@ urlpatterns = [
 
     # ─── AGENT ──────────────────────────────────────────────────────────
     path('api/agent/run/', views.RunAgentView.as_view(), name='run_agent'),
+    path('api/agent/approve-checkpoint/', views.ApproveCheckpointView.as_view(), name='approve_checkpoint'),
 
     # ─── LOCATIONS ──────────────────────────────────────────────────────
     path('api/locations/',                   views.LocationListView.as_view(),   name='locations'),

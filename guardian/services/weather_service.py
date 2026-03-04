@@ -6,6 +6,103 @@ Fetches REAL weather observations + today/tomorrow forecast from Visual Crossing
 import requests
 import os
 from datetime import datetime, timedelta
+from functools import lru_cache
+
+
+@lru_cache(maxsize=256)
+def geocode_location_name(location_name: str):
+    """
+    Resolve location name -> coordinates using Open-Meteo geocoding.
+    Returns dict with lat/lon/name/country/admin1 when found, else None.
+    """
+    name = (location_name or "").strip()
+    if not name:
+        return None
+
+    def _query_open_meteo(query_name: str):
+        response = requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={
+                "name": query_name,
+                "count": 1,
+                "language": "en",
+                "format": "json",
+            },
+            timeout=8,
+        )
+        if not response.ok:
+            return None
+
+        payload = response.json() or {}
+        results = payload.get("results") or []
+        if not results:
+            return None
+        top = results[0]
+        return {
+            "name": top.get("name", query_name),
+            "country": top.get("country", ""),
+            "admin1": top.get("admin1", ""),
+            "lat": top.get("latitude"),
+            "lon": top.get("longitude"),
+        }
+
+    def _query_nominatim(query_name: str):
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": query_name,
+                "format": "jsonv2",
+                "limit": 1,
+            },
+            headers={"User-Agent": "ResilientEco-Guardian/1.0"},
+            timeout=8,
+        )
+        if not response.ok:
+            return None
+        results = response.json() or []
+        if not results:
+            return None
+        top = results[0]
+        display = top.get("display_name", query_name)
+        parts = [p.strip() for p in display.split(",") if p.strip()]
+        return {
+            "name": parts[0] if parts else query_name,
+            "country": parts[-1] if len(parts) > 1 else "",
+            "admin1": "",
+            "lat": float(top.get("lat")) if top.get("lat") is not None else None,
+            "lon": float(top.get("lon")) if top.get("lon") is not None else None,
+        }
+
+    candidates = [name]
+    lower = name.lower()
+    if "kwa zulu natal" in lower:
+        candidates.append("KwaZulu-Natal")
+    if "-" not in name and " " in name:
+        candidates.append(name.replace(" ", "-"))
+
+    seen = set()
+    try:
+        for query_name in candidates:
+            key = query_name.strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+
+            result = _query_open_meteo(query_name)
+            if result and result.get("lat") is not None and result.get("lon") is not None:
+                return result
+
+        for query_name in candidates:
+            key = query_name.strip().lower()
+            if not key:
+                continue
+            result = _query_nominatim(query_name)
+            if result and result.get("lat") is not None and result.get("lon") is not None:
+                return result
+
+        return None
+    except Exception:
+        return None
 
 
 def assess_flood_risk(location_lat, location_lon):

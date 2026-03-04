@@ -6,6 +6,7 @@ Renders structured JSON agent output as clean visual cards.
 import json
 import re
 import logging
+from html import escape
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 
@@ -23,6 +24,7 @@ KENYA_CITIES = {
     'malindi':  (-3.2167, 40.1167),
     'kisii':    (-0.6817, 34.7667),
     'nyeri':    (-0.4167, 36.9500),
+    'kikambala':(-3.8056, 39.8083),
 }
 
 AGENT_STYLES = {
@@ -33,6 +35,115 @@ AGENT_STYLES = {
     'governance':  {'icon': '⚖️', 'label': 'Governance Agent', 'color': '#dc2626'},
     'mcp_actions': {'icon': '☁️', 'label': 'Azure MCP Actions','color': '#0078d4'},
 }
+
+
+def _extract_location_from_query(message: str):
+    """
+    Resolve a location label and coordinates from free-text chat.
+    Returns known coordinates for built-in cities, otherwise location name only.
+    """
+    default_city = "Nairobi"
+    text = (message or "").lower()
+
+    for city, (lat, lon) in KENYA_CITIES.items():
+        if city in text:
+            return city.title(), lat, lon
+
+    # Lightweight fallback for phrases like "weather in kikambala".
+    match = re.search(r"\b(?:weather|forecast|risk)\s+(?:in|for)\s+([a-zA-Z\s-]+)", text)
+    if match:
+        raw = re.sub(r"[^a-zA-Z\s-]", "", match.group(1)).strip()
+        if raw:
+            name = " ".join(raw.split()).title()
+            return name, None, None
+
+    return default_city, KENYA_CITIES["nairobi"][0], KENYA_CITIES["nairobi"][1]
+
+
+def _render_runtime_metadata(results: dict) -> str:
+    """
+    Render runtime routing/checkpoint metadata returned by /api/agent/run contract.
+    """
+    if not isinstance(results, dict):
+        return ""
+
+    intent = escape(str(results.get("intent_classification", "unknown")))
+    graph = escape(str(results.get("selected_graph", "unknown")))
+
+    pipeline = results.get("pipeline") or []
+    if isinstance(pipeline, list) and pipeline:
+        pipeline_text = " -> ".join(escape(str(step)) for step in pipeline)
+    else:
+        pipeline_text = "not provided"
+
+    routing_features = results.get("routing_features") or {}
+    chips = []
+    if isinstance(routing_features, dict):
+        for key, value in routing_features.items():
+            if value is None:
+                continue
+            chips.append(
+                f'<span style="background:#e0f2fe;color:#075985;padding:2px 8px;'
+                f'border-radius:99px;font-size:11px;">{escape(str(key))}: {escape(str(value))}</span>'
+            )
+    routing_html = "".join(chips) or '<span style="color:#9ca3af;font-size:11px;">No routing features</span>'
+
+    task_ledger = results.get("task_ledger") or []
+    total_tasks = len(task_ledger) if isinstance(task_ledger, list) else 0
+    completed = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "completed")
+    failed = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "failed")
+
+    checkpoint = results.get("checkpoint_status") or {}
+    checkpoint_html = ""
+    if isinstance(checkpoint, dict) and checkpoint:
+        requires = checkpoint.get("requires_approval", False)
+        approved = checkpoint.get("approved", False)
+        role = escape(str(checkpoint.get("approval_role", "admin")))
+        pending_action = escape(str(checkpoint.get("pending_action", "")))
+        resume_step = escape(str(checkpoint.get("resume_from_step", "")))
+        badge_color = "#ef4444" if requires and not approved else "#22c55e"
+        badge_text = "PENDING APPROVAL" if requires and not approved else "APPROVED/NOT REQUIRED"
+        checkpoint_html = (
+            f'<div style="margin-top:8px;font-size:11px;color:#6b7280;">CHECKPOINT</div>'
+            f'<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">'
+            f'<span style="background:{badge_color};color:white;padding:2px 8px;border-radius:99px;'
+            f'font-size:11px;">{badge_text}</span>'
+            f'<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:99px;font-size:11px;">role: {role}</span>'
+            f'<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:99px;font-size:11px;">next: {resume_step or "n/a"}</span>'
+            f'</div>'
+            f'<div style="font-size:12px;color:#374151;margin-top:4px;">{pending_action}</div>'
+        )
+    else:
+        checkpoint_html = (
+            '<div style="margin-top:8px;font-size:12px;color:#6b7280;">'
+            '<strong>checkpoint_status:</strong> not required (non-critical run)'
+            '</div>'
+        )
+
+    explainability = results.get("explainability") or {}
+    why_graph = escape(str(explainability.get("why_selected_graph", ""))) if isinstance(explainability, dict) else ""
+    why_alert = escape(str(explainability.get("why_alert_level", ""))) if isinstance(explainability, dict) else ""
+    explain_html = ""
+    if why_graph or why_alert:
+        explain_html = (
+            '<div style="margin-top:8px;font-size:11px;color:#64748b;">EXPLAINABILITY</div>'
+            f'<div style="font-size:12px;color:#334155;">{why_graph}</div>'
+            f'<div style="font-size:12px;color:#334155;">{why_alert}</div>'
+        )
+
+    return (
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">'
+        '<div style="font-size:11px;color:#64748b;margin-bottom:6px;">RUNTIME ROUTING</div>'
+        f'<div style="font-size:12px;margin-bottom:4px;"><strong>intent_classification:</strong> {intent}</div>'
+        f'<div style="font-size:12px;margin-bottom:4px;"><strong>selected_graph:</strong> {graph}</div>'
+        f'<div style="font-size:12px;margin-bottom:6px;"><strong>pipeline:</strong> {pipeline_text}</div>'
+        f'<div style="font-size:11px;color:#64748b;margin-bottom:4px;">routing_features</div>'
+        f'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">{routing_html}</div>'
+        f'<div style="font-size:12px;"><strong>task_ledger:</strong> {completed}/{total_tasks} completed, {failed} failed</div>'
+        f'{checkpoint_html}'
+        f'{explain_html}'
+        '</div>'
+    )
 
 
 def _risk_color(val):
@@ -215,8 +326,17 @@ def render_governance(d):
 <div style="display:flex;flex-wrap:wrap;gap:4px;">{sdg_html}</div>'''
 
 
-def parse_and_render(agent_key, text):
-    """Extract JSON from agent output and render as card. Falls back to markdown."""
+def parse_and_render(agent_key, payload):
+    """Render agent payload (dict or text). Falls back to markdown for plain text."""
+    if isinstance(payload, dict):
+        if agent_key == 'monitor':    return render_monitor(payload)
+        if agent_key == 'predict':    return render_predict(payload)
+        if agent_key == 'decision':   return render_decision(payload)
+        if agent_key == 'action':     return render_action(payload)
+        if agent_key == 'governance': return render_governance(payload)
+        return f'<pre style="font-size:12px;">{escape(json.dumps(payload, ensure_ascii=False, indent=2))}</pre>'
+
+    text = str(payload or "")
     try:
         match = re.search(r'\{[\s\S]*\}', text)
         if match:
@@ -247,7 +367,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
         await self.send(text_data=json.dumps({
-            'message': '<strong>✅ ResilientEco Guardian</strong> — 5-agent pipeline ready · Azure AI Foundry · Azure MCP',
+            'message': '<strong>ResilientEco Guardian</strong> - multi-agent pipeline ready · Azure AI Foundry · Azure MCP',
             'type': 'system'
         }))
 
@@ -259,22 +379,47 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = data.get('message', '').lower()
 
         await self.send(text_data=json.dumps({
-            'message': '🔄 Initializing 5-agent pipeline via <strong>Azure AI Foundry</strong>...',
+            'message': 'Initializing agent pipeline via <strong>Azure AI Foundry</strong>...',
             'type': 'thinking'
         }))
 
-        # Detect city
-        detected = ('nairobi', (-1.2921, 36.8219))
-        for city, coords in KENYA_CITIES.items():
-            if city in message:
-                detected = (city, coords)
-                break
-        city_name, (lat, lon) = detected
+        # Detect location from query text
+        location_name, lat, lon = _extract_location_from_query(message)
+        if lat is None or lon is None:
+            from .services.weather_service import geocode_location_name
+
+            resolved = await sync_to_async(geocode_location_name)(location_name)
+            if resolved and resolved.get("lat") is not None and resolved.get("lon") is not None:
+                lat = float(resolved["lat"])
+                lon = float(resolved["lon"])
+                resolved_name = resolved.get("name") or location_name
+                country = resolved.get("country") or ""
+                location_name = resolved_name
+                if country:
+                    location_name = f"{resolved_name}, {country}"
+                await self.send(text_data=json.dumps({
+                    'message': (
+                        f'<span style="font-size:12px;color:#64748b;">'
+                        f'Location resolved to <strong>{location_name}</strong> ({lat:.4f}, {lon:.4f})'
+                        f'</span>'
+                    ),
+                    'type': 'system'
+                }))
+            else:
+                lat, lon = KENYA_CITIES["nairobi"]
+                await self.send(text_data=json.dumps({
+                    'message': (
+                        '<span style="font-size:12px;color:#b45309;">'
+                        'Could not geocode location; using Nairobi coordinates as fallback.'
+                        '</span>'
+                    ),
+                    'type': 'system'
+                }))
 
         # Run pipeline
         try:
             from .agents.core_agents import run_all_agents
-            results = await sync_to_async(run_all_agents)(message, lat, lon, city_name.title())
+            results = await sync_to_async(run_all_agents)(message, lat, lon, location_name)
         except Exception as e:
             logger.exception("Agent pipeline failed")
             await self.send(text_data=json.dumps({
@@ -302,13 +447,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     f'</div>'
                 )
 
-            body = parse_and_render(agent_key, output) if isinstance(output, str) else str(output)
+            structured_key = f'{agent_key}_data'
+            payload = results.get(structured_key) or output
+            body = parse_and_render(agent_key, payload)
 
             await self.send(text_data=json.dumps({
                 'message': meta + body,
                 'type': agent_key,
                 'label': f'{style["icon"]} {style["label"]}',
                 'color': style['color'],
+            }))
+
+        runtime_html = _render_runtime_metadata(results)
+        if runtime_html:
+            await self.send(text_data=json.dumps({
+                'message': runtime_html,
+                'type': 'system',
+                'label': '🧭 Runtime Routing',
+                'color': '#0ea5e9',
             }))
 
         # MCP actions panel
@@ -322,7 +478,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 clean = line.replace('[LIVE]','').replace('[SIM]','').strip()
                 lines_html.append(f'<div style="font-size:12px;padding:3px 0;">{badge} {clean}</div>')
             await self.send(text_data=json.dumps({
-                'message': '<strong>☁️ Azure MCP Actions</strong><br>' + ''.join(lines_html),
+                'message': ''.join(lines_html),
                 'type': 'mcp_actions',
                 'label': '☁️ Azure MCP Actions',
                 'color': '#0078d4',
@@ -335,7 +491,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sources     = list(dict.fromkeys(s.get('source','') for s in chain if s.get('source')))
             await self.send(text_data=json.dumps({
                 'message': (
-                    f'✅ <strong>Pipeline Complete — {city_name.title()}</strong><br>'
+                    f'✅ <strong>Pipeline Complete — {location_name}</strong><br>'
                     f'<span style="font-size:12px;color:#6b7280;">'
                     f'Session {session_id} &nbsp;·&nbsp; {len(chain)} agents &nbsp;·&nbsp; {total_ms}ms total &nbsp;·&nbsp; '
                     f'{", ".join(models_used)} via {", ".join(sources)}'

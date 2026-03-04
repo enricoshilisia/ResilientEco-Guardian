@@ -36,7 +36,7 @@ from .agents.core_agents import run_all_agents
 from .models import (
     Organization, OrganizationMembership, UserProfile,
     OrganizationInvitation, SavedLocation,
-    AlertLog, AgentExecutionLog, AccountActivityLog
+    AlertLog, AgentExecutionLog, AccountActivityLog, WorkflowCheckpoint
 )
 
 load_dotenv()
@@ -217,6 +217,100 @@ def _auto_create_alert(results, risk_level, location_obj, organization, user):
 # ─────────────────────────────────────────────
 # CLIMATE AI
 # ─────────────────────────────────────────────
+
+def _find_execution_by_session(session_id: str):
+    """
+    Resolve an AgentExecutionLog from session_id across both payloads.
+    Handles DBs where JSON lookups differ by provider.
+    """
+    execution = AgentExecutionLog.objects.filter(
+        output_payload__session_id=session_id
+    ).order_by('-executed_at').first()
+    if execution:
+        return execution
+
+    execution = AgentExecutionLog.objects.filter(
+        input_payload__session_id=session_id
+    ).order_by('-executed_at').first()
+    if execution:
+        return execution
+
+    # Conservative fallback scan for engines with limited JSON operators.
+    for row in AgentExecutionLog.objects.order_by('-executed_at')[:200]:
+        input_payload = row.input_payload or {}
+        output_payload = row.output_payload or {}
+        if input_payload.get('session_id') == session_id:
+            return row
+        if output_payload.get('session_id') == session_id:
+            return row
+
+    return None
+
+
+def _public_result_payload(results: dict) -> dict:
+    """
+    Strip internal-only keys from API response payload.
+    """
+    if not isinstance(results, dict):
+        return results
+    clean = dict(results)
+    clean.pop('workflow_state', None)
+    return clean
+
+
+def _upsert_workflow_checkpoint(
+    *,
+    results: dict,
+    query: str,
+    location_name: str,
+    lat: float,
+    lon: float,
+    organization,
+    user,
+    execution_log: AgentExecutionLog = None,
+):
+    """
+    Persist checkpoint state so approval can resume from exact next step.
+    """
+    if not isinstance(results, dict):
+        return
+
+    checkpoint = results.get('checkpoint_status') or {}
+    if not checkpoint.get('requires_approval') or checkpoint.get('approved'):
+        return
+
+    session_id = results.get('session_id')
+    if not session_id:
+        return
+
+    ttl = checkpoint.get('auto_expire_minutes', 30)
+    expires_at = timezone.now() + timedelta(minutes=int(ttl))
+
+    WorkflowCheckpoint.objects.update_or_create(
+        session_id=session_id,
+        defaults={
+            'organization': organization,
+            'execution_log': execution_log,
+            'created_by': user if user and user.is_authenticated else None,
+            'status': 'pending',
+            'required_role': checkpoint.get('approval_role', 'admin'),
+            'paused_at_step': checkpoint.get('paused_at_step'),
+            'resume_from_step': checkpoint.get('resume_from_step'),
+            'pending_action': checkpoint.get('pending_action'),
+            'user_query': query,
+            'location_name': location_name,
+            'lat': float(lat),
+            'lon': float(lon),
+            'selected_graph': results.get('selected_graph', 'standard_forecast_graph'),
+            'pipeline': results.get('pipeline', []),
+            'task_ledger': results.get('task_ledger', []),
+            'partial_results': results,
+            'message_state': results.get('workflow_state', {}),
+            'checkpoint_payload': checkpoint,
+            'expires_at': expires_at,
+        }
+    )
+
 
 def run_climate_agent(query, weather_data=None):
     client = _get_ai_client()
@@ -1094,17 +1188,38 @@ class RunAgentView(APIView):
             return Response({"error": "Agent pipeline failed.", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         latency_ms = int((time.time() - start) * 1000)
+        execution_log = None
 
         try:
-            AgentExecutionLog.objects.create(
+            execution_log = AgentExecutionLog.objects.create(
                 organization=organization,
                 agent_type='decision',
-                input_payload={"query": query, "lat": lat, "lon": lon, "location": location_name},
+                input_payload={
+                    "query": query,
+                    "lat": lat,
+                    "lon": lon,
+                    "location": location_name,
+                    "session_id": results.get("session_id"),
+                },
                 output_payload=results,
                 latency_ms=latency_ms,
             )
         except Exception:
             logger.warning("Could not write AgentExecutionLog", exc_info=True)
+
+        try:
+            _upsert_workflow_checkpoint(
+                results=results,
+                query=query,
+                location_name=location_name,
+                lat=lat,
+                lon=lon,
+                organization=organization,
+                user=request.user if request.user.is_authenticated else None,
+                execution_log=execution_log,
+            )
+        except Exception:
+            logger.warning("Could not persist workflow checkpoint", exc_info=True)
 
         risk_level = _extract_risk_level(results)
         if risk_level and risk_level >= 50:
@@ -1114,7 +1229,140 @@ class RunAgentView(APIView):
                 user=request.user if request.user.is_authenticated else None,
             )
 
-        return Response({'result': results, 'status': 'success', 'latency_ms': latency_ms})
+        return Response({'result': _public_result_payload(results), 'status': 'success', 'latency_ms': latency_ms})
+
+
+class ApproveCheckpointView(APIView):
+    """
+    API endpoint to approve a checkpointed workflow.
+    This enables Human-in-the-Loop for critical weather alerts.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        
+        if not session_id:
+            return Response(
+                {"error": "session_id is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        checkpoint = WorkflowCheckpoint.objects.filter(session_id=session_id).order_by('-created_at').first()
+        if not checkpoint:
+            return Response(
+                {"error": "Checkpoint session not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if checkpoint.status == 'resumed':
+            return Response({
+                'status': 'already_resumed',
+                'session_id': session_id,
+                'approved_by': checkpoint.approved_by.username if checkpoint.approved_by else None,
+                'approved_at': checkpoint.approved_at.isoformat() if checkpoint.approved_at else None,
+            })
+
+        if checkpoint.expires_at and timezone.now() > checkpoint.expires_at and checkpoint.status == 'pending':
+            checkpoint.status = 'expired'
+            checkpoint.save(update_fields=['status', 'updated_at'])
+            return Response(
+                {"error": "Checkpoint expired. Re-run the workflow to create a new checkpoint."},
+                status=status.HTTP_410_GONE
+            )
+
+        # Validate approver role for checkpoint organization boundary.
+        membership_qs = OrganizationMembership.objects.filter(
+            user=request.user,
+            is_active=True,
+        )
+
+        if checkpoint.organization_id:
+            membership = membership_qs.filter(organization=checkpoint.organization).first()
+        else:
+            membership = membership_qs.filter(role__in=['admin', 'operator']).first()
+
+        if not membership or membership.role not in ('admin', 'operator'):
+            return Response(
+                {"error": "Only admin or operator roles can approve checkpoints"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        required_role = checkpoint.required_role or 'admin'
+        if required_role == 'admin' and membership.role != 'admin':
+            return Response(
+                {"error": "This checkpoint requires admin approval"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        approved_at = timezone.now()
+        checkpoint.status = 'approved'
+        checkpoint.approved_by = request.user
+        checkpoint.approved_at = approved_at
+        checkpoint.save(update_fields=['status', 'approved_by', 'approved_at', 'updated_at'])
+
+        query = checkpoint.user_query or 'Check climate risk'
+        location_name = checkpoint.location_name or 'Nairobi'
+        lat = checkpoint.lat if checkpoint.lat is not None else -1.2921
+        lon = checkpoint.lon if checkpoint.lon is not None else 36.8219
+
+        try:
+            resumed_results = run_all_agents(
+                query,
+                float(lat),
+                float(lon),
+                location_name,
+                session_id=session_id,
+                checkpoint_approved=True,
+                resume_from_step=checkpoint.resume_from_step,
+                resume_state=checkpoint.message_state or None,
+                resume_results=checkpoint.partial_results or None,
+            )
+
+            resumed_checkpoint_status = {
+                **(resumed_results.get('checkpoint_status') or {}),
+                'approved': True,
+                'approved_by': request.user.username,
+                'approved_at': approved_at.isoformat(),
+            }
+            resumed_results['checkpoint_status'] = resumed_checkpoint_status
+
+            execution = checkpoint.execution_log or _find_execution_by_session(session_id)
+            if execution:
+                execution.output_payload = resumed_results
+                execution.save(update_fields=['output_payload'])
+                if checkpoint.execution_log_id != execution.id:
+                    checkpoint.execution_log = execution
+
+            checkpoint.status = 'resumed'
+            checkpoint.resumed_at = timezone.now()
+            checkpoint.partial_results = resumed_results
+            checkpoint.message_state = resumed_results.get('workflow_state', checkpoint.message_state)
+            checkpoint.checkpoint_payload = resumed_checkpoint_status
+            checkpoint.save(update_fields=[
+                'status', 'resumed_at', 'partial_results', 'message_state',
+                'checkpoint_payload', 'execution_log', 'updated_at'
+            ])
+
+            return Response({
+                'status': 'approved',
+                'session_id': session_id,
+                'approved_by': request.user.username,
+                'message': 'Checkpoint approved and workflow resumed from saved step.',
+                'result': _public_result_payload(resumed_results),
+            })
+        except Exception as e:
+            logger.exception("Checkpoint approved but resume failed")
+            checkpoint.status = 'approved'
+            checkpoint.save(update_fields=['status', 'updated_at'])
+
+            return Response({
+                'status': 'approved_pending_resume',
+                'session_id': session_id,
+                'approved_by': request.user.username,
+                'message': 'Checkpoint approved, but workflow resume failed.',
+                'detail': str(e),
+            }, status=status.HTTP_202_ACCEPTED)
 
 
 # ─────────────────────────────────────────────
