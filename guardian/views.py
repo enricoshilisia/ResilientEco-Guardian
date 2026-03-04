@@ -30,6 +30,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from .services.weather_service import assess_flood_risk
+from .services.idempotency import start_idempotent_request, finalize_idempotent_request
+from .services.evaluation import run_offline_evaluation
+from .services.slo_metrics import compute_slo_metrics
 from .agents.core_agents import run_all_agents
 
 # ── All models from THIS app ──
@@ -1153,10 +1156,41 @@ class RunAgentView(APIView):
         org_id        = request.data.get('org_id')
         lat           = request.data.get('lat')
         lon           = request.data.get('lon')
+        location_id   = request.data.get('location_id')
         location_obj  = None
+        idempotency_record = None
+
+        idem = start_idempotent_request(
+            request,
+            action='run_agent',
+            payload={
+                'query': query,
+                'location_name': location_name,
+                'org_id': org_id,
+                'lat': lat,
+                'lon': lon,
+                'location_id': location_id,
+            },
+        )
+        if idem.get('error'):
+            err = idem['error']
+            return Response(err.get('payload', {}), status=err.get('status_code', status.HTTP_409_CONFLICT))
+        if idem.get('replay'):
+            replay = idem['replay']
+            return Response(replay.get('payload', {}), status=replay.get('status_code', status.HTTP_200_OK))
+        idempotency_record = idem.get('record')
+
+        def _final(payload: dict, status_code: int, success: bool = True, error_message: str = ""):
+            finalize_idempotent_request(
+                idempotency_record,
+                status_code=status_code,
+                payload=payload,
+                success=success,
+                error_message=error_message,
+            )
+            return Response(payload, status=status_code)
 
         if not lat or not lon:
-            location_id = request.data.get('location_id')
             if location_id:
                 location_obj = SavedLocation.objects.filter(id=location_id).first()
                 if location_obj:
@@ -1185,7 +1219,8 @@ class RunAgentView(APIView):
             results = run_all_agents(query, lat, lon, location_name)
         except Exception as e:
             logger.exception("Agent pipeline failed")
-            return Response({"error": "Agent pipeline failed.", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            payload = {"error": "Agent pipeline failed.", "detail": str(e)}
+            return _final(payload, status.HTTP_500_INTERNAL_SERVER_ERROR, success=False, error_message=str(e))
 
         latency_ms = int((time.time() - start) * 1000)
         execution_log = None
@@ -1229,7 +1264,8 @@ class RunAgentView(APIView):
                 user=request.user if request.user.is_authenticated else None,
             )
 
-        return Response({'result': _public_result_payload(results), 'status': 'success', 'latency_ms': latency_ms})
+        payload = {'result': _public_result_payload(results), 'status': 'success', 'latency_ms': latency_ms}
+        return _final(payload, status.HTTP_200_OK, success=True)
 
 
 class ApproveCheckpointView(APIView):
@@ -1241,34 +1277,53 @@ class ApproveCheckpointView(APIView):
     
     def post(self, request):
         session_id = request.data.get('session_id')
+        idempotency_record = None
+
+        idem = start_idempotent_request(
+            request,
+            action='approve_checkpoint',
+            payload={'session_id': session_id},
+        )
+        if idem.get('error'):
+            err = idem['error']
+            return Response(err.get('payload', {}), status=err.get('status_code', status.HTTP_409_CONFLICT))
+        if idem.get('replay'):
+            replay = idem['replay']
+            return Response(replay.get('payload', {}), status=replay.get('status_code', status.HTTP_200_OK))
+        idempotency_record = idem.get('record')
+
+        def _final(payload: dict, status_code: int, success: bool = True, error_message: str = ""):
+            finalize_idempotent_request(
+                idempotency_record,
+                status_code=status_code,
+                payload=payload,
+                success=success,
+                error_message=error_message,
+            )
+            return Response(payload, status=status_code)
         
         if not session_id:
-            return Response(
-                {"error": "session_id is required"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return _final({"error": "session_id is required"}, status.HTTP_400_BAD_REQUEST, success=False)
 
         checkpoint = WorkflowCheckpoint.objects.filter(session_id=session_id).order_by('-created_at').first()
         if not checkpoint:
-            return Response(
-                {"error": "Checkpoint session not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return _final({"error": "Checkpoint session not found"}, status.HTTP_404_NOT_FOUND, success=False)
 
         if checkpoint.status == 'resumed':
-            return Response({
+            return _final({
                 'status': 'already_resumed',
                 'session_id': session_id,
                 'approved_by': checkpoint.approved_by.username if checkpoint.approved_by else None,
                 'approved_at': checkpoint.approved_at.isoformat() if checkpoint.approved_at else None,
-            })
+            }, status.HTTP_200_OK, success=True)
 
         if checkpoint.expires_at and timezone.now() > checkpoint.expires_at and checkpoint.status == 'pending':
             checkpoint.status = 'expired'
             checkpoint.save(update_fields=['status', 'updated_at'])
-            return Response(
+            return _final(
                 {"error": "Checkpoint expired. Re-run the workflow to create a new checkpoint."},
-                status=status.HTTP_410_GONE
+                status.HTTP_410_GONE,
+                success=False,
             )
 
         # Validate approver role for checkpoint organization boundary.
@@ -1283,16 +1338,18 @@ class ApproveCheckpointView(APIView):
             membership = membership_qs.filter(role__in=['admin', 'operator']).first()
 
         if not membership or membership.role not in ('admin', 'operator'):
-            return Response(
+            return _final(
                 {"error": "Only admin or operator roles can approve checkpoints"},
-                status=status.HTTP_403_FORBIDDEN
+                status.HTTP_403_FORBIDDEN,
+                success=False,
             )
 
         required_role = checkpoint.required_role or 'admin'
         if required_role == 'admin' and membership.role != 'admin':
-            return Response(
+            return _final(
                 {"error": "This checkpoint requires admin approval"},
-                status=status.HTTP_403_FORBIDDEN
+                status.HTTP_403_FORBIDDEN,
+                success=False,
             )
 
         approved_at = timezone.now()
@@ -1344,30 +1401,79 @@ class ApproveCheckpointView(APIView):
                 'checkpoint_payload', 'execution_log', 'updated_at'
             ])
 
-            return Response({
+            return _final({
                 'status': 'approved',
                 'session_id': session_id,
                 'approved_by': request.user.username,
                 'message': 'Checkpoint approved and workflow resumed from saved step.',
                 'result': _public_result_payload(resumed_results),
-            })
+            }, status.HTTP_200_OK, success=True)
         except Exception as e:
             logger.exception("Checkpoint approved but resume failed")
             checkpoint.status = 'approved'
             checkpoint.save(update_fields=['status', 'updated_at'])
 
-            return Response({
+            return _final({
                 'status': 'approved_pending_resume',
                 'session_id': session_id,
                 'approved_by': request.user.username,
                 'message': 'Checkpoint approved, but workflow resume failed.',
                 'detail': str(e),
-            }, status=status.HTTP_202_ACCEPTED)
+            }, status.HTTP_202_ACCEPTED, success=False, error_message=str(e))
 
 
 # ─────────────────────────────────────────────
 # LOCATIONS
 # ─────────────────────────────────────────────
+
+class RunOfflineEvaluationView(APIView):
+    """
+    Trigger offline evaluation harness for routing/policy quality.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        membership = OrganizationMembership.objects.filter(
+            user=request.user,
+            is_active=True,
+            role__in=['admin', 'operator']
+        ).first()
+        if not membership:
+            return Response(
+                {"error": "Admin or operator role required to run evaluations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        scenario_pack = request.data.get('scenario_pack', 'default')
+        try:
+            result = run_offline_evaluation(
+                scenario_pack=scenario_pack,
+                triggered_by=request.user,
+            )
+            return Response({"status": "success", "evaluation": result}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("Offline evaluation failed")
+            return Response(
+                {"error": "Offline evaluation failed", "detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class AgentSLODashboardView(APIView):
+    """
+    Returns SLO metrics for reliability/quality monitoring.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            window_hours = int(request.query_params.get('window_hours', 24))
+        except (TypeError, ValueError):
+            window_hours = 24
+
+        metrics = compute_slo_metrics(window_hours=window_hours)
+        return Response({"status": "success", "metrics": metrics}, status=status.HTTP_200_OK)
+
 
 class LocationListView(APIView):
 
