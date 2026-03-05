@@ -35,6 +35,8 @@ urlpatterns = [
     # ─── AGENT ──────────────────────────────────────────────────────────
     path('api/agent/run/', views.RunAgentView.as_view(), name='run_agent'),
     path('api/agent/approve-checkpoint/', views.ApproveCheckpointView.as_view(), name='approve_checkpoint'),
+    path('api/agent/evaluation/run/', views.RunOfflineEvaluationView.as_view(), name='run_offline_evaluation'),
+    path('api/agent/slo/', views.AgentSLODashboardView.as_view(), name='agent_slo_dashboard'),
 
     # ─── LOCATIONS ──────────────────────────────────────────────────────
     path('api/locations/',                   views.LocationListView.as_view(),   name='locations'),

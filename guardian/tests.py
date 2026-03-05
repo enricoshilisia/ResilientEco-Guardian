@@ -6,21 +6,27 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from guardian.agents.core_agents import TypeBasedRouter, _build_agent_pipeline
+from guardian.agents.core_agents import IntentClassifierAgent, TypeBasedRouter, _build_agent_pipeline
+from guardian.consumers import _extract_location_from_query
 from guardian.models import (
     AgentExecutionLog,
+    IdempotencyRequest,
+    OfflineEvaluationRun,
     Organization,
     OrganizationMembership,
     RiskPolicyVersion,
+    WorkflowGraphConfig,
     WorkflowCheckpoint,
 )
+from guardian.services.evaluation import run_offline_evaluation
 from guardian.services.policy_engine import evaluate_risk_policy
 from guardian.services.weather_middleware import transform_weather_data
 from guardian.services.weather_service import geocode_location_name
+from guardian.services.workflow_config import resolve_pipeline_steps
 from guardian.views import _find_execution_by_session, _upsert_workflow_checkpoint, _public_result_payload
 
 
-class RouterTests(SimpleTestCase):
+class RouterTests(TestCase):
     def test_no_false_drought_without_explicit_signals(self):
         weather = {
             "temperature": 24,
@@ -125,6 +131,80 @@ class WeatherGeocodeTests(TestCase):
         self.assertEqual(result["country"], "Nigeria")
         self.assertEqual(result["lat"], 6.455)
         self.assertEqual(result["lon"], 3.384)
+
+
+class ConsumerLocationParsingTests(SimpleTestCase):
+    def test_bare_location_query_is_treated_as_location(self):
+        location_name, lat, lon = _extract_location_from_query("Taveta")
+        self.assertEqual(location_name, "Taveta")
+        self.assertAlmostEqual(lat, -3.3980, places=3)
+        self.assertAlmostEqual(lon, 37.6830, places=3)
+
+    def test_unknown_bare_location_is_deferred_to_geocoder(self):
+        location_name, lat, lon = _extract_location_from_query("Lagos")
+        self.assertEqual(location_name, "Lagos")
+        self.assertIsNone(lat)
+        self.assertIsNone(lon)
+
+
+class IntentClassifierTests(SimpleTestCase):
+    @staticmethod
+    def _msg(query: str):
+        from guardian.agents.core_agents import AgentMessage
+
+        return AgentMessage(
+            session_id="sess-intent",
+            location="Nairobi",
+            lat=-1.2921,
+            lon=36.8219,
+            user_query=query,
+        )
+
+    @patch.object(IntentClassifierAgent, "_complete")
+    def test_model_intent_used_when_confidence_high(self, mock_complete):
+        mock_complete.return_value = {
+            "text": '{"intent":"flood_specialist","confidence":0.91,"signals":["flood"]}',
+            "model": "fake",
+            "source": "test",
+        }
+        msg = self._msg("What is the weather?")
+        out = IntentClassifierAgent().run(msg)
+        self.assertEqual(out.intent_classification, "flood_specialist")
+        self.assertEqual(out.intent_source, "model")
+        self.assertGreaterEqual(out.intent_confidence, 0.9)
+
+    @patch.object(IntentClassifierAgent, "_complete")
+    def test_keyword_fallback_used_when_model_confidence_low(self, mock_complete):
+        mock_complete.return_value = {
+            "text": '{"intent":"general_forecast","confidence":0.2,"signals":[]}',
+            "model": "fake",
+            "source": "test",
+        }
+        msg = self._msg("flash flood warning now")
+        out = IntentClassifierAgent().run(msg)
+        self.assertEqual(out.intent_classification, "flood_specialist")
+        self.assertEqual(out.intent_source, "keyword_fallback")
+        self.assertGreater(out.intent_confidence, 0.4)
+
+
+class WorkflowGraphConfigTests(TestCase):
+    def test_resolve_pipeline_steps_uses_database_config(self):
+        WorkflowGraphConfig.objects.create(
+            name="global_graph",
+            version="test-v1",
+            is_active=True,
+            config={
+                "graphs": {
+                    "heatwave_graph": {
+                        "pipeline": ["monitor", "predict", "decision", "governance", "action"]
+                    }
+                }
+            },
+        )
+        steps, meta = resolve_pipeline_steps("heatwave_graph")
+        self.assertEqual(steps, ["monitor", "predict", "decision", "governance", "action"])
+        self.assertEqual(meta["config_source"], "database")
+        self.assertEqual(meta["config_version"], "test-v1")
 
 
 class ExecutionLookupTests(TestCase):
@@ -335,6 +415,146 @@ class RunAgentApiContractTests(TestCase):
         self.assertEqual(checkpoint.resume_from_step, "governance")
 
 
+class IdempotencyApiTests(TestCase):
+    def test_run_agent_replays_response_for_same_key(self):
+        mocked_result = {
+            "session_id": "idem-run-1",
+            "monitor": "ok",
+            "predict": "ok",
+            "decision": "ok",
+            "action": "ok",
+            "governance": "ok",
+            "intent_classification": "general_forecast",
+            "selected_graph": "standard_forecast_graph",
+            "routing_features": {"precip_probability": 20.0},
+            "pipeline": ["monitor", "predict", "decision", "action", "governance"],
+            "task_ledger": [],
+            "workflow_state": {"session_id": "idem-run-1"},
+        }
+
+        with patch("guardian.views.run_all_agents", return_value=mocked_result) as mocked_run:
+            response1 = self.client.post(
+                reverse("run_agent"),
+                data={"query": "weather", "location_name": "Nairobi", "lat": -1.2921, "lon": 36.8219},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="run-key-1",
+            )
+            response2 = self.client.post(
+                reverse("run_agent"),
+                data={"query": "weather", "location_name": "Nairobi", "lat": -1.2921, "lon": 36.8219},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="run-key-1",
+            )
+
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 200)
+        self.assertTrue(response2.json().get("idempotency_replayed"))
+        mocked_run.assert_called_once()
+        record = IdempotencyRequest.objects.get(key="run-key-1", action="run_agent")
+        self.assertEqual(record.status, "completed")
+
+    def test_run_agent_rejects_same_key_with_different_payload(self):
+        mocked_result = {
+            "session_id": "idem-run-2",
+            "monitor": "ok",
+            "predict": "ok",
+            "decision": "ok",
+            "action": "ok",
+            "governance": "ok",
+            "intent_classification": "general_forecast",
+            "selected_graph": "standard_forecast_graph",
+            "routing_features": {},
+            "pipeline": ["monitor", "predict", "decision", "action", "governance"],
+            "task_ledger": [],
+            "workflow_state": {"session_id": "idem-run-2"},
+        }
+        with patch("guardian.views.run_all_agents", return_value=mocked_result):
+            response1 = self.client.post(
+                reverse("run_agent"),
+                data={"query": "weather", "location_name": "Nairobi", "lat": -1.2921, "lon": 36.8219},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="run-key-2",
+            )
+            response2 = self.client.post(
+                reverse("run_agent"),
+                data={"query": "flood warning", "location_name": "Nairobi", "lat": -1.2921, "lon": 36.8219},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="run-key-2",
+            )
+
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 409)
+        self.assertIn("Idempotency key reused", response2.json().get("error", ""))
+
+
+class EvaluationAndSLOTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="ops1", password="testpass123")
+        self.org = Organization.objects.create(
+            name="Ops Org",
+            slug="ops-org",
+            org_type="government",
+            country="Kenya",
+        )
+        OrganizationMembership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role="admin",
+            is_active=True,
+        )
+        self.client.force_login(self.user)
+
+    def test_run_offline_evaluation_service_persists_run(self):
+        result = run_offline_evaluation(triggered_by=self.user)
+        self.assertEqual(result["status"], "completed")
+        self.assertIn("route_accuracy", result["summary_metrics"])
+        self.assertTrue(OfflineEvaluationRun.objects.filter(id=result["run_id"]).exists())
+
+    def test_run_offline_evaluation_endpoint(self):
+        response = self.client.post(
+            reverse("run_offline_evaluation"),
+            data={"scenario_pack": "default"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "success")
+        self.assertIn("evaluation", response.json())
+
+    def test_slo_dashboard_endpoint_returns_metrics(self):
+        AgentExecutionLog.objects.create(
+            agent_type="decision",
+            input_payload={"query": "weather"},
+            output_payload={
+                "selected_graph": "flood_graph",
+                "monitor": "ok",
+                "predict": "ok",
+                "decision": "ok",
+                "action": "ok",
+                "governance": "ok",
+            },
+            latency_ms=1200,
+        )
+        OfflineEvaluationRun.objects.create(
+            scenario_pack="default",
+            status="completed",
+            summary_metrics={"route_accuracy": 0.8, "alert_accuracy": 0.7},
+            scenario_results=[],
+            completed_at=timezone.now(),
+        )
+        WorkflowCheckpoint.objects.create(
+            session_id="slo-check-1",
+            status="resumed",
+            resumed_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("agent_slo_dashboard"))
+        self.assertEqual(response.status_code, 200)
+        metrics = response.json()["metrics"]
+        self.assertIn("route_accuracy", metrics)
+        self.assertIn("mean_run_time_ms", metrics)
+        self.assertIn("failure_rate", metrics)
+
+
 class ApproveCheckpointApiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="admin1", password="testpass123")
@@ -421,3 +641,62 @@ class ApproveCheckpointApiTests(TestCase):
         self.assertEqual(kwargs["session_id"], "sess-resume-1")
         self.assertTrue(kwargs["checkpoint_approved"])
         self.assertEqual(kwargs["resume_from_step"], "governance")
+
+    def test_approve_checkpoint_replays_with_idempotency_key(self):
+        WorkflowCheckpoint.objects.create(
+            session_id="sess-resume-2",
+            organization=self.org,
+            status="pending",
+            required_role="admin",
+            resume_from_step="governance",
+            user_query="Flood alert",
+            location_name="Nairobi",
+            lat=-1.2921,
+            lon=36.8219,
+            selected_graph="flood_graph",
+            partial_results={"session_id": "sess-resume-2"},
+            message_state={
+                "session_id": "sess-resume-2",
+                "location": "Nairobi",
+                "lat": -1.2921,
+                "lon": 36.8219,
+                "user_query": "Flood alert",
+                "selected_graph": "flood_graph",
+            },
+            checkpoint_payload={"requires_approval": True},
+            expires_at=timezone.now() + timedelta(minutes=30),
+        )
+
+        resumed_result = {
+            "session_id": "sess-resume-2",
+            "monitor": "ok",
+            "predict": "ok",
+            "decision": "ok",
+            "governance": "ok",
+            "action": "ok",
+            "intent_classification": "flood_specialist",
+            "selected_graph": "flood_graph",
+            "routing_features": {"precip_probability": 90.0},
+            "pipeline": ["monitor", "predict", "decision", "governance", "action"],
+            "task_ledger": [],
+            "workflow_state": {"session_id": "sess-resume-2"},
+        }
+
+        with patch("guardian.views.run_all_agents", return_value=resumed_result) as mocked_resume:
+            response1 = self.client.post(
+                reverse("approve_checkpoint"),
+                data={"session_id": "sess-resume-2"},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="approve-key-1",
+            )
+            response2 = self.client.post(
+                reverse("approve_checkpoint"),
+                data={"session_id": "sess-resume-2"},
+                content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="approve-key-1",
+            )
+
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 200)
+        self.assertTrue(response2.json().get("idempotency_replayed"))
+        mocked_resume.assert_called_once()

@@ -37,6 +37,8 @@ class AgentMessage:
     user_query: str
     # Intent classification
     intent_classification: str = "general_forecast"
+    intent_confidence: float = 0.0
+    intent_source: str = "keyword_fallback"
     # Graph selected by type-based routing
     selected_graph: str = "standard_forecast_graph"
     # Routing features derived from weather payload
@@ -208,6 +210,54 @@ class IntentClassifierAgent(BaseAgent):
             'risk_type': 'general'
         }
     }
+
+    MODEL_CONFIDENCE_THRESHOLD = 0.65
+
+    def _keyword_classify(self, query: str) -> tuple[str, float, dict]:
+        """Deterministic fallback classifier."""
+        intent_scores = {}
+        for intent, config in self.INTENT_PATTERNS.items():
+            score = 0
+            for keyword in config['keywords']:
+                if keyword in query:
+                    score += 1
+            if score > 0:
+                intent_scores[intent] = score
+
+        if not intent_scores:
+            return 'general_forecast', 0.40, {}
+
+        selected_intent = max(intent_scores, key=intent_scores.get)
+        max_score = max(intent_scores.values())
+        confidence = min(0.95, 0.45 + 0.1 * max_score)
+        return selected_intent, confidence, intent_scores
+
+    def _model_classify(self, query: str) -> tuple[str, float, dict]:
+        """
+        LLM-based intent classification with confidence.
+        Returns (intent, confidence, raw_output). Safe fallback is handled by caller.
+        """
+        allowed_intents = list(self.INTENT_PATTERNS.keys())
+        system = f"""You classify user weather-risk queries into one intent label.
+{_JSON_ONLY}
+Allowed intents: {allowed_intents}
+Return keys:
+  intent (string, one of allowed intents),
+  confidence (number 0.0 to 1.0),
+  signals (list of strings)."""
+        user = f"User query: {query}"
+
+        result = self._complete(system, user, temperature=0.0)
+        parsed = self._parse_json(result.get("text", ""))
+        intent = str(parsed.get("intent", "")).strip().lower()
+        if intent not in self.INTENT_PATTERNS:
+            intent = "general_forecast"
+        try:
+            confidence = float(parsed.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence = max(0.0, min(1.0, confidence))
+        return intent, confidence, parsed
     
     def run(self, msg: AgentMessage) -> AgentMessage:
         """Classify the user query and route to appropriate specialist"""
@@ -217,40 +267,45 @@ class IntentClassifierAgent(BaseAgent):
         msg.add_task("Intent Classification", "in_progress")
         
         query = msg.user_query.lower()
-        
-        # Score each intent
-        intent_scores = {}
-        for intent, config in self.INTENT_PATTERNS.items():
-            score = 0
-            for keyword in config['keywords']:
-                if keyword in query:
-                    score += 1
-            if score > 0:
-                intent_scores[intent] = score
-        
-        # Select highest scoring intent
-        if intent_scores:
-            selected_intent = max(intent_scores, key=intent_scores.get)
-        else:
-            selected_intent = 'general_forecast'
-        
-        # Store classification result
+
+        keyword_intent, keyword_confidence, keyword_scores = self._keyword_classify(query)
+        selected_intent = keyword_intent
+        selected_confidence = keyword_confidence
+        selected_source = "keyword_fallback"
+        model_payload = {}
+
+        try:
+            model_intent, model_confidence, model_payload = self._model_classify(msg.user_query)
+            if model_confidence >= self.MODEL_CONFIDENCE_THRESHOLD:
+                selected_intent = model_intent
+                selected_confidence = model_confidence
+                selected_source = "model"
+        except Exception as e:
+            logger.warning(f"[IntentClassifier] Model classification failed, fallback to keyword: {e}")
+
         msg.intent_classification = selected_intent
-        
-        # Get the risk type for this intent
+        msg.intent_confidence = round(float(selected_confidence), 3)
+        msg.intent_source = selected_source
+
         risk_type = self.INTENT_PATTERNS[selected_intent].get('risk_type', 'general')
-        
-        # Update task ledger
         msg.update_task("Intent Classification", "completed", {
             'selected_intent': selected_intent,
+            'confidence': msg.intent_confidence,
+            'source': selected_source,
             'risk_type': risk_type,
-            'all_scores': intent_scores
+            'keyword_scores': keyword_scores,
+            'model_payload': model_payload,
         })
         
         latency_ms = int((time.time() - start) * 1000)
-        msg.log_step("intent_classifier", "completed", latency_ms, "", "local")
+        msg.log_step("intent_classifier", "completed", latency_ms, "intent_classifier", selected_source)
         
-        logger.info(f"[IntentClassifier] Query classified as: {selected_intent}")
+        logger.info(
+            "[IntentClassifier] Query classified as: %s (source=%s confidence=%.3f)",
+            selected_intent,
+            selected_source,
+            msg.intent_confidence,
+        )
         
         return msg
 
@@ -798,25 +853,30 @@ Review for RAI compliance, proportionality, and SDG alignment. Return JSON only.
 
 # ─── ORCHESTRATOR ──────────────────────────────────────────────────────────────
 
-def _build_agent_pipeline(selected_graph: str) -> list[tuple[str, BaseAgent]]:
+def _build_agent_pipeline(
+    selected_graph: str,
+    *,
+    return_meta: bool = False,
+) -> list[tuple[str, BaseAgent]] | tuple[list[tuple[str, BaseAgent]], dict]:
     """
-    Build a dynamic execution pipeline based on selected graph.
-    Severe/flood paths run governance before action for stricter oversight.
+    Build execution pipeline from externalized graph config.
     """
-    base_chain: list[tuple[str, BaseAgent]] = [
-        ("monitor", MonitorAgent()),
-        ("predict", PredictAgent()),
-        ("decision", DecisionAgent()),
-    ]
+    from ..services.workflow_config import resolve_pipeline_steps
 
-    if selected_graph in {"severe_weather_graph", "flood_graph"}:
-        return base_chain + [("governance", GovernanceAgent()), ("action", ActionAgent())]
+    step_map: dict[str, type[BaseAgent]] = {
+        "monitor": MonitorAgent,
+        "predict": PredictAgent,
+        "decision": DecisionAgent,
+        "action": ActionAgent,
+        "governance": GovernanceAgent,
+    }
 
-    if selected_graph in {"heatwave_graph", "drought_graph"}:
-        return base_chain + [("action", ActionAgent()), ("governance", GovernanceAgent())]
+    pipeline_steps, pipeline_meta = resolve_pipeline_steps(selected_graph)
+    agents = [(step, step_map[step]()) for step in pipeline_steps if step in step_map]
 
-    # Standard path keeps the existing action -> governance flow.
-    return base_chain + [("action", ActionAgent()), ("governance", GovernanceAgent())]
+    if return_meta:
+        return agents, pipeline_meta
+    return agents
 
 
 def run_all_agents(
@@ -905,7 +965,7 @@ def run_all_agents(
         results = {}
         start_step = None
 
-    agents = _build_agent_pipeline(selected_graph)
+    agents, pipeline_meta = _build_agent_pipeline(selected_graph, return_meta=True)
     logger.info(f"[Orchestrator] Agent pipeline: {[name for name, _ in agents]}")
 
     start_idx = 0
@@ -981,9 +1041,12 @@ def run_all_agents(
     # Include new metadata
     results["task_ledger"] = msg.task_ledger
     results["intent_classification"] = msg.intent_classification
+    results["intent_confidence"] = msg.intent_confidence
+    results["intent_source"] = msg.intent_source
     results["selected_graph"] = selected_graph
     results["routing_features"] = routing_features
     results["pipeline"] = [name for name, _ in agents]
+    results["pipeline_config"] = pipeline_meta
     results["explainability"] = {
         "why_selected_graph": (
             f"Graph '{selected_graph}' selected using routing features "

@@ -434,6 +434,82 @@ class WorkflowCheckpoint(models.Model):
         return f"{self.session_id} [{self.status}]"
 
 
+class IdempotencyRequest(models.Model):
+    STATUS_CHOICES = [
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    key = models.CharField(max_length=128)
+    action = models.CharField(max_length=64)
+    actor = models.CharField(max_length=128, default='anonymous')
+    request_fingerprint = models.CharField(max_length=64)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='processing')
+    response_status_code = models.IntegerField(null=True, blank=True)
+    response_payload = models.JSONField(null=True, blank=True)
+    error_message = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['key', 'action', 'actor']
+        indexes = [
+            models.Index(fields=['action', 'created_at']),
+            models.Index(fields=['status', 'updated_at']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action}:{self.key} ({self.status})"
+
+
+class WorkflowGraphConfig(models.Model):
+    name = models.CharField(max_length=100, default='global_graph')
+    version = models.CharField(max_length=30)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=False)
+    config = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ['name', 'version']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        active = "active" if self.is_active else "inactive"
+        return f"{self.name}@{self.version} ({active})"
+
+
+class OfflineEvaluationRun(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    scenario_pack = models.CharField(max_length=100, default='default')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    summary_metrics = models.JSONField(default=dict, blank=True)
+    scenario_results = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True, null=True)
+
+    started_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    triggered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return f"OfflineEvaluationRun<{self.scenario_pack}> {self.status}"
+
+
 class AccountActivityLog(models.Model):
 
     ACTION_TYPES = [

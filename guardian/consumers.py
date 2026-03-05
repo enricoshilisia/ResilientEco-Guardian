@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 KENYA_CITIES = {
     'nairobi':  (-1.2921, 36.8219),
     'mombasa':  (-4.0435, 39.6682),
+    'taveta':   (-3.3980, 37.6830),
     'kisumu':   (-0.0917, 34.7680),
     'nakuru':   (-0.3031, 36.0800),
     'eldoret':  (0.5143,  35.2698),
@@ -57,6 +58,18 @@ def _extract_location_from_query(message: str):
             name = " ".join(raw.split()).title()
             return name, None, None
 
+    # If user sends a bare location name (e.g., "Taveta"), treat it as a location query.
+    cleaned = re.sub(r"[^a-zA-Z\s-]", "", text).strip()
+    if cleaned:
+        words = [w for w in cleaned.split() if w]
+        location_query_terms = {
+            "weather", "forecast", "risk", "flood", "drought", "heatwave",
+            "temperature", "rain", "climate", "today", "tomorrow",
+            "in", "for", "what", "is", "the", "show", "me", "and", "or",
+        }
+        if len(words) <= 4 and not any(w in location_query_terms for w in words):
+            return " ".join(words).title(), None, None
+
     return default_city, KENYA_CITIES["nairobi"][0], KENYA_CITIES["nairobi"][1]
 
 
@@ -68,6 +81,8 @@ def _render_runtime_metadata(results: dict) -> str:
         return ""
 
     intent = escape(str(results.get("intent_classification", "unknown")))
+    intent_confidence = escape(str(results.get("intent_confidence", "")))
+    intent_source = escape(str(results.get("intent_source", "")))
     graph = escape(str(results.get("selected_graph", "unknown")))
 
     pipeline = results.get("pipeline") or []
@@ -121,6 +136,17 @@ def _render_runtime_metadata(results: dict) -> str:
         )
 
     explainability = results.get("explainability") or {}
+    pipeline_config = results.get("pipeline_config") or {}
+    pipeline_config_html = ""
+    if isinstance(pipeline_config, dict) and pipeline_config:
+        pipeline_config_html = (
+            '<div style="margin-top:8px;font-size:11px;color:#64748b;">PIPELINE CONFIG</div>'
+            f'<div style="font-size:12px;color:#334155;">'
+            f'{escape(str(pipeline_config.get("config_name", "global_graph")))}'
+            f'@{escape(str(pipeline_config.get("config_version", "default")))} '
+            f'({escape(str(pipeline_config.get("config_source", "default")))})'
+            f'</div>'
+        )
     why_graph = escape(str(explainability.get("why_selected_graph", ""))) if isinstance(explainability, dict) else ""
     why_alert = escape(str(explainability.get("why_alert_level", ""))) if isinstance(explainability, dict) else ""
     explain_html = ""
@@ -135,12 +161,14 @@ def _render_runtime_metadata(results: dict) -> str:
         '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;">'
         '<div style="font-size:11px;color:#64748b;margin-bottom:6px;">RUNTIME ROUTING</div>'
         f'<div style="font-size:12px;margin-bottom:4px;"><strong>intent_classification:</strong> {intent}</div>'
+        f'<div style="font-size:12px;margin-bottom:4px;"><strong>intent_confidence:</strong> {intent_confidence or "n/a"} ({intent_source or "unknown"})</div>'
         f'<div style="font-size:12px;margin-bottom:4px;"><strong>selected_graph:</strong> {graph}</div>'
         f'<div style="font-size:12px;margin-bottom:6px;"><strong>pipeline:</strong> {pipeline_text}</div>'
         f'<div style="font-size:11px;color:#64748b;margin-bottom:4px;">routing_features</div>'
         f'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">{routing_html}</div>'
         f'<div style="font-size:12px;"><strong>task_ledger:</strong> {completed}/{total_tasks} completed, {failed} failed</div>'
         f'{checkpoint_html}'
+        f'{pipeline_config_html}'
         f'{explain_html}'
         '</div>'
     )
