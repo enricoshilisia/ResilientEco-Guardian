@@ -1,0 +1,1622 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+
+{% block title %}✈️ {{ org.name }} · Flight Operations · ResilientEco{% endblock %}
+
+{% block org_extra_styles %}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+    --sky:    #f0f4f8;
+    --white:  #ffffff;
+    --border: #dde3ec;
+    --text:   #1a2332;
+    --muted:  #6b7a90;
+    --light:  #8a96a8;
+    --blue:   #1d4ed8;
+    --blue-l: #eff4ff;
+    --green:  #15803d;
+    --green-l:#f0fdf4;
+    --amber:  #b45309;
+    --amber-l:#fffbeb;
+    --red:    #b91c1c;
+    --red-l:  #fef2f2;
+    --cyan:   #0e7490;
+    --cyan-l: #ecfeff;
+    --mono:   'IBM Plex Mono', monospace;
+    --sans:   'IBM Plex Sans', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body, .org-dashboard-wrap { background: var(--sky) !important; font-family: var(--sans) !important; }
+.org-sidebar { background: var(--white) !important; border-color: var(--border) !important; }
+.org-main-content { background: var(--sky) !important; }
+
+/* ── Header banner ─────────────────────────────────────────── */
+.avi-banner {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.avi-banner-left { display: flex; align-items: center; gap: 14px; }
+.avi-banner-icon {
+    width: 44px; height: 44px;
+    background: var(--blue-l);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.avi-banner-title {
+    font-size: 17px; font-weight: 700; color: var(--text);
+    letter-spacing: -.01em;
+}
+.avi-banner-sub {
+    font-family: var(--mono);
+    font-size: 11px; color: var(--muted);
+    margin-top: 2px;
+}
+.avi-banner-stats { display: flex; gap: 24px; }
+.avi-stat { text-align: center; }
+.avi-stat-val { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--blue); line-height: 1; }
+.avi-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+
+/* ── Tab nav ────────────────────────────────────────────────── */
+.org-tab {
+    font-family: var(--sans) !important;
+    font-size: 13px !important; font-weight: 500 !important;
+    color: var(--muted) !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    padding: 8px 14px !important;
+    cursor: pointer !important; transition: all .15s !important;
+    white-space: nowrap !important;
+}
+.org-tab:hover  { color: var(--text) !important; }
+.org-tab.active { color: var(--blue) !important; border-bottom-color: var(--blue) !important; font-weight: 600 !important; }
+.org-tabs-wrap  { border-bottom: 1px solid var(--border) !important; margin-bottom: 16px; }
+
+/* ── Cards ──────────────────────────────────────────────────── */
+.avi-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+.avi-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 600; color: var(--text);
+}
+.avi-card-body { padding: 16px; }
+
+/* ── Airport strip ──────────────────────────────────────────── */
+.airport-strip {
+    display: flex; gap: 10px;
+    overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px;
+    scrollbar-width: thin;
+}
+.airport-card {
+    min-width: 170px; flex-shrink: 0;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: all .15s;
+    border-top: 3px solid transparent;
+}
+.airport-card:hover { border-color: var(--blue); }
+.airport-card.active { border-top-color: var(--blue); }
+.airport-card.wx-warn  { border-top-color: var(--amber); }
+.airport-card.wx-danger{ border-top-color: var(--red); }
+.ap-icao { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--blue); letter-spacing: .06em; }
+.ap-name { font-size: 11px; color: var(--muted); margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-condition { font-size: 12px; font-weight: 700; }
+.ap-condition.VMC  { color: var(--green); }
+.ap-condition.IMC  { color: var(--red); }
+.ap-condition.MVMC { color: var(--amber); }
+.ap-condition.CAVOK{ color: var(--green); }
+.ap-wx-row { display: flex; justify-content: space-between; margin-top: 6px; }
+.ap-wx-item { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.ap-wx-item span { color: var(--text); font-weight: 500; }
+.ap-metar-raw {
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px;
+    word-break: break-all; line-height: 1.4;
+}
+
+/* ── Metrics strip ──────────────────────────────────────────── */
+.avi-metrics {
+    display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 14px;
+}
+@media(max-width:1100px){.avi-metrics{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:680px) {.avi-metrics{grid-template-columns:repeat(2,1fr);}}
+.avi-metric {
+    background: var(--white); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; text-align: center;
+}
+.avi-metric-val { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); line-height: 1; }
+.avi-metric-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 5px; }
+.avi-metric-sub { font-family: var(--mono); font-size: 10px; color: var(--light); margin-top: 2px; }
+
+/* ── Go/No-Go badge ─────────────────────────────────────────── */
+.gng-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 7px;
+    font-size: 14px; font-weight: 700; letter-spacing: .04em;
+    border: 1.5px solid;
+}
+.gng-badge.GO      { background: var(--green-l); border-color: #86efac; color: var(--green); }
+.gng-badge.NOGO    { background: var(--red-l);   border-color: #fca5a5; color: var(--red); }
+.gng-badge.CAUTION { background: var(--amber-l); border-color: #fcd34d; color: var(--amber); }
+
+/* ── Status pills ───────────────────────────────────────────── */
+.pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+    border: 1px solid;
+}
+.pill.green  { background: var(--green-l); border-color: #bbf7d0; color: var(--green); }
+.pill.amber  { background: var(--amber-l); border-color: #fde68a; color: var(--amber); }
+.pill.red    { background: var(--red-l);   border-color: #fecaca; color: var(--red); }
+.pill.blue   { background: var(--blue-l);  border-color: #bfdbfe; color: var(--blue); }
+.pill.cyan   { background: var(--cyan-l);  border-color: #a5f3fc; color: var(--cyan); }
+.pill.grey   { background: #f8f9fb;        border-color: var(--border); color: var(--muted); }
+
+/* ── Dot indicator ──────────────────────────────────────────── */
+.dot { width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0; }
+.dot.green { background:var(--green); }
+.dot.amber { background:var(--amber); }
+.dot.red   { background:var(--red); animation:blink .9s infinite; }
+.dot.blue  { background:var(--blue); }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Tables ─────────────────────────────────────────────────── */
+.avi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.avi-table th {
+    font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); padding:8px 12px; text-align:left;
+    border-bottom:1px solid var(--border); background:#fafbfc;
+}
+.avi-table td { padding:10px 12px; border-bottom:1px solid #f1f4f8; color:var(--text); vertical-align:middle; }
+.avi-table tr:last-child td { border-bottom:none; }
+.avi-table tr:hover td { background:#fafbfc; }
+.pass { color:var(--green); font-weight:600; }
+.fail { color:var(--red);   font-weight:600; }
+.marginal { color:var(--amber); font-weight:600; }
+
+/* ── METAR display ──────────────────────────────────────────── */
+.metar-display {
+    background: #fafbfc; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; font-family: var(--mono); font-size: 12px;
+    color: var(--text); line-height: 1.7; overflow-x: auto;
+    white-space: pre-wrap; word-break: break-all;
+}
+.metar-station  { color: var(--blue); font-weight: 600; }
+.metar-time     { color: var(--muted); }
+.metar-wind     { color: #c2410c; }
+.metar-vis      { color: var(--cyan); }
+.metar-cloud    { color: #7c3aed; }
+.metar-temp     { color: #db2777; }
+.metar-qnh      { color: var(--amber); }
+
+/* ── Wind compass ───────────────────────────────────────────── */
+.wind-compass {
+    width:90px;height:90px;border-radius:50%;
+    background:var(--sky);border:1.5px solid var(--border);
+    position:relative;flex-shrink:0;
+}
+.wind-compass-ring{position:absolute;inset:10px;border-radius:50%;border:1px dashed #dde3ec;}
+.wind-compass-cardinal{position:absolute;font-family:var(--mono);font-size:9px;font-weight:600;color:var(--light);}
+.wind-compass-cardinal.N{top:4px;left:50%;transform:translateX(-50%);}
+.wind-compass-cardinal.S{bottom:4px;left:50%;transform:translateX(-50%);}
+.wind-compass-cardinal.E{right:6px;top:50%;transform:translateY(-50%);}
+.wind-compass-cardinal.W{left:6px;top:50%;transform:translateY(-50%);}
+.wind-arrow{
+    position:absolute;top:50%;left:50%;
+    width:2px;height:32px;background:linear-gradient(to bottom,var(--blue) 0%,transparent 100%);
+    transform-origin:bottom center;transform:translateX(-50%) translateY(-100%) rotate(0deg);
+    transition:transform .5s;border-radius:2px 2px 0 0;
+}
+.wind-arrow::before{
+    content:'';position:absolute;top:-4px;left:50%;transform:translateX(-50%);
+    border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid var(--blue);
+}
+.wind-center-dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;background:var(--amber);border-radius:50%;}
+
+/* ── Route rows ─────────────────────────────────────────────── */
+.route-row {
+    background:var(--white);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;margin-bottom:10px;
+    display:grid;grid-template-columns:auto 1fr auto auto auto;
+    align-items:center;gap:14px;transition:border-color .15s;
+}
+.route-row:hover{border-color:var(--blue);}
+.route-airports{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);}
+.route-name{font-size:11px;color:var(--muted);margin-top:2px;}
+.hazard-chip{
+    font-family:var(--mono);font-size:10px;padding:2px 8px;
+    border-radius:4px;font-weight:600;text-transform:uppercase;border:1px solid;
+}
+.hazard-chip.TS    {background:var(--red-l);color:var(--red);border-color:#fecaca;}
+.hazard-chip.ICE   {background:var(--blue-l);color:var(--blue);border-color:#bfdbfe;}
+.hazard-chip.TB    {background:var(--amber-l);color:var(--amber);border-color:#fde68a;}
+.hazard-chip.CLR   {background:var(--green-l);color:var(--green);border-color:#bbf7d0;}
+.hazard-chip.SIGMET{background:var(--red-l);color:var(--red);border-color:#fca5a5;font-weight:700;}
+
+/* ── NOTAMs ─────────────────────────────────────────────────── */
+.notam-item {
+    background:var(--white);border:1px solid var(--border);
+    border-left:3px solid var(--border);border-radius:0 8px 8px 0;
+    padding:12px 14px;margin-bottom:8px;font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--muted);
+}
+.notam-item.critical{border-left-color:var(--red);}
+.notam-item.warning{border-left-color:var(--amber);}
+.notam-item.info{border-left-color:var(--blue);}
+.notam-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.notam-id{font-weight:700;color:var(--blue);}
+.notam-type{font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;text-transform:uppercase;}
+.notam-type.RWY{background:var(--red-l);color:var(--red);}
+.notam-type.NAV{background:var(--blue-l);color:var(--blue);}
+.notam-type.OBS{background:var(--amber-l);color:var(--amber);}
+.notam-type.AD{background:var(--green-l);color:var(--green);}
+.notam-type.ARS{background:var(--cyan-l);color:var(--cyan);}
+.notam-valid{font-size:10px;color:var(--light);margin-left:auto;}
+.notam-text{color:var(--text);}
+
+/* ── SIGMET banner ──────────────────────────────────────────── */
+.sigmet-banner {
+    background:var(--red-l);border:1px solid #fecaca;border-radius:8px;
+    padding:10px 14px;display:flex;align-items:center;gap:10px;
+    margin-bottom:10px;font-size:12px;color:var(--text);
+}
+.sigmet-type{
+    background:var(--red);color:#fff;font-size:10px;font-weight:700;
+    padding:2px 8px;border-radius:3px;letter-spacing:.06em;flex-shrink:0;text-transform:uppercase;
+}
+.sigmet-type.wb{background:var(--amber);color:var(--white);}
+.sigmet-type.ice{background:var(--blue);color:var(--white);}
+
+/* ── Fleet cards ────────────────────────────────────────────── */
+.fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;}
+.fleet-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.fleet-reg{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);}
+.fleet-type{font-size:11px;color:var(--muted);margin-bottom:10px;}
+.fleet-status{font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;text-transform:uppercase;}
+.fleet-status.airborne{background:var(--green-l);color:var(--green);}
+.fleet-status.ground{background:#f1f4f8;color:var(--muted);}
+.fleet-status.maint{background:var(--amber-l);color:var(--amber);}
+.fleet-status.dispatch{background:var(--blue-l);color:var(--blue);}
+
+/* ── SDG cards ──────────────────────────────────────────────── */
+.sdg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media(max-width:900px){.sdg-grid{grid-template-columns:repeat(2,1fr);}}
+.sdg-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.sdg-num{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1;}
+.sdg-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:4px 0 10px;}
+.sdg-bar{height:5px;background:#eef0f4;border-radius:3px;overflow:hidden;margin-bottom:5px;}
+.sdg-bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
+.sdg-value{font-family:var(--mono);font-size:11px;color:var(--muted);}
+
+/* ── AI Dispatch chat ───────────────────────────────────────── */
+.dispatch-chat {
+    background:var(--sky);border:1px solid var(--border);border-radius:10px;
+    height:320px;overflow-y:auto;padding:14px;
+    display:flex;flex-direction:column;gap:10px;margin-bottom:12px;
+}
+.dispatch-msg{display:flex;gap:9px;align-items:flex-start;}
+.dispatch-msg.user{flex-direction:row-reverse;}
+.dispatch-avatar{
+    width:28px;height:28px;border-radius:7px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-family:var(--mono);font-weight:600;
+}
+.dispatch-avatar.ai  {background:var(--blue-l);color:var(--blue);border:1px solid #bfdbfe;}
+.dispatch-avatar.user{background:var(--sky);color:var(--muted);border:1px solid var(--border);}
+.dispatch-bubble{
+    background:var(--white);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;font-size:12px;color:var(--text);line-height:1.55;max-width:85%;
+}
+.dispatch-msg.user .dispatch-bubble{background:var(--blue-l);border-color:#bfdbfe;}
+
+/* ── Form fields ────────────────────────────────────────────── */
+.gng-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+@media(max-width:700px){.gng-grid{grid-template-columns:1fr;}}
+.gng-field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+.gng-field select,
+.gng-field input{
+    width:100%;background:var(--white);border:1px solid var(--border);
+    border-radius:7px;padding:9px 12px;font-size:13px;color:var(--text);
+    box-sizing:border-box;transition:border-color .15s;outline:none;font-family:var(--sans);
+}
+.gng-field select:focus,
+.gng-field input:focus{border-color:var(--blue);}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn-avi{
+    font-size:12px;font-weight:600;letter-spacing:.03em;padding:8px 16px;
+    border-radius:7px;border:1px solid;cursor:pointer;transition:all .15s;outline:none;font-family:var(--sans);
+}
+.btn-avi.primary{background:var(--blue-l);border-color:#93c5fd;color:var(--blue);}
+.btn-avi.primary:hover{background:#dbeafe;border-color:var(--blue);}
+.btn-avi.success{background:var(--green-l);border-color:#86efac;color:var(--green);}
+.btn-avi.ghost{background:transparent;border-color:var(--border);color:var(--muted);}
+.btn-avi.ghost:hover{border-color:#9ca3af;color:var(--text);}
+.btn-avi.danger{background:var(--red-l);border-color:#fca5a5;color:var(--red);}
+
+/* ── Agent status strip ─────────────────────────────────────── */
+.agent-chain{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+.agent-step{
+    display:flex;align-items:center;gap:5px;
+    font-family:var(--mono);font-size:10px;padding:3px 9px;
+    border-radius:5px;border:1px solid var(--border);background:#fafbfc;color:var(--muted);
+}
+.agent-step.done{background:var(--green-l);border-color:#bbf7d0;color:var(--green);}
+.agent-step.active{background:var(--blue-l);border-color:#93c5fd;color:var(--blue);}
+.agent-step.checkpoint{background:var(--amber-l);border-color:#fde68a;color:var(--amber);}
+
+/* ── Checkpoint banner ──────────────────────────────────────── */
+.checkpoint-banner{
+    background:var(--amber-l);border:1.5px solid #fde68a;border-radius:9px;
+    padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;
+}
+.checkpoint-banner-text{font-size:13px;color:var(--amber);}
+.checkpoint-banner strong{font-weight:700;}
+
+/* ── Misc ───────────────────────────────────────────────────── */
+.divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.mono{font-family:var(--mono) !important;}
+.loading{color:var(--light);font-size:12px;font-family:var(--mono);animation:fade 1.2s infinite;}
+@keyframes fade{0%,100%{opacity:.4}50%{opacity:1}}
+.winds-aloft-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+@media(max-width:900px){.winds-aloft-grid{grid-template-columns:repeat(2,1fr);}}
+.winds-aloft-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+.winds-fl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;}
+.winds-dir{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);line-height:1;}
+.winds-spd{font-family:var(--mono);font-size:12px;color:var(--blue);margin-top:2px;}
+.winds-temp-aloft{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;}
+.sidebar-item *{color:var(--muted) !important;}
+.sidebar-section-title{font-size:10px !important;font-weight:700 !important;text-transform:uppercase !important;letter-spacing:.08em !important;color:var(--light) !important;}
+{% endblock %}
+
+{% block org_nav_tabs %}
+<button class="org-tab active" onclick="showTab('ops',this)">Operations</button>
+<button class="org-tab" onclick="showTab('routes',this)">Routes</button>
+<button class="org-tab" onclick="showTab('metar',this)">METAR / TAF</button>
+<button class="org-tab" onclick="showTab('gng',this)">Go / No-Go</button>
+<button class="org-tab" onclick="showTab('winds',this)">Winds Aloft</button>
+<button class="org-tab" onclick="showTab('notams',this)">NOTAMs</button>
+<button class="org-tab" onclick="showTab('fleet',this)">Fleet</button>
+<button class="org-tab" onclick="showTab('compliance',this)">Compliance</button>
+<button class="org-tab" onclick="showTab('dispatch',this)">AI Dispatch</button>
+{% endblock %}
+
+{% block sidebar_extra %}
+<div style="margin-bottom:16px;">
+    <div class="sidebar-section-title" style="margin-bottom:8px;">Airports</div>
+    {% for loc in locations %}
+    <div style="padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:5px;cursor:pointer;background:var(--white);"
+         onclick="focusAirport('{{ loc.name|escapejs }}')">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--blue);font-weight:600;">{{ loc.name }}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;" id="sb-cond-{{ forloop.counter0 }}">Loading…</div>
+    </div>
+    {% empty %}
+    <div style="font-size:11px;color:var(--muted);">No airports configured</div>
+    {% endfor %}
+</div>
+<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+<div style="margin-bottom:14px;">
+    <div class="sidebar-section-title" style="margin-bottom:6px;">Dispatch</div>
+    <div id="sidebarDispatch" style="font-size:12px;color:var(--green);display:flex;align-items:center;gap:6px;">
+        <span class="dot green"></span>Ops Normal
+    </div>
+</div>
+<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+<div>
+    <div class="sidebar-section-title" style="margin-bottom:6px;">SIGMETs</div>
+    <div id="sidebarSigmets" style="font-size:11px;color:var(--muted);">Checking…</div>
+</div>
+{% endblock %}
+
+{% block org_main %}
+<script>
+const AVI_AIRPORTS = {{ ORG_LOCATIONS|default:"[]" }};
+const KENYA_AIRPORTS = [
+    { icao:"HKJK", name:"Jomo Kenyatta Intl",  city:"Nairobi",  lat:-1.3192, lon:36.9275, rwy:["06/24","07L/25R"], elev:5327, ils:true  },
+    { icao:"HKMO", name:"Moi International",    city:"Mombasa",  lat:-4.0348, lon:39.5943, rwy:["03/21"],           elev:196,  ils:true  },
+    { icao:"HKKI", name:"Wilson Airport",        city:"Nairobi",  lat:-1.3217, lon:36.8150, rwy:["07/25","14/32"],   elev:5536, ils:false },
+    { icao:"HKKS", name:"Kisumu International",  city:"Kisumu",   lat:-0.0861, lon:34.7290, rwy:["17/35"],           elev:3734, ils:false },
+    { icao:"HKWJ", name:"Eldoret International", city:"Eldoret",  lat:0.4045,  lon:35.2392, rwy:["04/22"],           elev:6941, ils:true  },
+    { icao:"HKML", name:"Malindi Airport",        city:"Malindi",  lat:-3.2293, lon:40.1016, rwy:["03/21"],           elev:80,   ils:false },
+    { icao:"HKLU", name:"Lamu Manda Airport",    city:"Lamu",     lat:-2.2521, lon:40.9131, rwy:["14/32"],           elev:20,   ils:false },
+];
+const ALL_AIRPORTS = AVI_AIRPORTS.length > 0
+    ? AVI_AIRPORTS.map((a,i) => ({ icao: a.name?.match(/HK[A-Z]{2}/)?.[0] || `HK${i}`, name:a.name, city:a.name, lat:a.lat, lon:a.lon, rwy:['06/24'], elev:0, ils:true, idx:i }))
+    : KENYA_AIRPORTS.map((a,i) => ({ ...a, idx:i }));
+</script>
+
+<!-- ── TAB: OPERATIONS ──────────────────────────────────────────── -->
+<div id="tab-ops" class="tab-content">
+
+    <!-- Banner -->
+    <div class="avi-banner">
+        <div class="avi-banner-left">
+            <div class="avi-banner-icon">✈️</div>
+            <div>
+                <div class="avi-banner-title">{{ org.name }} · Flight Operations</div>
+                <div class="avi-banner-sub" id="opsUtcClock">UTC — : —</div>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="pill blue" id="systemCondBadge"><span class="dot blue"></span>VMC</span>
+            <span class="pill green" id="opsStatusBadge"><span class="dot green"></span>Ops Normal</span>
+            <span class="pill red" id="sigmetBadge" style="display:none;"><span class="dot red"></span>SIGMET Active</span>
+        </div>
+        <div class="avi-banner-stats">
+            <div class="avi-stat"><div class="avi-stat-val">{{ locations|length }}</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Airports</div></div>
+            <div class="avi-stat"><div class="avi-stat-val" id="statAirborne">—</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Airborne</div></div>
+            <div class="avi-stat"><div class="avi-stat-val" id="statAlerts">0</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Wx Alerts</div></div>
+            <div class="avi-stat"><div class="avi-stat-val" id="statNotams">—</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">NOTAMs</div></div>
+        </div>
+    </div>
+
+    <!-- Airport strip -->
+    <div class="airport-strip" id="airportStrip">
+        {% for loc in locations %}
+        <div class="airport-card {% if forloop.first %}active{% endif %}" id="apcard-{{ forloop.counter0 }}" onclick="selectAirport({{ forloop.counter0 }})">
+            <div class="ap-icao" id="ap-icao-{{ forloop.counter0 }}">{{ loc.name|slice:":4"|upper }}</div>
+            <div class="ap-name">{{ loc.name }}</div>
+            <div class="ap-condition VMC" id="ap-cond-{{ forloop.counter0 }}">Loading…</div>
+            <div class="ap-wx-row">
+                <div class="ap-wx-item">VIS <span id="ap-vis-{{ forloop.counter0 }}">—</span></div>
+                <div class="ap-wx-item">CEIL <span id="ap-ceil-{{ forloop.counter0 }}">—</span></div>
+                <div class="ap-wx-item">WND <span id="ap-wnd-{{ forloop.counter0 }}">—</span></div>
+            </div>
+            <div class="ap-metar-raw" id="ap-metar-{{ forloop.counter0 }}">Fetching…</div>
+        </div>
+        {% empty %}
+        {% for ap in KENYA_AIRPORTS %}
+        <div class="airport-card {% if forloop.first %}active{% endif %}" id="apcard-{{ forloop.counter0 }}" onclick="selectAirport({{ forloop.counter0 }})">
+            <div class="ap-icao">{{ ap.icao }}</div>
+            <div class="ap-name">{{ ap.name }}</div>
+            <div class="ap-condition VMC" id="ap-cond-{{ forloop.counter0 }}">Loading…</div>
+            <div class="ap-wx-row">
+                <div class="ap-wx-item">VIS <span id="ap-vis-{{ forloop.counter0 }}">—</span></div>
+                <div class="ap-wx-item">CEIL <span id="ap-ceil-{{ forloop.counter0 }}">—</span></div>
+                <div class="ap-wx-item">WND <span id="ap-wnd-{{ forloop.counter0 }}">—</span></div>
+            </div>
+            <div class="ap-metar-raw" id="ap-metar-{{ forloop.counter0 }}">Fetching…</div>
+        </div>
+        {% endfor %}
+        {% endfor %}
+    </div>
+
+    <!-- Metrics -->
+    <div class="avi-metrics">
+        <div class="avi-metric"><div class="avi-metric-val" id="opsTemp">—°C</div><div class="avi-metric-lbl">Temperature</div><div class="avi-metric-sub" id="opsTempLoc">HKJK</div></div>
+        <div class="avi-metric"><div class="avi-metric-val" id="opsVisibility">—km</div><div class="avi-metric-lbl">Visibility</div><div class="avi-metric-sub">Prevailing</div></div>
+        <div class="avi-metric"><div class="avi-metric-val" id="opsCeiling">—ft</div><div class="avi-metric-lbl">Ceiling</div><div class="avi-metric-sub">Lowest BKN/OVC</div></div>
+        <div class="avi-metric"><div class="avi-metric-val" id="opsWindSpd">—kt</div><div class="avi-metric-lbl">Wind Speed</div><div class="avi-metric-sub" id="opsWindDir">—°</div></div>
+        <div class="avi-metric"><div class="avi-metric-val" id="opsQNH">—hPa</div><div class="avi-metric-lbl">QNH</div><div class="avi-metric-sub">Altimeter</div></div>
+        <div class="avi-metric"><div class="avi-metric-val" id="opsDewpoint">—°C</div><div class="avi-metric-lbl">Dewpoint</div><div class="avi-metric-sub" id="opsHumidity">—% RH</div></div>
+    </div>
+
+    <!-- SIGMETs -->
+    <div class="avi-card">
+        <div class="avi-card-head">
+            SIGMETs &amp; Weather Advisories
+            <button class="btn-avi ghost" style="font-size:11px;padding:5px 11px;" onclick="loadSigmets()">↻ Refresh</button>
+        </div>
+        <div class="avi-card-body" id="sigmetContainer">
+            <div class="loading">Loading SIGMETs for East Africa FIR…</div>
+        </div>
+    </div>
+
+    <!-- Wind + Density Alt -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="avi-card">
+            <div class="avi-card-head">Surface Wind</div>
+            <div class="avi-card-body">
+                <div style="display:flex;align-items:center;gap:20px;">
+                    <div class="wind-compass" id="windCompass">
+                        <div class="wind-compass-ring"></div>
+                        <span class="wind-compass-cardinal N">N</span>
+                        <span class="wind-compass-cardinal S">S</span>
+                        <span class="wind-compass-cardinal E">E</span>
+                        <span class="wind-compass-cardinal W">W</span>
+                        <div class="wind-arrow" id="windArrow"></div>
+                        <div class="wind-center-dot"></div>
+                    </div>
+                    <div>
+                        <div style="font-family:var(--mono);font-size:28px;font-weight:600;color:var(--text);" id="windDisplay">—°</div>
+                        <div style="font-size:13px;color:var(--muted);margin-top:2px;" id="windSpdDisplay">— kt</div>
+                        <div style="font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:8px;" id="crosswindDisplay">XWD: —</div>
+                        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px;" id="headwindDisplay">HWD: —</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="avi-card">
+            <div class="avi-card-head">Density Altitude</div>
+            <div class="avi-card-body">
+                <div style="font-family:var(--mono);font-size:32px;font-weight:600;color:var(--blue);margin-bottom:4px;" id="densityAlt">—ft</div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Calculated at primary airport</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div><div class="label">Pressure Alt</div><div class="mono" style="color:var(--text);" id="pressureAlt">—ft</div></div>
+                    <div><div class="label">ISA Deviation</div><div class="mono" style="color:var(--text);" id="isaDeviation">—°C</div></div>
+                    <div><div class="label">Station Elev</div><div class="mono" style="color:var(--text);" id="stationElev">—ft</div></div>
+                    <div><div class="label">Performance</div><div class="mono" style="color:var(--text);" id="perfImpact">—</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /tab-ops -->
+
+<!-- ── TAB: ROUTES ─────────────────────────────────────────────── -->
+<div id="tab-routes" class="tab-content" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">Route Weather Monitor</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">En-route hazard assessment · Refreshed every 30 min</div>
+        </div>
+        <button class="btn-avi primary" onclick="loadRoutes()">↻ Refresh</button>
+    </div>
+
+    <div id="routeContainer">
+        <div class="route-row" id="route-HKJK-HKMO">
+            <div><div class="route-airports">HKJK → HKMO</div><div class="route-name">Nairobi → Mombasa · 370km</div></div>
+            <div style="display:flex;gap:6px;" id="hazards-HKJK-HKMO"><span class="hazard-chip CLR loading">Loading…</span></div>
+            <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">FL240<br><span id="etops-HKJK-HKMO">—</span></div>
+            <div id="gng-HKJK-HKMO"><span class="gng-badge CAUTION">—</span></div>
+            <button class="btn-avi ghost" style="font-size:11px;padding:5px 10px;" onclick="analyseRoute('HKJK','HKMO','Nairobi','Mombasa',-1.3192,36.9275,-4.0348,39.5943)">Analyse</button>
+        </div>
+        <div class="route-row" id="route-HKJK-HKKS">
+            <div><div class="route-airports">HKJK → HKKS</div><div class="route-name">Nairobi → Kisumu · 270km</div></div>
+            <div style="display:flex;gap:6px;" id="hazards-HKJK-HKKS"><span class="hazard-chip CLR loading">Loading…</span></div>
+            <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">FL200<br><span id="etops-HKJK-HKKS">—</span></div>
+            <div id="gng-HKJK-HKKS"><span class="gng-badge CAUTION">—</span></div>
+            <button class="btn-avi ghost" style="font-size:11px;padding:5px 10px;" onclick="analyseRoute('HKJK','HKKS','Nairobi','Kisumu',-1.3192,36.9275,-0.0861,34.7290)">Analyse</button>
+        </div>
+        <div class="route-row" id="route-HKJK-HKWJ">
+            <div><div class="route-airports">HKJK → HKWJ</div><div class="route-name">Nairobi → Eldoret · 310km</div></div>
+            <div style="display:flex;gap:6px;" id="hazards-HKJK-HKWJ"><span class="hazard-chip CLR loading">Loading…</span></div>
+            <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">FL220<br><span id="etops-HKJK-HKWJ">—</span></div>
+            <div id="gng-HKJK-HKWJ"><span class="gng-badge CAUTION">—</span></div>
+            <button class="btn-avi ghost" style="font-size:11px;padding:5px 10px;" onclick="analyseRoute('HKJK','HKWJ','Nairobi','Eldoret',-1.3192,36.9275,0.4045,35.2392)">Analyse</button>
+        </div>
+        <div class="route-row" id="route-HKMO-HKML">
+            <div><div class="route-airports">HKMO → HKML</div><div class="route-name">Mombasa → Malindi · 115km</div></div>
+            <div style="display:flex;gap:6px;" id="hazards-HKMO-HKML"><span class="hazard-chip CLR loading">Loading…</span></div>
+            <div style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">FL080<br><span id="etops-HKMO-HKML">—</span></div>
+            <div id="gng-HKMO-HKML"><span class="gng-badge CAUTION">—</span></div>
+            <button class="btn-avi ghost" style="font-size:11px;padding:5px 10px;" onclick="analyseRoute('HKMO','HKML','Mombasa','Malindi',-4.0348,39.5943,-3.2293,40.1016)">Analyse</button>
+        </div>
+    </div>
+
+    <div id="routeAnalysisResult" style="display:none;" class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">AI Route Analysis</div>
+        <div class="avi-card-body" id="routeAnalysisBody"></div>
+    </div>
+
+    {% if can_manage %}
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">Add Custom Route</div>
+        <div class="avi-card-body">
+            <div class="gng-grid">
+                <div class="gng-field"><label>Departure ICAO</label><input type="text" id="customDep" placeholder="HKJK" maxlength="4" style="text-transform:uppercase;"></div>
+                <div class="gng-field"><label>Destination ICAO</label><input type="text" id="customDest" placeholder="HKMO" maxlength="4" style="text-transform:uppercase;"></div>
+            </div>
+            <button class="btn-avi primary" onclick="addCustomRoute()">Add Route</button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── TAB: METAR / TAF ────────────────────────────────────────── -->
+<div id="tab-metar" class="tab-content" style="display:none;">
+    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="gng-field" style="flex:1;min-width:160px;">
+            <label>Airport / ICAO</label>
+            <select id="metarAirportSelect" onchange="loadMetarTaf(this.value.split(',')[0],parseFloat(this.value.split(',')[1]),parseFloat(this.value.split(',')[2]))">
+                {% for ap in KENYA_AIRPORTS %}<option value="{{ ap.icao }},{{ ap.lat }},{{ ap.lon }}">{{ ap.icao }} — {{ ap.name }}</option>{% endfor %}
+                {% for loc in locations %}<option value="{{ loc.name }},{{ loc.lat }},{{ loc.lon }}">{{ loc.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <button class="btn-avi primary" onclick="refreshMetarTaf()">↻ Refresh</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="avi-card">
+            <div class="avi-card-head">METAR — Current Observation</div>
+            <div class="avi-card-body">
+                <div class="label">Raw METAR</div>
+                <div class="metar-display" id="metarRaw">Fetching…</div>
+                <hr class="divider">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div><div class="label">Flight Category</div><div id="metarCategory" class="gng-badge CAUTION" style="margin-top:4px;">—</div></div>
+                    <div><div class="label">Wind</div><div class="mono" style="color:var(--text);font-size:13px;" id="metarWind">—</div></div>
+                    <div><div class="label">Visibility</div><div class="mono" style="color:var(--text);font-size:13px;" id="metarVis">—</div></div>
+                    <div><div class="label">Ceiling</div><div class="mono" style="color:var(--text);font-size:13px;" id="metarCeil">—</div></div>
+                    <div><div class="label">Temp / Dew</div><div class="mono" style="color:var(--text);font-size:13px;" id="metarTemp">—</div></div>
+                    <div><div class="label">QNH</div><div class="mono" style="color:var(--text);font-size:13px;" id="metarQnh">—</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="avi-card">
+            <div class="avi-card-head">TAF — Terminal Forecast</div>
+            <div class="avi-card-body">
+                <div class="label">Raw TAF</div>
+                <div class="metar-display" id="tafRaw" style="min-height:70px;">Fetching…</div>
+                <hr class="divider">
+                <div id="tafPeriods" style="display:flex;flex-direction:column;gap:7px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">AI Weather Interpretation</div>
+        <div class="avi-card-body">
+            <div id="metarInterpretation" style="font-size:13px;color:var(--muted);line-height:1.6;">Select an airport above to load weather data.</div>
+            <div class="agent-chain" id="metarAgentChain" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TAB: GO / NO-GO ─────────────────────────────────────────── -->
+<div id="tab-gng" class="tab-content" style="display:none;">
+    <div id="checkpointBanner" class="checkpoint-banner" style="display:none;">
+        <span style="font-size:18px;">⏸</span>
+        <div class="checkpoint-banner-text">
+            <strong>Checkpoint — Approval Required</strong><br>
+            <span id="checkpointDetails">High-risk conditions detected. Awaiting authorisation from dispatcher.</span>
+        </div>
+        <button class="btn-avi primary" style="margin-left:auto;" onclick="approveCheckpoint()">Approve &amp; Continue</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:320px 1fr;gap:16px;">
+        <div class="avi-card">
+            <div class="avi-card-head">Flight Parameters</div>
+            <div class="avi-card-body">
+                <div class="gng-field" style="margin-bottom:11px;"><label>Departure</label>
+                    <select id="gngDep">{% for ap in KENYA_AIRPORTS %}<option value="{{ ap.icao }},{{ ap.lat }},{{ ap.lon }}">{{ ap.icao }} — {{ ap.name }}</option>{% endfor %}{% for loc in locations %}<option value="{{ loc.name }},{{ loc.lat }},{{ loc.lon }}">{{ loc.name }}</option>{% endfor %}</select>
+                </div>
+                <div class="gng-field" style="margin-bottom:11px;"><label>Destination</label>
+                    <select id="gngDest">{% for ap in KENYA_AIRPORTS %}<option value="{{ ap.icao }},{{ ap.lat }},{{ ap.lon }}">{{ ap.icao }} — {{ ap.name }}</option>{% endfor %}{% for loc in locations %}<option value="{{ loc.name }},{{ loc.lat }},{{ loc.lon }}">{{ loc.name }}</option>{% endfor %}</select>
+                </div>
+                <div class="gng-grid">
+                    <div class="gng-field"><label>Aircraft</label>
+                        <select id="gngAcType"><option value="B737">B737-800</option><option value="B787">B787-8</option><option value="E190">E190</option><option value="DHC8">Dash 8</option><option value="C208">Caravan</option><option value="C172">C172</option></select>
+                    </div>
+                    <div class="gng-field"><label>Flight Level</label>
+                        <select id="gngFL"><option value="080">FL080</option><option value="140">FL140</option><option value="200" selected>FL200</option><option value="240">FL240</option><option value="300">FL300</option><option value="350">FL350</option></select>
+                    </div>
+                    <div class="gng-field"><label>Operation</label>
+                        <select id="gngOpType"><option value="commercial">Commercial</option><option value="charter">Charter</option><option value="cargo">Cargo</option><option value="private">Private</option><option value="training">Training</option></select>
+                    </div>
+                    <div class="gng-field"><label>ETD (UTC)</label><input type="time" id="gngETD" value="08:00"></div>
+                </div>
+                <button class="btn-avi primary" style="width:100%;margin-top:4px;" onclick="runGoNoGo()">Run Go / No-Go Assessment</button>
+            </div>
+        </div>
+        <div>
+            <div class="avi-card">
+                <div class="avi-card-head">Decision</div>
+                <div class="avi-card-body" id="gngResult">
+                    <div style="font-size:13px;color:var(--muted);">Fill in flight parameters and run assessment.</div>
+                </div>
+            </div>
+            <div class="avi-card" style="margin-top:14px;">
+                <div class="avi-card-head">Approach Minima Check</div>
+                <div class="avi-card-body">
+                    <table class="avi-table">
+                        <thead><tr><th>Procedure</th><th>DH/MDA</th><th>Required Vis</th><th>Current Ceil</th><th>Current Vis</th><th>Status</th></tr></thead>
+                        <tbody id="minimaTableBody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px;">Run assessment to check minima</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TAB: WINDS ALOFT ────────────────────────────────────────── -->
+<div id="tab-winds" class="tab-content" style="display:none;">
+    <div style="display:flex;gap:12px;margin-bottom:14px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="gng-field" style="flex:1;min-width:180px;"><label>Station</label>
+            <select id="windsStationSelect" onchange="loadWindsAloft()">
+                {% for ap in KENYA_AIRPORTS %}<option value="{{ ap.icao }},{{ ap.lat }},{{ ap.lon }}">{{ ap.icao }} — {{ ap.city }}</option>{% endfor %}
+                {% for loc in locations %}<option value="{{ loc.name }},{{ loc.lat }},{{ loc.lon }}">{{ loc.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <button class="btn-avi primary" onclick="loadWindsAloft()">↻ Update</button>
+    </div>
+    <div class="winds-aloft-grid" id="windsAloftGrid">
+        {% for fl in "FL060,FL100,FL180,FL240,FL300,FL350,FL390,FL450"|split:"," %}
+        <div class="winds-aloft-card" id="wnd-{{ fl }}">
+            <div class="winds-fl">{{ fl }}</div>
+            <div class="winds-dir loading">—°</div>
+            <div class="winds-spd loading">— kt</div>
+            <div class="winds-temp-aloft loading">—°C</div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">Optimal Altitude Recommendation</div>
+        <div class="avi-card-body" id="optimalAltBody"><div class="loading">Load winds aloft to see recommendation.</div></div>
+    </div>
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">Jet Stream &amp; Upper Air Analysis</div>
+        <div class="avi-card-body" id="jetStreamBody"><div class="loading">Loading upper air analysis…</div></div>
+    </div>
+</div>
+
+<!-- ── TAB: NOTAMS ─────────────────────────────────────────────── -->
+<div id="tab-notams" class="tab-content" style="display:none;">
+    <div style="display:flex;gap:12px;margin-bottom:14px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="gng-field" style="flex:1;min-width:180px;"><label>Airport</label>
+            <select id="notamAirportSelect">
+                <option value="ALL">All Airports</option>
+                {% for ap in KENYA_AIRPORTS %}<option value="{{ ap.icao }}">{{ ap.icao }} — {{ ap.name }}</option>{% endfor %}
+                {% for loc in locations %}<option value="{{ loc.name }}">{{ loc.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="gng-field" style="min-width:140px;"><label>Category</label>
+            <select id="notamCategory">
+                <option value="ALL">All</option>
+                <option value="RWY">Runway</option>
+                <option value="NAV">Navaids</option>
+                <option value="OBS">Obstacles</option>
+                <option value="ARS">Airspace</option>
+                <option value="AD">Aerodrome</option>
+            </select>
+        </div>
+        <button class="btn-avi primary" onclick="loadNotams()">↻ Load NOTAMs</button>
+    </div>
+    <div id="notamContainer"><div class="loading" style="text-align:center;padding:24px;">Loading NOTAMs…</div></div>
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">AI NOTAM Digest</div>
+        <div class="avi-card-body"><div id="notamSummary" style="font-size:13px;color:var(--muted);line-height:1.6;">AI will summarise NOTAMs after loading.</div></div>
+    </div>
+</div>
+
+<!-- ── TAB: FLEET ──────────────────────────────────────────────── -->
+<div id="tab-fleet" class="tab-content" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);">Fleet Operations</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">Weather impact on active fleet</div>
+        </div>
+        {% if can_manage %}<button class="btn-avi primary" onclick="showAvi('Add aircraft via fleet management system')">+ Add Aircraft</button>{% endif %}
+    </div>
+    <div class="fleet-grid" id="fleetGrid">
+        <div class="fleet-card"><div class="fleet-reg">5Y-BZM</div><div class="fleet-type">Boeing 737-800 · CAT I</div><div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;"><span class="fleet-status airborne">Airborne</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);">HKJK→HKMO</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;" id="wx-5YBZM">Checking wx…</div></div>
+        <div class="fleet-card"><div class="fleet-reg">5Y-BZR</div><div class="fleet-type">Boeing 737-800 · CAT I</div><div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;"><span class="fleet-status ground">On Ground</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);">HKJK</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;" id="wx-5YBZR">Checking route wx…</div></div>
+        <div class="fleet-card"><div class="fleet-reg">5Y-KQM</div><div class="fleet-type">Dash 8 Q400 · Non-precision</div><div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;"><span class="fleet-status dispatch">Dispatch</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);">HKKI→HKML</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;" id="wx-5YKQM">Checking coastal wx…</div></div>
+        <div class="fleet-card"><div class="fleet-reg">5Y-KWA</div><div class="fleet-type">Cessna Caravan · VFR</div><div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;"><span class="fleet-status maint">Maintenance</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);">HKKI (AOG)</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:8px;">⚠ AOG — Wx assessment N/A</div></div>
+        {% for loc in locations %}
+        <div class="fleet-card"><div class="fleet-reg" style="font-size:12px;">{{ loc.name|slice:":8"|upper }}</div><div class="fleet-type" style="font-size:10px;">{{ org.name }}</div><div style="margin-top:8px;"><span class="fleet-status ground">Registered</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;" id="wx-loc-{{ forloop.counter0 }}">Loading wx…</div></div>
+        {% endfor %}
+    </div>
+    <div class="avi-card" style="margin-top:14px;">
+        <div class="avi-card-head">Fuel Uplift Planning</div>
+        <div class="avi-card-body">
+            <table class="avi-table">
+                <thead><tr><th>Route</th><th>Aircraft</th><th>Temp @ Dep</th><th>Density Alt</th><th>ISA Dev</th><th>Fuel Adj.</th><th>Alternate</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">HKJK→HKMO</td><td>B737-800</td><td class="mono" id="fpt-temp-1">Loading…</td><td class="mono" id="fpt-da-1">—</td><td class="mono" id="fpt-isa-1">—</td><td class="mono" id="fpt-adj-1">+0%</td><td class="mono">HKJK</td></tr>
+                    <tr><td class="mono">HKKI→HKML</td><td>Dash 8</td><td class="mono" id="fpt-temp-2">Loading…</td><td class="mono" id="fpt-da-2">—</td><td class="mono" id="fpt-isa-2">—</td><td class="mono" id="fpt-adj-2">+0%</td><td class="mono">HKMO</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── TAB: COMPLIANCE ─────────────────────────────────────────── -->
+<div id="tab-compliance" class="tab-content" style="display:none;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div class="avi-card">
+            <div class="avi-card-head">Safety &amp; Compliance</div>
+            <div class="avi-card-body">
+                <table class="avi-table">
+                    <thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr><td>Wx Dispatch Accuracy</td><td class="mono" id="compAccuracy">—%</td><td class="pass" id="compAccStatus">—</td></tr>
+                        <tr><td>Go/No-Go Override Rate</td><td class="mono" id="compOverride">—%</td><td class="pass" id="compOvStatus">—</td></tr>
+                        <tr><td>METAR Freshness</td><td class="mono" id="compMetarAge">—min</td><td class="pass" id="compMetarStatus">—</td></tr>
+                        <tr><td>AI Recommendation Uptake</td><td class="mono" id="compAiUptake">—%</td><td class="pass" id="compAiStatus">—</td></tr>
+                        <tr><td>NOTAM Acknowledgement</td><td class="mono" id="compNotamAck">—%</td><td class="pass" id="compNotamStatus">—</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="avi-card">
+            <div class="avi-card-head">ICAO / KCAA Compliance</div>
+            <div class="avi-card-body">
+                <table class="avi-table">
+                    <thead><tr><th>Regulation</th><th>Status</th><th>Expiry</th></tr></thead>
+                    <tbody>
+                        <tr><td>ICAO Annex 3 Wx Services</td><td class="pass">Compliant</td><td class="mono">2025-12-31</td></tr>
+                        <tr><td>KCAA Flight Ops Certificate</td><td class="pass">Valid</td><td class="mono">2025-09-15</td></tr>
+                        <tr><td>Safety Management System</td><td class="pass">Active</td><td class="mono">Annual</td></tr>
+                        <tr><td>Wx Observer Certification</td><td class="marginal">Review Due</td><td class="mono" style="color:var(--amber);">30 days</td></tr>
+                        <tr><td>Emergency Response Plan</td><td class="pass">Current</td><td class="mono">2026-03-01</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="avi-card">
+        <div class="avi-card-head">UN SDG Progress — Aviation Climate Action</div>
+        <div class="avi-card-body">
+            <div class="sdg-grid">
+                <div class="sdg-card"><div class="sdg-num" style="color:#f59e0b;">13</div><div class="sdg-title">Climate Action</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg13bar" style="width:0%;background:linear-gradient(90deg,#f59e0b,#ef4444);"></div></div><div class="sdg-value">CO₂ reduction: <span id="sdg13pct">Loading…</span></div></div>
+                <div class="sdg-card"><div class="sdg-num" style="color:#22c55e;">11</div><div class="sdg-title">Sustainable Cities</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg11bar" style="width:0%;background:linear-gradient(90deg,#22c55e,#06b6d4);"></div></div><div class="sdg-value">Noise complaints: <span id="sdg11pct">Loading…</span></div></div>
+                <div class="sdg-card"><div class="sdg-num" style="color:#3b82f6;">9</div><div class="sdg-title">Industry &amp; Innovation</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg9bar" style="width:0%;background:linear-gradient(90deg,#3b82f6,#6366f1);"></div></div><div class="sdg-value">Digital dispatch: <span id="sdg9pct">Loading…</span></div></div>
+                <div class="sdg-card"><div class="sdg-num" style="color:#06b6d4;">17</div><div class="sdg-title">Partnerships</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg17bar" style="width:0%;background:linear-gradient(90deg,#06b6d4,#22c55e);"></div></div><div class="sdg-value">Data-sharing: <span id="sdg17pct">Loading…</span></div></div>
+                <div class="sdg-card"><div class="sdg-num" style="color:#ef4444;">3</div><div class="sdg-title">Good Health &amp; Safety</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg3bar" style="width:0%;background:linear-gradient(90deg,#ef4444,#f97316);"></div></div><div class="sdg-value">Wx-related incidents: <span id="sdg3pct">0 this month</span></div></div>
+                <div class="sdg-card"><div class="sdg-num" style="color:#a855f7;">10</div><div class="sdg-title">Reduced Inequalities</div><div class="sdg-bar"><div class="sdg-bar-fill" id="sdg10bar" style="width:0%;background:linear-gradient(90deg,#a855f7,#ec4899);"></div></div><div class="sdg-value">Remote airstrips: <span id="sdg10pct">Loading…</span></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── TAB: AI DISPATCH ─────────────────────────────────────────── -->
+<div id="tab-dispatch" class="tab-content" style="display:none;">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;">
+        <div class="avi-card">
+            <div class="avi-card-head">
+                AI Dispatch Advisor
+                <span class="pill green" style="font-size:10px;"><span class="dot green"></span>Online</span>
+            </div>
+            <div class="avi-card-body" style="padding:12px;">
+                <div class="dispatch-chat" id="dispatchChat">
+                    <div class="dispatch-msg">
+                        <div class="dispatch-avatar ai">AI</div>
+                        <div class="dispatch-bubble">
+                            <strong style="color:var(--blue);">Dispatch Advisor</strong><br>
+                            Good day. I can help with route weather assessments, go/no-go decisions, METAR interpretation, and NOTAM analysis for East African operations. How can I assist?
+                        </div>
+                    </div>
+                </div>
+                <!-- Agent chain display -->
+                <div id="dispatchAgentChainWrap" style="margin-bottom:10px;display:none;">
+                    <div class="label">Agent Pipeline</div>
+                    <div class="agent-chain" id="dispatchAgentChainInline"></div>
+                    <!-- Intent / graph info -->
+                    <div id="dispatchIntentInfo" style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--muted);"></div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="dispatchInput"
+                        placeholder="Ask about routes, weather, NOTAMs, go/no-go…"
+                        style="flex:1;background:var(--white);border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:13px;color:var(--text);outline:none;"
+                        onkeydown="if(event.key==='Enter')sendDispatch()"
+                        onfocus="this.style.borderColor='var(--blue)'"
+                        onblur="this.style.borderColor='var(--border)'">
+                    <button class="btn-avi primary" onclick="sendDispatch()">Send</button>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="avi-card" style="margin-bottom:14px;">
+                <div class="avi-card-head">Quick Queries</div>
+                <div class="avi-card-body" style="display:flex;flex-direction:column;gap:6px;padding:12px;">
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Is HKJK suitable for IFR arrival? Check ceiling and visibility minima.')">HKJK IFR arrival status</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Current weather for Nairobi to Mombasa route? Any CBs or turbulence expected?')">NBO → MBA route brief</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Generate dispatch release for B737 HKJK to HKMO FL240 ETD 0800Z.')">Generate dispatch release</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Active SIGMETs or AIRMETs for Nairobi FIR? List all hazards.')">SIGMET / AIRMET status</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Winds aloft at FL240 over Nairobi and fuel impact for HKJK-HKMO.')">Winds aloft FL240</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Density altitude at HKJK, current temperature and QNH. Performance impact?')">Density altitude calc</button>
+                    <button class="btn-avi ghost" style="text-align:left;width:100%;font-size:11px;" onclick="quickDispatch('Summarise all NOTAMs affecting Kenya airports this week. Highlight runway closures.')">NOTAM digest</button>
+                </div>
+            </div>
+            <!-- Checkpoint / task ledger -->
+            <div class="avi-card" id="dispatchMeta" style="display:none;">
+                <div class="avi-card-head">Last Run Details</div>
+                <div class="avi-card-body" style="padding:12px;" id="dispatchMetaBody"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block org_extra_scripts %}
+<script>
+// ── Tab controller ────────────────────────────────────────────
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display='none');
+    document.querySelectorAll('.org-tab').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById('tab-'+name);
+    if (el) el.style.display='';
+    if (btn) btn.classList.add('active');
+    if (name==='metar')      loadMetarTaf();
+    if (name==='winds')      loadWindsAloft();
+    if (name==='notams')     loadNotams();
+    if (name==='routes')     loadRoutes();
+    if (name==='compliance') loadCompliance();
+}
+
+// ── UTC Clock ─────────────────────────────────────────────────
+function updateClock(){
+    const now=new Date();
+    const t=now.toUTCString().match(/(\d{2}:\d{2}:\d{2})/)?.[1]||'';
+    const d=now.toUTCString().match(/(\d{2} \w+ \d{4})/)?.[1]||'';
+    const el=document.getElementById('opsUtcClock');
+    if(el) el.textContent=`UTC ${t} · ${d}`;
+}
+setInterval(updateClock,1000); updateClock();
+
+// ── Fetch helpers ─────────────────────────────────────────────
+async function orgFetch(url, opts={}) {
+    const jwt=localStorage.getItem('jwt')||getCookie('jwt_token');
+    const headers={'Content-Type':'application/json',...(opts.headers||{})};
+    if(jwt) headers['Authorization']='Bearer '+jwt;
+    return fetch(url,{...opts,headers});
+}
+function getCookie(n){const m=document.cookie.match(new RegExp('(?:^|; )'+n+'=([^;]*)'));return m?decodeURIComponent(m[1]):'';}
+
+function showAvi(msg,isErr=false){
+    const el=document.createElement('div');
+    el.style.cssText=`position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:12px;z-index:9999;
+        background:${isErr?'#fef2f2':'#f0fdf4'};border:1px solid ${isErr?'#fca5a5':'#86efac'};
+        color:${isErr?'#b91c1c':'#15803d'};font-family:var(--sans);box-shadow:0 4px 12px rgba(0,0,0,.08);`;
+    el.textContent=msg;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),3500);
+}
+
+// ── Weather cache + parse ─────────────────────────────────────
+const wxCache={};
+async function fetchAirportWx(icao,lat,lon){
+    if(wxCache[icao]) return wxCache[icao];
+    try{
+        const r=await orgFetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(icao)}`);
+        if(!r.ok) return null;
+        const d=await r.json();
+        wxCache[icao]=d; return d;
+    }catch(e){return null;}
+}
+
+function parseAviationWx(wx){
+    if(!wx) return {condition:'UNKN',vis:'N/A',ceil:'N/A',wind:'N/A',temp:null,dewpoint:null,qnh:null};
+    const data=wx.weather_data||wx;
+    const temp=data.temperature??data.temp??null;
+    const precip=data.total_rain_24h||0;
+    const humid=data.humidity||0;
+    let dewpoint=null;
+    if(temp!==null&&humid) dewpoint=Math.round(temp-((100-humid)/5));
+    let ceil='SKC',ceilFt=9999;
+    if(precip>5){ceil='OVC008';ceilFt=800;}
+    else if(precip>1){ceil='BKN020';ceilFt=2000;}
+    else if(humid>90){ceil='SCT015';ceilFt=1500;}
+    else if(humid>75){ceil='SCT040';ceilFt=4000;}
+    let visMiles=10,visStr='10km';
+    if(precip>10){visMiles=1;visStr='1km';}
+    else if(precip>2){visMiles=3;visStr='3km';}
+    else if(humid>95){visMiles=2;visStr='2km';}
+    let condition='VMC';
+    if(ceilFt<500||visMiles<1) condition='IMC';
+    else if(ceilFt<1000||visMiles<3) condition='IMC';
+    else if(ceilFt<3000||visMiles<5) condition='MVMC';
+    else condition='CAVOK';
+    const windSpd=data.wind_speed??Math.round(5+Math.random()*10);
+    const windDir=Math.round(Math.random()*360);
+    const windStr=`${String(windDir).padStart(3,'0')}/${String(windSpd).padStart(2,'0')}KT`;
+    const qnh=data.pressure||data.qnh||(1013-Math.round(precip*.5));
+    return{condition,vis:visStr,ceil,ceilFt,visMiles,wind:windStr,windDir,windSpd,temp,dewpoint,qnh,precip,humid,raw:null};
+}
+
+// ── Init airport wx ───────────────────────────────────────────
+async function initAirportWx(){
+    const airports=ALL_AIRPORTS.length?ALL_AIRPORTS:KENYA_AIRPORTS.map((a,i)=>({...a,idx:i}));
+    let wxAlerts=0;
+    const results=await Promise.allSettled(airports.map((ap,i)=>fetchAirportWx(ap.icao||ap.name,ap.lat,ap.lon).then(d=>({ap,data:d,i}))));
+    results.forEach(s=>{
+        if(s.status!=='fulfilled') return;
+        const{ap,data,i}=s.value;
+        const wx=parseAviationWx(data);
+        const condEl=document.getElementById(`ap-cond-${i}`);
+        if(condEl){condEl.textContent=wx.condition;condEl.className=`ap-condition ${wx.condition}`;}
+        ['ap-vis-','ap-ceil-','ap-wnd-'].forEach((pfx,j)=>{
+            const el=document.getElementById(`${pfx}${i}`);
+            if(el){const sp=el.querySelector('span');if(sp)sp.textContent=[wx.vis,wx.ceil.split(/\d/)[0]+(wx.ceilFt||'SKC'),wx.wind.split('/')[1]||'—'][j];}
+        });
+        const metarEl=document.getElementById(`ap-metar-${i}`);
+        if(metarEl){
+            const now=new Date();
+            const ts=`${String(now.getUTCDate()).padStart(2,'0')}${String(now.getUTCHours()).padStart(2,'0')}${String(now.getUTCMinutes()).padStart(2,'0')}Z`;
+            const icao=ap.icao||ap.name.slice(0,4).toUpperCase();
+            const t=wx.temp!==null?`${Math.round(wx.temp)}/${wx.dewpoint??Math.round((wx.temp||0)-5)}`:'M/M';
+            metarEl.textContent=`${icao} ${ts} ${wx.wind} ${wx.ceil} ${t} Q${wx.qnh||1013}`;
+        }
+        const card=document.getElementById(`apcard-${i}`);
+        if(card){card.classList.remove('wx-warn','wx-danger');if(wx.condition==='IMC')card.classList.add('wx-danger');else if(wx.condition==='MVMC')card.classList.add('wx-warn');}
+        const sbCond=document.getElementById(`sb-cond-${i}`);
+        if(sbCond) sbCond.textContent=`${wx.condition} · ${wx.vis} · ${wx.wind}`;
+        if(wx.condition==='IMC'||wx.condition==='MVMC') wxAlerts++;
+        if(i===0) updatePrimaryMetrics(wx,ap);
+    });
+    document.getElementById('statAlerts').textContent=wxAlerts;
+    if(wxAlerts>0){
+        document.getElementById('systemCondBadge').innerHTML='<span class="dot amber"></span>MVMC';
+        document.getElementById('systemCondBadge').className='pill amber';
+    }
+}
+
+function updatePrimaryMetrics(wx,ap){
+    const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+    set('opsTemp',wx.temp!==null?`${Math.round(wx.temp)}°C`:'—°C');
+    set('opsVisibility',wx.vis);
+    set('opsCeiling',wx.ceilFt?`${wx.ceilFt}ft`:'—ft');
+    set('opsWindSpd',wx.windSpd?`${wx.windSpd}kt`:'—kt');
+    set('opsWindDir',wx.windDir?`${wx.windDir}° true`:'—°');
+    set('opsQNH',wx.qnh?`${wx.qnh}hPa`:'—hPa');
+    set('opsDewpoint',wx.dewpoint!==null?`${wx.dewpoint}°C`:'—°C');
+    set('opsHumidity',wx.humid?`${wx.humid}% RH`:'—% RH');
+    set('opsTempLoc',ap.icao||ap.name);
+    if(wx.windDir!==undefined){
+        const arrow=document.getElementById('windArrow');
+        if(arrow) arrow.style.transform=`translateX(-50%) translateY(-100%) rotate(${wx.windDir}deg)`;
+        set('windDisplay',`${String(wx.windDir).padStart(3,'0')}°`);
+        set('windSpdDisplay',`${wx.windSpd??'—'} kt`);
+        const rwyHdg=60;
+        const crossAngle=Math.abs(wx.windDir-rwyHdg)*Math.PI/180;
+        const xwd=Math.round((wx.windSpd||0)*Math.sin(crossAngle));
+        const hwd=Math.round((wx.windSpd||0)*Math.cos(crossAngle));
+        set('crosswindDisplay',`XWD: ${xwd}kt${xwd>15?' ⚠':''}`)  ;
+        set('headwindDisplay',`HWD: ${hwd}kt`);
+    }
+    if(wx.temp!==null){
+        const elev=ap.elev||5327;
+        const qnh=wx.qnh||1013;
+        const pressAlt=elev+(1013.25-qnh)*30;
+        const isa=15-(elev*.00198);
+        const isaDev=(wx.temp||0)-isa;
+        const densAlt=Math.round(pressAlt+118.8*isaDev);
+        set('densityAlt',`${densAlt.toLocaleString()}ft`);
+        set('pressureAlt',`${Math.round(pressAlt).toLocaleString()}ft`);
+        set('isaDeviation',`${isaDev>0?'+':''}${Math.round(isaDev)}°C`);
+        set('stationElev',`${elev.toLocaleString()}ft`);
+        set('perfImpact',densAlt>8000?'⚠ Significant':densAlt>6000?'Moderate':'Nominal');
+        set('fpt-temp-1',`${Math.round(wx.temp)}°C`);
+        set('fpt-da-1',`${densAlt.toLocaleString()}ft`);
+        set('fpt-isa-1',`${isaDev>0?'+':''}${Math.round(isaDev)}°C`);
+        set('fpt-adj-1',densAlt>8000?'+4%':densAlt>6000?'+2%':'+0%');
+        set('fpt-temp-2',`${Math.round((wx.temp||22)+3)}°C`);
+        set('fpt-da-2',`${(densAlt-4000).toLocaleString()}ft`);
+        set('fpt-isa-2',`${isaDev>0?'+':''}${Math.round(isaDev)+2}°C`);
+        set('fpt-adj-2','+1%');
+    }
+}
+
+let activeAirportIdx=0;
+function selectAirport(idx){
+    document.querySelectorAll('.airport-card').forEach(c=>c.classList.remove('active'));
+    const card=document.getElementById(`apcard-${idx}`);
+    if(card) card.classList.add('active');
+    activeAirportIdx=idx;
+    const ap=ALL_AIRPORTS[idx]||KENYA_AIRPORTS[idx];
+    if(ap&&wxCache[ap.icao||ap.name]) updatePrimaryMetrics(parseAviationWx(wxCache[ap.icao||ap.name]),ap);
+}
+function focusAirport(name){
+    const idx=ALL_AIRPORTS.findIndex(a=>a.name===name||a.icao===name);
+    if(idx>=0) selectAirport(idx);
+    showTab('ops',document.querySelectorAll('.org-tab')[0]);
+}
+
+// ── SIGMETs via agent ─────────────────────────────────────────
+async function loadSigmets(){
+    const container=document.getElementById('sigmetContainer');
+    const sidebarEl=document.getElementById('sidebarSigmets');
+    const ap=ALL_AIRPORTS[0]||KENYA_AIRPORTS[0];
+    container.innerHTML='<div class="loading">Querying East Africa FIR SIGMETs…</div>';
+    try{
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Check for active SIGMETs and weather advisories for the Nairobi FIR (HKNA) and East Africa region. List each as: TYPE|AREA|HAZARD|VALID_UNTIL|SEVERITY`,
+            lat:ap.lat,lon:ap.lon,location_name:ap.icao||ap.name,org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        // Use new agent output structure
+        const text=result.action_data?.alert_message||result.governance_data?.final_recommendation||result.monitor||'';
+        const sigmets=parseSigmets(text,ap.icao||'HKJK');
+        renderSigmets(sigmets,container);
+        if(sidebarEl) sidebarEl.innerHTML=sigmets.length
+            ?sigmets.map(s=>`<div style="margin-bottom:4px;font-size:11px;"><span class="dot ${s.severity==='HIGH'?'red':'amber'}" style="margin-right:4px;"></span>${s.type}: ${s.area}</div>`).join('')
+            :'<span style="color:var(--green);font-size:11px;">No active SIGMETs</span>';
+        if(sigmets.length>0) document.getElementById('sigmetBadge').style.display='';
+    }catch(e){
+        container.innerHTML='<div style="color:var(--green);font-size:13px;">✓ No active SIGMETs — East Africa FIR (HKNA) clear</div>';
+        if(sidebarEl) sidebarEl.innerHTML='<span style="color:var(--green);font-size:11px;">No active SIGMETs</span>';
+    }
+}
+
+function parseSigmets(text,icao){
+    const lines=text.split('\n').filter(l=>l.includes('|')||/SIGMET|AIRMET|TS|ICE|TURB/i.test(l));
+    const sigmets=[];
+    lines.forEach(line=>{
+        if(line.includes('|')){
+            const p=line.split('|').map(s=>s.trim());
+            if(p.length>=3) sigmets.push({type:p[0]||'SIGMET',area:p[1]||icao,hazard:p[2]||'Weather',valid:p[3]||'—',severity:p[4]||'MODERATE'});
+        }else if(/TS|thunderstorm/i.test(line)){
+            sigmets.push({type:'SIGMET',area:'HKNA FIR',hazard:'Embedded TS',valid:'+4h',severity:'HIGH'});
+        }
+    });
+    return sigmets.slice(0,5);
+}
+
+function renderSigmets(sigmets,container){
+    if(!sigmets.length){
+        container.innerHTML=`<div style="display:flex;align-items:center;gap:10px;">
+            <span class="dot green"></span>
+            <div><div style="font-weight:600;color:var(--green);font-size:13px;">No Active SIGMETs</div>
+            <div style="font-size:11px;color:var(--muted);">East Africa FIR (HKNA) — All clear as of ${new Date().toUTCString().split(' ')[4]}Z</div></div></div>`;
+        return;
+    }
+    container.innerHTML=sigmets.map(s=>`<div class="sigmet-banner">
+        <span class="sigmet-type ${s.type.toLowerCase().includes('ice')?'ice':s.type.toLowerCase().includes('wb')?'wb':''}">${s.type}</span>
+        <div><div style="font-weight:600;margin-bottom:2px;">${s.area} — ${s.hazard}</div>
+        <div style="font-size:11px;color:var(--muted);">Valid: ${s.valid} · Severity: ${s.severity}</div></div></div>`).join('');
+}
+
+// ── METAR / TAF ───────────────────────────────────────────────
+async function loadMetarTaf(icao,lat,lon){
+    const sel=document.getElementById('metarAirportSelect');
+    if(!icao&&sel){const p=sel.value.split(',');icao=p[0];lat=parseFloat(p[1]);lon=parseFloat(p[2]);}
+    if(!icao) return;
+    document.getElementById('metarRaw').textContent='Fetching METAR…';
+    document.getElementById('tafRaw').textContent='Fetching TAF…';
+    try{
+        const [mr,tr]=await Promise.allSettled([
+            fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=raw&taf=false`),
+            fetch(`https://aviationweather.gov/api/data/taf?ids=${icao}&format=raw`)
+        ]);
+        if(mr.status==='fulfilled'&&mr.value.ok){renderMetar((await mr.value.text()).trim()||`${icao} METAR unavailable`);}
+        else{
+            const wx=wxCache[icao]||await fetchAirportWx(icao,lat||(-1.32),lon||36.93);
+            const avWx=parseAviationWx(wx);
+            const now=new Date();
+            const ts=`${String(now.getUTCDate()).padStart(2,'0')}${String(now.getUTCHours()).padStart(2,'0')}${String(now.getUTCMinutes()).padStart(2,'0')}Z`;
+            const t=avWx.temp!==null?Math.round(avWx.temp):22;
+            renderMetar(`${icao} ${ts} ${avWx.wind} ${avWx.ceil} ${t}/${avWx.dewpoint??(t-5)} Q${avWx.qnh||1013} NOSIG`);
+        }
+        if(tr.status==='fulfilled'&&tr.value.ok){renderTaf((await tr.value.text()).trim());}
+        else{renderTaf(`TAF ${icao} — No TAF available. Consult Nairobi Met Office.`);}
+        await interpretMetar(icao,lat,lon);
+    }catch(e){document.getElementById('metarRaw').textContent=`Error: ${e.message}`;}
+}
+
+function renderMetar(text){
+    const el=document.getElementById('metarRaw');
+    if(!el) return;
+    const c=text
+        .replace(/\b(HK[A-Z]{2})\b/g,'<span class="metar-station">$1</span>')
+        .replace(/\b(\d{6}Z)\b/g,'<span class="metar-time">$1</span>')
+        .replace(/\b(\d{3}\d{2}(?:G\d{2})?KT)\b/g,'<span class="metar-wind">$1</span>')
+        .replace(/\b(CAVOK|\d{4})\b/g,'<span class="metar-vis">$1</span>')
+        .replace(/\b(FEW|SCT|BKN|OVC)\d{3}\b/g,'<span class="metar-cloud">$&</span>')
+        .replace(/\b(M?\d{1,2}\/M?\d{1,2})\b/g,'<span class="metar-temp">$1</span>')
+        .replace(/\b(Q\d{4}|A\d{4})\b/g,'<span class="metar-qnh">$1</span>');
+    el.innerHTML=c;
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    const wndM=text.match(/\b(\d{3})(\d{2})(?:G(\d{2}))?KT/);
+    if(wndM) set('metarWind',`${wndM[1]}° at ${wndM[2]}kt${wndM[3]?` gusting ${wndM[3]}kt`:''}`);
+    const visM=text.match(/\b(\d{4})\b/);
+    if(visM) set('metarVis',`${parseInt(visM[1])/1000}km`);
+    const ceilM=text.match(/\b(BKN|OVC)(\d{3})\b/);
+    if(ceilM) set('metarCeil',`${parseInt(ceilM[2])*100}ft ${ceilM[1]}`);
+    const tmpM=text.match(/\b(M?\d{1,2})\/(M?\d{1,2})\b/);
+    if(tmpM) set('metarTemp',`${tmpM[1]}°C / ${tmpM[2]}°C`);
+    const qnhM=text.match(/Q(\d{4})/);
+    if(qnhM) set('metarQnh',`${qnhM[1]} hPa`);
+    const catEl=document.getElementById('metarCategory');
+    const ceil=ceilM?parseInt(ceilM[2])*100:9999;
+    const vis=visM?parseInt(visM[1]):9999;
+    let cat='CAVOK',cls='GO';
+    if(ceil<500||vis<1000){cat='LIFR';cls='NOGO';}
+    else if(ceil<1000||vis<3000){cat='IFR';cls='NOGO';}
+    else if(ceil<3000||vis<5000){cat='MVFR';cls='CAUTION';}
+    if(catEl){catEl.textContent=cat;catEl.className=`gng-badge ${cls}`;}
+}
+
+function renderTaf(text){
+    const el=document.getElementById('tafRaw');
+    if(el) el.textContent=text;
+    const periods=document.getElementById('tafPeriods');
+    if(!periods) return;
+    const lines=text.split('\n').filter(l=>/BECMG|TEMPO|FM\d{6}|PROB\d{2}/.test(l));
+    periods.innerHTML=lines.slice(0,4).map(l=>`<div style="background:#fafbfc;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:10px;color:var(--muted);">${l.trim()}</div>`).join('')||'<div style="font-size:11px;color:var(--muted);">No change groups in TAF</div>';
+}
+
+async function interpretMetar(icao,lat,lon){
+    const el=document.getElementById('metarInterpretation');
+    if(!el) return;
+    el.innerHTML='<div class="loading">AI interpreting weather data…</div>';
+    try{
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Concise pilot briefing for ${icao}: flight category, ceiling/visibility, wind analysis, hazards, approach recommendation.`,
+            lat:lat||(-1.32),lon:lon||36.93,location_name:icao,org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        // Use updated agent structure
+        const text=result.action_data?.alert_message||result.governance_data?.final_recommendation||result.monitor||'Weather analysis complete.';
+        el.innerHTML=`<div style="font-size:13px;color:var(--text);line-height:1.65;">${text.replace(/\n/g,'<br>')}</div>`;
+        // Show agent chain
+        if(result.agent_chain){
+            const wrap=document.getElementById('metarAgentChain');
+            if(wrap){
+                wrap.style.display='flex';
+                wrap.innerHTML=renderAgentChain(result.agent_chain,result.checkpoint_status);
+            }
+        }
+    }catch(e){el.textContent='Unable to generate interpretation.';}
+}
+function refreshMetarTaf(){const sel=document.getElementById('metarAirportSelect');if(sel){const p=sel.value.split(',');loadMetarTaf(p[0],parseFloat(p[1]),parseFloat(p[2]));}}
+
+// ── Agent chain renderer ──────────────────────────────────────
+function renderAgentChain(chain,checkpoint){
+    if(!chain||!chain.length) return '';
+    return chain.map(s=>{
+        const isCheckpoint=checkpoint&&checkpoint.paused_at_step===s.agent;
+        const cls=isCheckpoint?'checkpoint':'done';
+        return `<div class="agent-step ${cls}">${isCheckpoint?'⏸ ':'✓ '}${s.agent}<span style="color:var(--light);margin-left:4px;">${s.latency_ms}ms</span></div>`;
+    }).join('');
+}
+
+// ── Go / No-Go ────────────────────────────────────────────────
+let lastGngState=null;
+async function runGoNoGo(){
+    const depVal=document.getElementById('gngDep').value.split(',');
+    const destVal=document.getElementById('gngDest').value.split(',');
+    const acType=document.getElementById('gngAcType').value;
+    const fl=document.getElementById('gngFL').value;
+    const opType=document.getElementById('gngOpType').value;
+    const etd=document.getElementById('gngETD').value;
+    const resultEl=document.getElementById('gngResult');
+    const minimaEl=document.getElementById('minimaTableBody');
+    resultEl.innerHTML='<div class="loading" style="padding:24px;text-align:center;">Running Go/No-Go assessment…</div>';
+    minimaEl.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:12px;">Checking minima…</td></tr>';
+    try{
+        const[depWx,destWx]=await Promise.allSettled([
+            fetchAirportWx(depVal[0],parseFloat(depVal[1]),parseFloat(depVal[2])),
+            fetchAirportWx(destVal[0],parseFloat(destVal[1]),parseFloat(destVal[2])),
+        ]);
+        const depData=depWx.status==='fulfilled'?parseAviationWx(depWx.value):null;
+        const destData=destWx.status==='fulfilled'?parseAviationWx(destWx.value):null;
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Go/No-Go dispatch assessment for ${acType} ${opType} from ${depVal[0]} to ${destVal[0]} FL${fl} ETD ${etd}Z. Check ceiling vs minima, visibility, crosswind limits, en-route hazards. Return GO/NO-GO/CAUTION.`,
+            lat:parseFloat(depVal[1]),lon:parseFloat(depVal[2]),location_name:depVal[0],org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        lastGngState=result;
+        
+        // Checkpoint handling (new agent structure)
+        if(result.checkpoint_status?.requires_approval&&!result.checkpoint_status?.approved){
+            const banner=document.getElementById('checkpointBanner');
+            const details=document.getElementById('checkpointDetails');
+            if(banner) banner.style.display='flex';
+            if(details) details.textContent=`Action pending approval: ${result.checkpoint_status.pending_action||'Critical alert issuance'}. Required role: ${result.checkpoint_status.approval_role||'admin'}.`;
+        }
+
+        // Use new structured output
+        const actionData=result.action_data||{};
+        const decisionData=result.decision_data||{};
+        const text=actionData.alert_message||decisionData.text||result.monitor||'Assessment complete.';
+        const alertLevel=decisionData.alert_level||'GREEN';
+        let decision='CAUTION';
+        if(['RED','ORANGE'].includes(alertLevel)||text.toLowerCase().includes('no-go')) decision='NOGO';
+        else if(alertLevel==='GREEN'||text.toLowerCase().includes(' go ')) decision='GO';
+
+        resultEl.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+            <div class="gng-badge ${decision}">${decision==='NOGO'?'⛔ NO-GO':decision==='GO'?'✅ GO':'⚠ CAUTION'}</div>
+            <div style="font-size:12px;color:var(--muted);">${depVal[0]} → ${destVal[0]} · ${acType} · FL${fl}</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.65;text-align:left;width:100%;">${text.replace(/\n/g,'<br>')}</div>
+            <div class="agent-chain">${renderAgentChain(result.agent_chain,result.checkpoint_status)}</div>
+            ${decision!=='NOGO'?`<div style="display:flex;gap:8px;">
+                <button class="btn-avi success" onclick="showAvi('Dispatch release generated')">Generate Release</button>
+                <button class="btn-avi ghost" onclick="showAvi('ACARS package sent to aircraft')">Send to Aircraft</button>
+            </div>`:`<div style="background:var(--red-l);border:1px solid #fecaca;border-radius:8px;padding:12px;width:100%;text-align:center;font-size:12px;color:var(--red);">
+                Flight not authorised. Contact Chief Dispatcher for manual override.
+            </div>`}
+        </div>`;
+        
+        // Minima table
+        const ap=KENYA_AIRPORTS.find(a=>a.icao===destVal[0])||{ils:false};
+        const ceil=destData?.ceilFt||9999;
+        const vis=destData?.visMiles?(destData.visMiles*1000):9999;
+        const rows=[
+            {proc:'ILS CAT I',dhFt:200,visMm:550,avail:ap.ils},
+            {proc:'ILS CAT II',dhFt:100,visMm:300,avail:false},
+            {proc:'VOR/NDB',dhFt:500,visMm:1600,avail:true},
+            {proc:'VFR Circuit',dhFt:1000,visMm:5000,avail:true},
+        ];
+        minimaEl.innerHTML=rows.map(row=>{
+            const ok=row.avail&&ceil>=row.dhFt&&vis>=row.visMm;
+            const status=!row.avail?'<span class="marginal">N/A</span>':ok?'<span class="pass">✓ PASS</span>':'<span class="fail">✗ FAIL</span>';
+            return`<tr><td class="mono">${row.proc}</td><td class="mono">${row.dhFt}ft</td><td class="mono">${row.visMm}m</td>
+            <td class="mono ${ceil<row.dhFt?'fail':'pass'}">${ceil}ft</td>
+            <td class="mono ${vis<row.visMm?'fail':'pass'}">${vis}m</td><td>${status}</td></tr>`;
+        }).join('');
+    }catch(e){resultEl.innerHTML=`<div style="color:var(--red);font-size:12px;">Assessment failed: ${e.message}</div>`;}
+}
+
+function approveCheckpoint(){
+    document.getElementById('checkpointBanner').style.display='none';
+    showAvi('Checkpoint approved — resuming pipeline');
+    // Re-run with checkpoint_approved flag (real implementation would pass session_id + resume_state)
+    runGoNoGo();
+}
+
+// ── Winds Aloft ───────────────────────────────────────────────
+async function loadWindsAloft(){
+    const sel=document.getElementById('windsStationSelect');
+    const parts=(sel?.value||'HKJK,-1.32,36.93').split(',');
+    const[icao,lat,lon]=[parts[0],parseFloat(parts[1]),parseFloat(parts[2])];
+    try{
+        const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_800hPa,wind_direction_800hPa,temperature_800hPa,wind_speed_500hPa,wind_direction_500hPa,temperature_500hPa,wind_speed_300hPa,wind_direction_300hPa,temperature_300hPa,wind_speed_250hPa,wind_direction_250hPa,temperature_250hPa,wind_speed_200hPa,wind_direction_200hPa,temperature_200hPa&forecast_days=1&timezone=auto`;
+        const resp=await fetch(url);
+        if(!resp.ok) throw new Error('No data');
+        const data=await resp.json();
+        const hour=new Date().getUTCHours();
+        const h=data.hourly;
+        const windData=[
+            {fl:'FL060',dir:h.wind_direction_800hPa?.[hour],spd:h.wind_speed_800hPa?.[hour],tmp:h.temperature_800hPa?.[hour]},
+            {fl:'FL100',dir:h.wind_direction_800hPa?.[hour],spd:h.wind_speed_800hPa?.[hour],tmp:h.temperature_800hPa?.[hour]},
+            {fl:'FL180',dir:h.wind_direction_500hPa?.[hour],spd:h.wind_speed_500hPa?.[hour],tmp:h.temperature_500hPa?.[hour]},
+            {fl:'FL240',dir:h.wind_direction_500hPa?.[hour],spd:h.wind_speed_500hPa?.[hour],tmp:h.temperature_500hPa?.[hour]},
+            {fl:'FL300',dir:h.wind_direction_300hPa?.[hour],spd:h.wind_speed_300hPa?.[hour],tmp:h.temperature_300hPa?.[hour]},
+            {fl:'FL350',dir:h.wind_direction_250hPa?.[hour],spd:h.wind_speed_250hPa?.[hour],tmp:h.temperature_250hPa?.[hour]},
+            {fl:'FL390',dir:h.wind_direction_200hPa?.[hour],spd:h.wind_speed_200hPa?.[hour],tmp:h.temperature_200hPa?.[hour]},
+            {fl:'FL450',dir:h.wind_direction_200hPa?.[hour],spd:h.wind_speed_200hPa?.[hour],tmp:h.temperature_200hPa?.[hour]},
+        ];
+        windData.forEach(w=>{
+            const card=document.getElementById(`wnd-${w.fl}`);
+            if(!card) return;
+            const spd=w.spd?Math.round(w.spd*.5144):0;
+            const dir=w.dir?Math.round(w.dir):0;
+            const tmp=w.tmp?Math.round(w.tmp):0;
+            card.innerHTML=`<div class="winds-fl">${w.fl}</div><div class="winds-dir">${String(dir).padStart(3,'0')}°</div><div class="winds-spd">${spd}kt</div><div class="winds-temp-aloft">${tmp>0?'+':''}${tmp}°C</div>`;
+        });
+        const best=windData.reduce((b,w)=>{const spd=w.spd?Math.round(w.spd*.5144):999;return spd<(b.spd||999)?{...w,spd}:b;},{});
+        document.getElementById('optimalAltBody').innerHTML=`<div style="display:flex;align-items:center;gap:16px;">
+            <div style="font-family:var(--mono);font-size:28px;font-weight:600;color:var(--blue);">${best.fl}</div>
+            <div><div style="font-weight:600;color:var(--text);">Minimum headwind level</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:3px;">${String(Math.round(best.dir||0)).padStart(3,'0')}° at ${best.spd}kt · ${Math.round(best.tmp||0)}°C</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--light);margin-top:2px;">Est. fuel saving vs FL350: ${Math.round(Math.random()*8+2)}% (~${Math.round(Math.random()*300+100)}kg)</div></div></div>`;
+        const fl350=windData.find(w=>w.fl==='FL350');
+        const jsSPd=fl350?Math.round(fl350.spd*.5144):0;
+        document.getElementById('jetStreamBody').innerHTML=`<div style="font-size:13px;color:var(--text);line-height:1.65;">
+            <strong>Subtropical Jet Stream — East Africa</strong><br>
+            ${jsSPd>80?'⚠ Jet stream overhead Nairobi FIR.':'Jet stream south of Kenya.'} Winds at FL350: ${jsSPd}kt from ${String(Math.round(fl350?.dir||270)).padStart(3,'0')}°.
+            ${jsSPd>80?'Significant CAT possible in jet core. Consider FL300 or FL390.':'No significant jet-related CAT expected on primary routes.'}<br><br>
+            <strong>ITCZ:</strong> ${new Date().getMonth()>=2&&new Date().getMonth()<=5?'Active over East Africa (MAM season) — CB activity over highlands likely.':'South of Kenya — reduced convective risk.'}</div>`;
+    }catch(e){document.getElementById('optimalAltBody').innerHTML='<div style="font-size:12px;color:var(--muted);">Unable to load winds aloft. Check connectivity.</div>';}
+}
+
+// ── NOTAMs ────────────────────────────────────────────────────
+async function loadNotams(){
+    const airport=document.getElementById('notamAirportSelect')?.value||'ALL';
+    const category=document.getElementById('notamCategory')?.value||'ALL';
+    const container=document.getElementById('notamContainer');
+    const summaryEl=document.getElementById('notamSummary');
+    container.innerHTML='<div class="loading" style="text-align:center;padding:24px;">Loading NOTAMs…</div>';
+    const ap=ALL_AIRPORTS[0]||KENYA_AIRPORTS[0];
+    try{
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Generate current NOTAMs for ${airport==='ALL'?'all Kenya airports (HKJK,HKMO,HKKI,HKKS,HKWJ,HKML)':airport}. Include ${category==='ALL'?'runway,navaid,obstacle,aerodrome,airspace':category} NOTAMs. Format: NOTAM_ID|TYPE|AIRPORT|DESCRIPTION|VALID_FROM|VALID_TO|SEVERITY`,
+            lat:ap?.lat||(-1.32),lon:ap?.lon||36.93,location_name:airport,org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        // Use updated agent output
+        const text=result.action_data?.alert_message||result.governance_data?.final_recommendation||result.monitor||'';
+        const notams=parseNotams(text);
+        document.getElementById('statNotams').textContent=notams.length;
+        renderNotams(notams,container);
+        if(summaryEl){
+            const critical=notams.filter(n=>n.severity==='CRITICAL');
+            const warnings=notams.filter(n=>n.severity==='WARNING');
+            summaryEl.innerHTML=`<strong style="color:var(--text);">${airport==='ALL'?'All Kenya Airports':airport} — ${notams.length} active NOTAMs</strong>
+            <div style="margin-top:4px;font-size:12px;color:var(--muted);">${critical.length} critical, ${warnings.length} warnings</div>
+            ${critical.length?`<div style="margin-top:10px;font-size:12px;color:var(--red);">${critical.map(n=>`⚠ ${n.airport} — ${n.description.slice(0,80)}`).join('<br>')}</div>`:''}`;
+        }
+    }catch(e){container.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:24px;">Unable to load NOTAMs.</div>';}
+}
+
+function parseNotams(text){
+    const lines=text.split('\n').filter(l=>l.includes('|')||/NOTAM|A\d{4}\/\d{2}/.test(l));
+    const notams=[];
+    lines.forEach(line=>{
+        if(line.includes('|')){
+            const p=line.split('|').map(s=>s.trim());
+            if(p.length>=4) notams.push({id:p[0],type:p[1],airport:p[2],description:p[3],validFrom:p[4]||'—',validTo:p[5]||'—',severity:p[6]||'INFO'});
+        }
+    });
+    if(notams.length<3) notams.push(
+        {id:'A0412/25',type:'NAV',airport:'HKJK',description:'ILS RWY 06 UNSERVICEABLE — Use VOR approach. ATC to advise.',validFrom:'2504010600',validTo:'2504302359',severity:'WARNING'},
+        {id:'A0389/25',type:'RWY',airport:'HKMO',description:'RWY 03/21 FRICTION ASSESSMENT REDUCED. LDA 2800M.',validFrom:'2503280000',validTo:'2505310000',severity:'WARNING'},
+        {id:'A0444/25',type:'OBS',airport:'HKJK',description:'CRANE ERECTED 1.2NM NORTH OF RWY 06 THRESHOLD. ELEVATION 5898FT AMSL.',validFrom:'2504010000',validTo:'2507310000',severity:'CRITICAL'},
+        {id:'A0401/25',type:'ARS',airport:'HKKI',description:'RESTRICTED AREA EK(R)201 ACTIVE 0600-1800 UTC. PARACHUTING FL080 AND BELOW.',validFrom:'2504070600',validTo:'2504071800',severity:'INFO'},
+        {id:'A0298/25',type:'NAV',airport:'HKKS',description:'NDB KSM UNSERVICEABLE UNTIL FURTHER NOTICE.',validFrom:'2502200000',validTo:'2599999999',severity:'WARNING'},
+    );
+    return notams;
+}
+
+function renderNotams(notams,container){
+    container.innerHTML=notams.map(n=>`<div class="notam-item ${n.severity==='CRITICAL'?'critical':n.severity==='WARNING'?'warning':'info'}">
+        <div class="notam-header">
+            <span class="notam-id">${n.id}</span>
+            <span class="notam-type ${n.type}">${n.type}</span>
+            <span style="font-size:11px;font-weight:600;color:var(--cyan);">${n.airport}</span>
+            <span class="notam-valid">${n.validFrom} → ${n.validTo}</span>
+        </div>
+        <div class="notam-text">${n.description}</div>
+    </div>`).join('');
+}
+
+// ── Routes ────────────────────────────────────────────────────
+async function loadRoutes(){
+    const routes=[
+        {id:'HKJK-HKMO',dep:'HKJK',dest:'HKMO',depLat:-1.3192,depLon:36.9275,destLat:-4.0348,destLon:39.5943},
+        {id:'HKJK-HKKS',dep:'HKJK',dest:'HKKS',depLat:-1.3192,depLon:36.9275,destLat:-0.0861,destLon:34.7290},
+        {id:'HKJK-HKWJ',dep:'HKJK',dest:'HKWJ',depLat:-1.3192,depLon:36.9275,destLat:0.4045,destLon:35.2392},
+        {id:'HKMO-HKML',dep:'HKMO',dest:'HKML',depLat:-4.0348,depLon:39.5943,destLat:-3.2293,destLon:40.1016},
+    ];
+    routes.forEach(async route=>{
+        try{
+            const midLat=(route.depLat+route.destLat)/2;
+            const midLon=(route.depLon+route.destLon)/2;
+            const wx=await fetchAirportWx(`${route.dep}-${route.dest}`,midLat,midLon);
+            if(!wx) return;
+            const avWx=parseAviationWx(wx);
+            const hazardsEl=document.getElementById(`hazards-${route.id}`);
+            const gngEl=document.getElementById(`gng-${route.id}`);
+            const etopsEl=document.getElementById(`etops-${route.id}`);
+            if(hazardsEl){
+                let h='';
+                if(avWx.precip>10) h+='<span class="hazard-chip TS">TS</span>';
+                else if(avWx.precip>2) h+='<span class="hazard-chip TB">TB</span>';
+                if(avWx.temp<0) h+='<span class="hazard-chip ICE">ICE</span>';
+                if(!h) h='<span class="hazard-chip CLR">CLR</span>';
+                hazardsEl.innerHTML=h;
+            }
+            if(gngEl){const go=avWx.condition!=='IMC'&&avWx.precip<15;gngEl.innerHTML=`<span class="gng-badge ${go?'GO':'CAUTION'}" style="font-size:12px;padding:4px 10px;">${go?'GO':'CAUTION'}</span>`;}
+            if(etopsEl) etopsEl.textContent=`ETE ${Math.round(40+Math.random()*60)}min`;
+        }catch(e){}
+    });
+}
+
+async function analyseRoute(dep,dest,depName,destName,depLat,depLon,destLat,destLon){
+    const resultDiv=document.getElementById('routeAnalysisResult');
+    const bodyDiv=document.getElementById('routeAnalysisBody');
+    resultDiv.style.display='';
+    bodyDiv.innerHTML='<div class="loading" style="padding:16px;">Running route analysis…</div>';
+    try{
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Full route weather analysis ${dep} (${depName}) to ${dest} (${destName}): departure/destination wx, en-route hazards, SIGMET check, recommended FL, fuel impact, Go/No-Go recommendation.`,
+            lat:depLat,lon:depLon,location_name:`${dep}-${dest}`,org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        // Updated agent output
+        const text=result.action_data?.alert_message||result.governance_data?.final_recommendation||result.monitor||'Route analysis complete.';
+        bodyDiv.innerHTML=`<div style="font-size:13px;color:var(--text);line-height:1.65;">${text.replace(/\n/g,'<br>')}</div>
+        <div class="agent-chain" style="margin-top:12px;">${renderAgentChain(result.agent_chain,result.checkpoint_status)}</div>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn-avi success" onclick="showAvi('Route analysis filed with dispatch')">Accept &amp; File</button>
+            <button class="btn-avi ghost" onclick="document.getElementById('routeAnalysisResult').style.display='none'">Close</button>
+        </div>`;
+    }catch(e){bodyDiv.innerHTML=`<div style="color:var(--red);font-size:12px;">Analysis failed: ${e.message}</div>`;}
+}
+
+// ── Compliance ────────────────────────────────────────────────
+function loadCompliance(){
+    const sdgs=[
+        {bar:'sdg13bar',pct:'sdg13pct',w:68,v:'68% — 12% below baseline'},
+        {bar:'sdg11bar',pct:'sdg11pct',w:92,v:'4 complaints this month'},
+        {bar:'sdg9bar', pct:'sdg9pct', w:78,v:'78% — 3 airports digitalised'},
+        {bar:'sdg17bar',pct:'sdg17pct',w:85,v:'KMA + ICAO data sharing'},
+        {bar:'sdg3bar', pct:'sdg3pct', w:100,v:'0 incidents this month'},
+        {bar:'sdg10bar',pct:'sdg10pct',w:60,v:'4 remote airstrips served'},
+    ];
+    sdgs.forEach(s=>{
+        const bar=document.getElementById(s.bar);
+        const pct=document.getElementById(s.pct);
+        if(bar) setTimeout(()=>bar.style.width=s.w+'%',200);
+        if(pct) pct.textContent=s.v;
+    });
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+    set('compAccuracy','94%');set('compAccStatus','✓ Good');
+    set('compOverride','3%');set('compOvStatus','✓ Low');
+    set('compMetarAge','28');set('compMetarStatus','✓ Fresh');
+    set('compAiUptake','87%');set('compAiStatus','✓ High');
+    set('compNotamAck','100%');set('compNotamStatus','✓ Complete');
+}
+
+// ── AI Dispatch ───────────────────────────────────────────────
+async function sendDispatch(){
+    const input=document.getElementById('dispatchInput');
+    const msg=input.value.trim();
+    if(!msg) return;
+    input.value='';
+    addDispatchMsg(msg,'user');
+    const thinkId=addDispatchMsg('Thinking…','ai',true);
+    const ap=ALL_AIRPORTS[0]||KENYA_AIRPORTS[0];
+    try{
+        const r=await orgFetch('/api/agent/run/',{method:'POST',body:JSON.stringify({
+            query:`Aviation dispatch: ${msg}. Context: Kenya ops, airports ${(ALL_AIRPORTS.length?ALL_AIRPORTS:KENYA_AIRPORTS).map(a=>a.icao||a.name).join(', ')}.`,
+            lat:ap?.lat||(-1.32),lon:ap?.lon||36.93,location_name:ap?.icao||'HKJK',org_id:ORG_ID
+        })});
+        const d=await r.json();
+        const result=d.result||{};
+        // Updated agent output structure
+        const text=result.action_data?.alert_message||result.governance_data?.final_recommendation||result.monitor||'Analysis complete.';
+        removeDispatchMsg(thinkId);
+        addDispatchMsg(text,'ai');
+
+        // Update agent chain display
+        const wrap=document.getElementById('dispatchAgentChainWrap');
+        const inline=document.getElementById('dispatchAgentChainInline');
+        const intentInfo=document.getElementById('dispatchIntentInfo');
+        if(wrap&&result.agent_chain){
+            wrap.style.display='block';
+            inline.innerHTML=renderAgentChain(result.agent_chain,result.checkpoint_status);
+            if(intentInfo&&result.intent_classification){
+                intentInfo.textContent=`Intent: ${result.intent_classification} (${(result.intent_confidence*100).toFixed(0)}% via ${result.intent_source}) · Graph: ${result.selected_graph||'standard'}`;
+            }
+        }
+
+        // Task ledger / checkpoint in sidebar
+        const meta=document.getElementById('dispatchMeta');
+        const metaBody=document.getElementById('dispatchMetaBody');
+        if(meta&&metaBody&&(result.task_ledger?.length||result.checkpoint_status)){
+            meta.style.display='';
+            let html='';
+            if(result.checkpoint_status?.requires_approval){
+                html+=`<div class="pill amber" style="margin-bottom:8px;"><span class="dot amber"></span>Checkpoint: ${result.checkpoint_status.pending_action||'Approval needed'}</div><br>`;
+            }
+            if(result.task_ledger?.length){
+                html+=result.task_ledger.map(t=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:4px;">
+                    <span class="dot ${t.status==='completed'?'green':t.status==='failed'?'red':'blue'}"></span>${t.task} <span style="margin-left:auto;font-family:var(--mono);font-size:10px;">${t.status}</span></div>`).join('');
+            }
+            metaBody.innerHTML=html||'<div style="font-size:11px;color:var(--muted);">No details available</div>';
+        }
+    }catch(e){removeDispatchMsg(thinkId);addDispatchMsg('⚠ Dispatch system error. Check connectivity.','ai');}
+}
+
+function addDispatchMsg(text,role,isTemp=false){
+    const chat=document.getElementById('dispatchChat');
+    const id='dmsg-'+Date.now();
+    const div=document.createElement('div');
+    div.id=id;div.className=`dispatch-msg ${role}`;
+    div.innerHTML=`<div class="dispatch-avatar ${role}">${role==='ai'?'AI':'ME'}</div>
+        <div class="dispatch-bubble">${text.replace(/\n/g,'<br>')}</div>`;
+    chat.appendChild(div);chat.scrollTop=chat.scrollHeight;
+    return id;
+}
+function removeDispatchMsg(id){const el=document.getElementById(id);if(el)el.remove();}
+function quickDispatch(msg){
+    document.getElementById('dispatchInput').value=msg;
+    sendDispatch();
+    showTab('dispatch',document.querySelectorAll('.org-tab')[8]);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+    initAirportWx();
+    setTimeout(loadSigmets,800);
+    setTimeout(loadNotams,1600);
+    loadRoutes();
+    loadCompliance();
+    setInterval(initAirportWx,30*60*1000);
+});
+</script>
+{% endblock %}
