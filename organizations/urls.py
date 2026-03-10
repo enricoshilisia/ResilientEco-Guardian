@@ -53,6 +53,13 @@ urlpatterns = [
         views.dashboard_government,
         name='org_dashboard_government',
     ),
+    # ── Developer ───────────────────────────────────────────────────
+    path(
+    'org/<uuid:org_id>/dashboard/developer/',
+    views.dashboard_developer,
+    name='org_dashboard_developer',
+),
+
 
     # ── Community ────────────────────────────────────────────────────
     path(

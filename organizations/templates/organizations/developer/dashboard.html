@@ -497,14 +497,14 @@ canvas { display: block; }
 {% endblock %}
 
 {% block org_nav_tabs %}
-<a href="#" class="org-tab active" onclick="showTab('overview',this);return false;">Overview</a>
-<a href="#" class="org-tab" onclick="showTab('keys',this);return false;">API Keys</a>
-<a href="#" class="org-tab" onclick="showTab('logs',this);return false;">Request Logs</a>
-<a href="#" class="org-tab" onclick="showTab('webhooks',this);return false;">Webhooks</a>
-<a href="#" class="org-tab" onclick="showTab('playground',this);return false;">Playground</a>
-<a href="#" class="org-tab" onclick="showTab('docs',this);return false;">Endpoints</a>
-<a href="#" class="org-tab" onclick="showTab('analytics',this);return false;">Analytics</a>
-<a href="#" class="org-tab" onclick="showTab('advisor',this);return false;">Advisor</a>
+<a href="#overview"    class="org-tab active" onclick="showTab('overview',this)">Overview</a>
+<a href="#keys"        class="org-tab"        onclick="showTab('keys',this)">API Keys</a>
+<a href="#logs"        class="org-tab"        onclick="showTab('logs',this)">Request Logs</a>
+<a href="#webhooks"    class="org-tab"        onclick="showTab('webhooks',this)">Webhooks</a>
+<a href="#playground"  class="org-tab"        onclick="showTab('playground',this)">Playground</a>
+<a href="#docs"        class="org-tab"        onclick="showTab('docs',this)">Endpoints</a>
+<a href="#analytics"   class="org-tab"        onclick="showTab('analytics',this)">Analytics</a>
+<a href="#advisor"     class="org-tab"        onclick="showTab('advisor',this)">Advisor</a>
 {% endblock %}
 
 {% block sidebar_extra %}
@@ -560,7 +560,7 @@ canvas { display: block; }
   <div class="dev-header-right">
     <div class="dev-badge badge-online">Operational</div>
     <div class="dev-badge badge-version">API v2</div>
-    <div class="dev-badge badge-docs" onclick="showTab('docs',document.querySelectorAll('.org-tab')[5])">Endpoint Docs</div>
+    <div class="dev-badge badge-docs" onclick="showTab('docs',document.querySelector('.org-tab[href=\'#docs\']'))">Endpoint Docs</div>
   </div>
 </div>
 
@@ -654,7 +654,7 @@ canvas { display: block; }
             Live Request Log
             <span style="width:7px;height:7px;border-radius:50%;background:var(--dev-green);animation:devPulse 1.5s ease infinite;display:inline-block;margin-left:4px;"></span>
           </div>
-          <button class="dev-panel-action" onclick="showTab('logs',document.querySelectorAll('.org-tab')[2])">Full Logs</button>
+          <button class="dev-panel-action" onclick="showTab('logs',document.querySelector('.org-tab[href=\'#logs\']'))">Full Logs</button>
         </div>
         <div class="dev-panel-body" style="padding:0;">
           <div class="log-stream" id="overviewLogStream">
@@ -1385,7 +1385,8 @@ GET /api/weather/?lat=-1.2921&lon=36.8219&name=Nairobi<br><br>
 // ════════════════════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════════════════════
-const ORG_ID = "{{ org.id }}";
+// Use window assignment — safe even if base template already declared ORG_ID
+window._DEV_ORG_ID = "{{ org.id }}";
 let _allLogs    = [];      // raw log entries
 let _logFilter  = 'all';   // current filter
 let _logSearch  = '';      // current search string
@@ -1418,9 +1419,9 @@ function ts() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// TAB SWITCHING
+// TAB SWITCHING — window assignment overrides base template safely
 // ════════════════════════════════════════════════════════════════
-function showTab(name, el) {
+window.showTab = function(name, el) {
   document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
   const tab = document.getElementById('tab-' + name);
   if (tab) tab.style.display = 'block';
@@ -1429,7 +1430,7 @@ function showTab(name, el) {
 
   if (name === 'logs')      initLogsTab();
   if (name === 'analytics') initAnalyticsTab();
-}
+};
 
 // ════════════════════════════════════════════════════════════════
 // ENDPOINT HEALTH CHECK
@@ -1478,7 +1479,7 @@ async function loadKpis() {
 
   // Try to fetch real stats
   try {
-    const r = await orgFetch(`/api/analytics/summary/?org_id=${ORG_ID}`);
+    const r = await orgFetch(`/api/analytics/summary/?org_id=${_DEV_ORG_ID}`);
     if (r.ok) {
       const d = await r.json();
       setEl('kpiRequests',   d.requests_today ?? '—');
@@ -1571,7 +1572,7 @@ async function loadAlerts() {
 // ════════════════════════════════════════════════════════════════
 async function fetchLogs(limit = 50) {
   try {
-    const r = await orgFetch(`/api/request-logs/?limit=${limit}&org_id=${ORG_ID}`);
+    const r = await orgFetch(`/api/request-logs/?limit=${limit}&org_id=${_DEV_ORG_ID}`);
     if (!r.ok) return null;
     const data = await r.json();
     return Array.isArray(data) ? data : (data.results || []);
@@ -1705,7 +1706,7 @@ async function initAnalyticsTab() {
   // Attempt to load real analytics data
   let analyticsData = null;
   try {
-    const r = await orgFetch(`/api/analytics/detail/?org_id=${ORG_ID}&days=7`);
+    const r = await orgFetch(`/api/analytics/detail/?org_id=${_DEV_ORG_ID}&days=7`);
     if (r.ok) analyticsData = await r.json();
   } catch(e) {}
 
@@ -1871,13 +1872,13 @@ const PG_DEFAULTS = {
     query: "What is the flood risk in Nairobi?",
     lat: -1.2921, lon: 36.8219,
     location_name: "Nairobi",
-    org_id: ORG_ID
+    org_id: _DEV_ORG_ID
   }, null, 2),
   'GET|/api/weather/': '?lat=-1.2921&lon=36.8219&name=Nairobi',
   'GET|/api/alerts/':  '?limit=5&risk_type=flood',
   'POST|/api/token/':  JSON.stringify({ username: "your_username", password: "your_password" }, null, 2),
   'POST|/api/token/refresh/': JSON.stringify({ refresh: "your_refresh_token" }, null, 2),
-  'POST|/api/reportgenerator/': JSON.stringify({ session_id: "rg_abc123", org_id: ORG_ID }, null, 2),
+  'POST|/api/reportgenerator/': JSON.stringify({ session_id: "rg_abc123", org_id: _DEV_ORG_ID }, null, 2),
 };
 
 function updatePlayground() {
@@ -2041,7 +2042,7 @@ async function createApiKey() {
   try {
     const r = await orgFetch('/api/api-keys/', {
       method: 'POST',
-      body: JSON.stringify({ name, description: desc, scopes, expiry_days: expiry === 'never' ? null : parseInt(expiry), org_id: ORG_ID })
+      body: JSON.stringify({ name, description: desc, scopes, expiry_days: expiry === 'never' ? null : parseInt(expiry), org_id: _DEV_ORG_ID })
     });
     const d = await r.json();
 
@@ -2167,7 +2168,7 @@ async function saveWebhook() {
   try {
     const r = await orgFetch('/api/webhooks/', {
       method: 'POST',
-      body: JSON.stringify({ url, events, secret: secret || null, org_id: ORG_ID })
+      body: JSON.stringify({ url, events, secret: secret || null, org_id: _DEV_ORG_ID })
     });
     const d = await r.json();
 
@@ -2214,7 +2215,7 @@ async function saveWebhook() {
 async function testWebhook(id) {
   showToast('Sending test payload…');
   try {
-    const r = await orgFetch(`/api/webhooks/${id}/test/`, { method: 'POST', body: JSON.stringify({ org_id: ORG_ID }) });
+    const r = await orgFetch(`/api/webhooks/${id}/test/`, { method: 'POST', body: JSON.stringify({ org_id: _DEV_ORG_ID }) });
     if (r.ok) {
       showToast('Test delivery sent');
       // Update dot to green
@@ -2231,7 +2232,7 @@ async function testWebhook(id) {
 async function viewWebhookLogs(id) {
   showToast('Opening webhook logs…');
   // Could redirect to a logs view or show a modal; for now just open logs tab
-  showTab('logs', document.querySelectorAll('.org-tab')[2]);
+  showTab('logs', document.querySelector('.org-tab[href="#logs"]'));
 }
 
 async function deleteWebhook(id, url, btn) {
@@ -2252,7 +2253,7 @@ async function deleteWebhook(id, url, btn) {
 // ADVISOR CHAT
 // ════════════════════════════════════════════════════════════════
 function devPrompt(text) {
-  showTab('advisor', document.querySelectorAll('.org-tab')[7]);
+  showTab('advisor', document.querySelector('.org-tab[href="#advisor"]'));
   const input = document.getElementById('orgChatInput');
   if (input) { input.value = text; input.focus(); }
   setTimeout(() => {

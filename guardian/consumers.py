@@ -9,32 +9,41 @@ import logging
 from html import escape
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
+from guardian.models import Organization
+
+from guardian.services.report_generator_client import (
+    call_report_generator,
+    is_report_request,
+    detect_report_type,
+    render_report_as_chat_html,
+    render_report_for_met_chat,
+)
 
 logger = logging.getLogger(__name__)
 
 KENYA_CITIES = {
-    'nairobi':  (-1.2921, 36.8219),
-    'mombasa':  (-4.0435, 39.6682),
-    'taveta':   (-3.3980, 37.6830),
-    'kisumu':   (-0.0917, 34.7680),
-    'nakuru':   (-0.3031, 36.0800),
-    'eldoret':  (0.5143,  35.2698),
-    'kakamega': (0.2827,  34.7519),
-    'kitale':   (1.0157,  35.0062),
-    'thika':    (-1.0332, 37.0690),
-    'malindi':  (-3.2167, 40.1167),
-    'kisii':    (-0.6817, 34.7667),
-    'nyeri':    (-0.4167, 36.9500),
-    'kikambala':(-3.8056, 39.8083),
+    'nairobi':   (-1.2921, 36.8219),
+    'mombasa':   (-4.0435, 39.6682),
+    'taveta':    (-3.3980, 37.6830),
+    'kisumu':    (-0.0917, 34.7680),
+    'nakuru':    (-0.3031, 36.0800),
+    'eldoret':   (0.5143,  35.2698),
+    'kakamega':  (0.2827,  34.7519),
+    'kitale':    (1.0157,  35.0062),
+    'thika':     (-1.0332, 37.0690),
+    'malindi':   (-3.2167, 40.1167),
+    'kisii':     (-0.6817, 34.7667),
+    'nyeri':     (-0.4167, 36.9500),
+    'kikambala': (-3.8056, 39.8083),
 }
 
 AGENT_STYLES = {
-    'monitor':     {'icon': '🔍', 'label': 'Monitor Agent',    'color': '#7c3aed'},
-    'predict':     {'icon': '📊', 'label': 'Predict Agent',    'color': '#4f46e5'},
-    'decision':    {'icon': '🧠', 'label': 'Decision Agent',   'color': '#d97706'},
-    'action':      {'icon': '⚡', 'label': 'Action Agent',     'color': '#059669'},
-    'governance':  {'icon': '⚖️', 'label': 'Governance Agent', 'color': '#dc2626'},
-    'mcp_actions': {'icon': '☁️', 'label': 'Azure MCP Actions','color': '#0078d4'},
+    'monitor':     {'label': 'Monitor Agent',     'color': '#7c3aed'},
+    'predict':     {'label': 'Predict Agent',     'color': '#4f46e5'},
+    'decision':    {'label': 'Decision Agent',    'color': '#d97706'},
+    'action':      {'label': 'Action Agent',      'color': '#059669'},
+    'governance':  {'label': 'Governance Agent',  'color': '#dc2626'},
+    'mcp_actions': {'label': 'Azure MCP Actions', 'color': '#0078d4'},
 }
 
 
@@ -50,7 +59,6 @@ def _extract_location_from_query(message: str):
         if city in text:
             return city.title(), lat, lon
 
-    # Lightweight fallback for phrases like "weather in kikambala".
     match = re.search(r"\b(?:weather|forecast|risk)\s+(?:in|for)\s+([a-zA-Z\s-]+)", text)
     if match:
         raw = re.sub(r"[^a-zA-Z\s-]", "", match.group(1)).strip()
@@ -58,7 +66,6 @@ def _extract_location_from_query(message: str):
             name = " ".join(raw.split()).title()
             return name, None, None
 
-    # If user sends a bare location name (e.g., "Taveta"), treat it as a location query.
     cleaned = re.sub(r"[^a-zA-Z\s-]", "", text).strip()
     if cleaned:
         words = [w for w in cleaned.split() if w]
@@ -74,16 +81,13 @@ def _extract_location_from_query(message: str):
 
 
 def _render_runtime_metadata(results: dict) -> str:
-    """
-    Render runtime routing/checkpoint metadata returned by /api/agent/run contract.
-    """
     if not isinstance(results, dict):
         return ""
 
-    intent = escape(str(results.get("intent_classification", "unknown")))
+    intent           = escape(str(results.get("intent_classification", "unknown")))
     intent_confidence = escape(str(results.get("intent_confidence", "")))
-    intent_source = escape(str(results.get("intent_source", "")))
-    graph = escape(str(results.get("selected_graph", "unknown")))
+    intent_source    = escape(str(results.get("intent_source", "")))
+    graph            = escape(str(results.get("selected_graph", "unknown")))
 
     pipeline = results.get("pipeline") or []
     if isinstance(pipeline, list) and pipeline:
@@ -103,26 +107,25 @@ def _render_runtime_metadata(results: dict) -> str:
             )
     routing_html = "".join(chips) or '<span style="color:#9ca3af;font-size:11px;">No routing features</span>'
 
-    task_ledger = results.get("task_ledger") or []
-    total_tasks = len(task_ledger) if isinstance(task_ledger, list) else 0
-    completed = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "completed")
-    failed = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "failed")
+    task_ledger  = results.get("task_ledger") or []
+    total_tasks  = len(task_ledger) if isinstance(task_ledger, list) else 0
+    completed    = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "completed")
+    failed       = sum(1 for t in (task_ledger or []) if isinstance(t, dict) and t.get("status") == "failed")
 
     checkpoint = results.get("checkpoint_status") or {}
     checkpoint_html = ""
     if isinstance(checkpoint, dict) and checkpoint:
-        requires = checkpoint.get("requires_approval", False)
-        approved = checkpoint.get("approved", False)
-        role = escape(str(checkpoint.get("approval_role", "admin")))
+        requires      = checkpoint.get("requires_approval", False)
+        approved      = checkpoint.get("approved", False)
+        role          = escape(str(checkpoint.get("approval_role", "admin")))
         pending_action = escape(str(checkpoint.get("pending_action", "")))
-        resume_step = escape(str(checkpoint.get("resume_from_step", "")))
-        badge_color = "#ef4444" if requires and not approved else "#22c55e"
-        badge_text = "PENDING APPROVAL" if requires and not approved else "APPROVED/NOT REQUIRED"
+        resume_step   = escape(str(checkpoint.get("resume_from_step", "")))
+        badge_color   = "#ef4444" if requires and not approved else "#22c55e"
+        badge_text    = "PENDING APPROVAL" if requires and not approved else "APPROVED / NOT REQUIRED"
         checkpoint_html = (
             f'<div style="margin-top:8px;font-size:11px;color:#6b7280;">CHECKPOINT</div>'
             f'<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">'
-            f'<span style="background:{badge_color};color:white;padding:2px 8px;border-radius:99px;'
-            f'font-size:11px;">{badge_text}</span>'
+            f'<span style="background:{badge_color};color:white;padding:2px 8px;border-radius:99px;font-size:11px;">{badge_text}</span>'
             f'<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:99px;font-size:11px;">role: {role}</span>'
             f'<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:99px;font-size:11px;">next: {resume_step or "n/a"}</span>'
             f'</div>'
@@ -135,8 +138,8 @@ def _render_runtime_metadata(results: dict) -> str:
             '</div>'
         )
 
-    explainability = results.get("explainability") or {}
-    pipeline_config = results.get("pipeline_config") or {}
+    explainability   = results.get("explainability") or {}
+    pipeline_config  = results.get("pipeline_config") or {}
     pipeline_config_html = ""
     if isinstance(pipeline_config, dict) and pipeline_config:
         pipeline_config_html = (
@@ -147,8 +150,8 @@ def _render_runtime_metadata(results: dict) -> str:
             f'({escape(str(pipeline_config.get("config_source", "default")))})'
             f'</div>'
         )
-    why_graph = escape(str(explainability.get("why_selected_graph", ""))) if isinstance(explainability, dict) else ""
-    why_alert = escape(str(explainability.get("why_alert_level", ""))) if isinstance(explainability, dict) else ""
+    why_graph  = escape(str(explainability.get("why_selected_graph", ""))) if isinstance(explainability, dict) else ""
+    why_alert  = escape(str(explainability.get("why_alert_level", "")))    if isinstance(explainability, dict) else ""
     explain_html = ""
     if why_graph or why_alert:
         explain_html = (
@@ -204,35 +207,38 @@ def _bar(val):
 
 
 def render_monitor(d):
-    temp   = d.get('temperature_c', '—')
-    precip = d.get('precipitation_mm', '—')
-    rain24 = d.get('rain_24h_mm', '—')
-    humid  = d.get('humidity_pct', '—')
-    dq     = d.get('data_quality_score', '—')
+    temp      = d.get('temperature_c', '—')
+    precip    = d.get('precipitation_mm', '—')
+    rain24    = d.get('rain_24h_mm', '—')
+    humid     = d.get('humidity_pct', '—')
+    dq        = d.get('data_quality_score', '—')
     anomalies = d.get('anomalies', [])
     signals   = d.get('alert_signals', [])
-    anom_html = ''.join(f'<div style="color:#f97316;font-size:12px;margin:2px 0;">⚠️ {a}</div>' for a in anomalies) or '<div style="color:#9ca3af;font-size:12px;">None detected</div>'
-    sig_html  = ''.join(
-        f'<div style="font-size:12px;margin:2px 0;">🚨 Risk {s.get("risk_level","?")}% — {s.get("status","")}</div>'
+    anom_html = ''.join(
+        f'<div style="color:#f97316;font-size:12px;margin:2px 0;">{a}</div>'
+        for a in anomalies
+    ) or '<div style="color:#9ca3af;font-size:12px;">None detected</div>'
+    sig_html = ''.join(
+        f'<div style="font-size:12px;margin:2px 0;">Risk {s.get("risk_level","?")}% — {s.get("status","")}</div>'
         for s in signals
     ) or '<div style="color:#9ca3af;font-size:12px;">No signals</div>'
     return f'''
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
   <div style="background:#f3f4f6;border-radius:8px;padding:8px;text-align:center;">
     <div style="font-size:18px;font-weight:700;color:#667eea;">{temp}°C</div>
-    <div style="font-size:10px;color:#6b7280;">🌡️ Temp</div>
+    <div style="font-size:10px;color:#6b7280;">Temp</div>
   </div>
   <div style="background:#f3f4f6;border-radius:8px;padding:8px;text-align:center;">
     <div style="font-size:18px;font-weight:700;color:#667eea;">{precip}mm</div>
-    <div style="font-size:10px;color:#6b7280;">🌧️ Now</div>
+    <div style="font-size:10px;color:#6b7280;">Now</div>
   </div>
   <div style="background:#f3f4f6;border-radius:8px;padding:8px;text-align:center;">
     <div style="font-size:18px;font-weight:700;color:#667eea;">{rain24}mm</div>
-    <div style="font-size:10px;color:#6b7280;">☔ 24h</div>
+    <div style="font-size:10px;color:#6b7280;">24h Rain</div>
   </div>
   <div style="background:#f3f4f6;border-radius:8px;padding:8px;text-align:center;">
     <div style="font-size:18px;font-weight:700;color:#667eea;">{humid}%</div>
-    <div style="font-size:10px;color:#6b7280;">💧 Humid</div>
+    <div style="font-size:10px;color:#6b7280;">Humidity</div>
   </div>
 </div>
 <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">ANOMALIES</div>{anom_html}
@@ -248,14 +254,14 @@ def render_predict(d):
     conf    = d.get('confidence_pct', '—')
     primary = d.get('primary_risk', '—')
     reason  = d.get('reasoning', '')
-    oc      = _risk_color(flood if overall in ('HIGH','CRITICAL') else drought)
+    oc      = _risk_color(flood if overall in ('HIGH', 'CRITICAL') else drought)
     return f'''
 <div style="margin-bottom:10px;">
-  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;"><span>🌊 Flood Risk</span><span style="color:{_risk_color(flood)};font-weight:700;">{flood}%</span></div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;"><span>Flood Risk</span><span style="color:{_risk_color(flood)};font-weight:700;">{flood}%</span></div>
   {_bar(flood)}
-  <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0 2px;"><span>🏜️ Drought Risk</span><span style="color:{_risk_color(drought)};font-weight:700;">{drought}%</span></div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0 2px;"><span>Drought Risk</span><span style="color:{_risk_color(drought)};font-weight:700;">{drought}%</span></div>
   {_bar(drought)}
-  <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0 2px;"><span>🔥 Heatwave Risk</span><span style="color:{_risk_color(heat)};font-weight:700;">{heat}%</span></div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin:6px 0 2px;"><span>Heatwave Risk</span><span style="color:{_risk_color(heat)};font-weight:700;">{heat}%</span></div>
   {_bar(heat)}
 </div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
@@ -274,10 +280,20 @@ def render_decision(d):
     priority = d.get('priority', '—')
     pop      = d.get('estimated_affected_population', '—')
     hrs      = d.get('response_timeline_hours', '—')
-    act_html = ''.join(f'<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #f3f4f6;">▸ {a}</div>' for a in actions)
-    grp_html = ' '.join(f'<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:99px;font-size:11px;">{g}</span>' for g in groups)
-    immed_badge = '<span style="background:#ef4444;color:white;padding:2px 8px;border-radius:99px;font-size:11px;">YES</span>' if immed else '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:99px;font-size:11px;">NO</span>'
-    return f'''
+    act_html = ''.join(
+        f'<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #f3f4f6;">{a}</div>'
+        for a in actions
+    )
+    grp_html = ' '.join(
+        f'<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:99px;font-size:11px;">{g}</span>'
+        for g in groups
+    )
+    immed_badge = (
+        '<span style="background:#ef4444;color:white;padding:2px 8px;border-radius:99px;font-size:11px;">YES</span>'
+        if immed else
+        '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:99px;font-size:11px;">NO</span>'
+    )
+    base = f'''
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
   <div>{_alert_badge(level)}</div>
   <div style="font-size:12px;color:#6b7280;">Immediate action: {immed_badge}</div>
@@ -286,19 +302,14 @@ def render_decision(d):
 <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">RECOMMENDED ACTIONS</div>
 <div style="margin-bottom:10px;">{act_html}</div>
 <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">NOTIFY</div>
-<div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:4px;">{grp_html}</div>
+<div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:4px;">{grp_html}</div>'''
+    if isinstance(pop, int):
+        base += f'''
 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-  <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:12px;">👥 ~{pop:,} affected</div>
-  <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:12px;">⏱️ {hrs}h response window</div>
-</div>''' if isinstance(pop, int) else f'''
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-  <div>{_alert_badge(level)}</div>
-  <div style="font-size:12px;color:#6b7280;">Immediate action: {immed_badge}</div>
-</div>
-<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">RECOMMENDED ACTIONS</div>
-<div style="margin-bottom:10px;">{act_html}</div>
-<div style="font-size:11px;color:#6b7280;margin-bottom:6px;">NOTIFY</div>
-<div style="display:flex;flex-wrap:wrap;gap:4px;">{grp_html}</div>'''
+  <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:12px;">~{pop:,} affected</div>
+  <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:12px;">{hrs}h response window</div>
+</div>'''
+    return base
 
 
 def render_action(d):
@@ -308,14 +319,20 @@ def render_action(d):
     rlevel    = d.get('risk_level', 0)
     steps     = d.get('immediate_steps', [])
     resources = d.get('resources_needed', [])
-    steps_html = ''.join(f'<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #f3f4f6;">▸ {s}</div>' for s in steps)
-    res_html   = ' '.join(f'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;">{r}</span>' for r in resources)
+    steps_html = ''.join(
+        f'<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #f3f4f6;">{s}</div>'
+        for s in steps
+    )
+    res_html = ' '.join(
+        f'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;">{r}</span>'
+        for r in resources
+    )
     return f'''
 <div style="background:#fef3c7;border-radius:8px;padding:10px;margin-bottom:10px;font-size:13px;line-height:1.5;">
-  📢 {alert_msg}
+  {alert_msg}
 </div>
 <div style="background:#1e293b;color:#86efac;border-radius:8px;padding:8px 12px;font-family:monospace;font-size:12px;margin-bottom:10px;">
-  📱 SMS: {sms}
+  SMS: {sms}
 </div>
 <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
   <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:12px;">Type: <strong>{rtype}</strong></div>
@@ -334,10 +351,23 @@ def render_governance(d):
     rec      = d.get('final_recommendation', '')
     conf     = d.get('confidence_in_chain', '—')
     sdgs     = d.get('sdg_alignment', [])
-    ap_badge = '<span style="background:#22c55e;color:white;padding:3px 12px;border-radius:99px;font-weight:700;">✅ APPROVED</span>' if approved else '<span style="background:#ef4444;color:white;padding:3px 12px;border-radius:99px;font-weight:700;">❌ REJECTED</span>'
-    issues_html = ''.join(f'<div style="color:#ef4444;font-size:12px;padding:2px 0;">⚠️ {i}</div>' for i in issues) or '<div style="color:#9ca3af;font-size:12px;">None</div>'
-    flags_html  = ''.join(f'<div style="color:#f97316;font-size:12px;padding:2px 0;">🚩 {f}</div>' for f in flags) or '<div style="color:#9ca3af;font-size:12px;">None</div>'
-    sdg_html    = ' '.join(f'<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:99px;font-size:11px;">🌍 {s}</span>' for s in sdgs)
+    ap_badge = (
+        '<span style="background:#22c55e;color:white;padding:3px 12px;border-radius:99px;font-weight:700;">APPROVED</span>'
+        if approved else
+        '<span style="background:#ef4444;color:white;padding:3px 12px;border-radius:99px;font-weight:700;">REJECTED</span>'
+    )
+    issues_html = ''.join(
+        f'<div style="color:#ef4444;font-size:12px;padding:2px 0;">{i}</div>'
+        for i in issues
+    ) or '<div style="color:#9ca3af;font-size:12px;">None</div>'
+    flags_html = ''.join(
+        f'<div style="color:#f97316;font-size:12px;padding:2px 0;">{f}</div>'
+        for f in flags
+    ) or '<div style="color:#9ca3af;font-size:12px;">None</div>'
+    sdg_html = ' '.join(
+        f'<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:99px;font-size:11px;">{s}</span>'
+        for s in sdgs
+    )
     return f'''
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
   {ap_badge}
@@ -355,7 +385,7 @@ def render_governance(d):
 
 
 def parse_and_render(agent_key, payload):
-    """Render agent payload (dict or text). Falls back to markdown for plain text."""
+    """Render agent payload (dict or text). Falls back to plain text for unstructured output."""
     if isinstance(payload, dict):
         if agent_key == 'monitor':    return render_monitor(payload)
         if agent_key == 'predict':    return render_predict(payload)
@@ -369,22 +399,24 @@ def parse_and_render(agent_key, payload):
         match = re.search(r'\{[\s\S]*\}', text)
         if match:
             data = json.loads(match.group())
-            if agent_key == 'monitor':   return render_monitor(data)
-            if agent_key == 'predict':   return render_predict(data)
-            if agent_key == 'decision':  return render_decision(data)
-            if agent_key == 'action':    return render_action(data)
-            if agent_key == 'governance':return render_governance(data)
+            if agent_key == 'monitor':    return render_monitor(data)
+            if agent_key == 'predict':    return render_predict(data)
+            if agent_key == 'decision':   return render_decision(data)
+            if agent_key == 'action':     return render_action(data)
+            if agent_key == 'governance': return render_governance(data)
     except Exception:
         pass
-    # Fallback: basic markdown → html
+
+    # Fallback: basic markdown -> html
     lines = text.split('\n')
     html = []
     for line in lines:
         line = line.strip()
-        if not line: continue
+        if not line:
+            continue
         line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
         if line.startswith('- ') or line.startswith('* '):
-            html.append(f'<div style="font-size:13px;padding:2px 0;">▸ {line[2:]}</div>')
+            html.append(f'<div style="font-size:13px;padding:2px 0;">{line[2:]}</div>')
         else:
             html.append(f'<div style="font-size:13px;padding:2px 0;">{line}</div>')
     return ''.join(html)
@@ -393,9 +425,29 @@ def parse_and_render(agent_key, payload):
 class ChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
+
+        # Try URL route kwargs first, then query string
+        org_id = self.scope['url_route']['kwargs'].get('org_id')
+        if not org_id:
+            qs = dict(
+                pair.split('=', 1)
+                for pair in self.scope.get('query_string', b'').decode().split('&')
+                if '=' in pair
+            )
+            org_id = qs.get('org_id')
+
+        self.org = None
+        if org_id:
+            try:
+                self.org = await sync_to_async(
+                    Organization.objects.select_related().get
+                )(id=org_id)
+            except Exception:
+                pass
+
         await self.accept()
         await self.send(text_data=json.dumps({
-            'message': '<strong>ResilientEco Guardian</strong> - multi-agent pipeline ready · Azure AI Foundry · Azure MCP',
+            'message': '<strong>ResilientEco Guardian</strong> — multi-agent pipeline ready · Azure AI Foundry · Azure MCP',
             'type': 'system'
         }))
 
@@ -407,24 +459,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = data.get('message', '').lower()
 
         await self.send(text_data=json.dumps({
-            'message': 'Initializing agent pipeline via <strong>Azure AI Foundry</strong>...',
+            'message': 'Initializing agent pipeline via Azure AI Foundry...',
             'type': 'thinking'
         }))
 
-        # Detect location from query text
+        # ── Resolve location ─────────────────────────────────────────
         location_name, lat, lon = _extract_location_from_query(message)
         if lat is None or lon is None:
             from .services.weather_service import geocode_location_name
-
             resolved = await sync_to_async(geocode_location_name)(location_name)
             if resolved and resolved.get("lat") is not None and resolved.get("lon") is not None:
-                lat = float(resolved["lat"])
-                lon = float(resolved["lon"])
+                lat           = float(resolved["lat"])
+                lon           = float(resolved["lon"])
                 resolved_name = resolved.get("name") or location_name
-                country = resolved.get("country") or ""
-                location_name = resolved_name
-                if country:
-                    location_name = f"{resolved_name}, {country}"
+                country       = resolved.get("country") or ""
+                location_name = f"{resolved_name}, {country}" if country else resolved_name
                 await self.send(text_data=json.dumps({
                     'message': (
                         f'<span style="font-size:12px;color:#64748b;">'
@@ -438,20 +487,75 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps({
                     'message': (
                         '<span style="font-size:12px;color:#b45309;">'
-                        'Could not geocode location; using Nairobi coordinates as fallback.'
+                        'Could not geocode location — using Nairobi coordinates as fallback.'
                         '</span>'
                     ),
                     'type': 'system'
                 }))
 
-        # Run pipeline
+        # ── Report generation via Azure Function ─────────────────────
+        if is_report_request(message):
+            await self.send(text_data=json.dumps({
+                'type':    'thinking',
+                'message': 'Generating detailed report — fetching live weather data and running analysis...'
+            }))
+
+            from guardian.models import SavedLocation
+
+            # Resolve organisation from scope (adjust if your consumer has org on self)
+            org = getattr(self, 'org', None)
+
+            if org:
+                org_locations_qs = await sync_to_async(list)(
+                    SavedLocation.objects.filter(organization=org).values(
+                        "name", "latitude", "longitude"
+                    )
+                )
+                report_locations = [
+                    {"name": loc["name"], "lat": loc["latitude"], "lon": loc["longitude"]}
+                    for loc in org_locations_qs
+                ]
+            else:
+                report_locations = []
+
+            if not report_locations:
+                report_locations = [{"name": location_name, "lat": lat, "lon": lon}]
+
+            org_type    = getattr(org, "org_type", "agriculture") if org else "agriculture"
+            org_name    = getattr(org, "name", "ResilientEco") if org else "ResilientEco"
+            report_type = detect_report_type(message, org_type)
+
+            result = await call_report_generator(
+                locations=report_locations,
+                org_name=org_name,
+                org_type=org_type,
+                report_type=report_type,
+                fmt="both",
+            )
+
+            html = (
+                render_report_for_met_chat(result)
+                if org_type == "meteorological"
+                else render_report_as_chat_html(result)
+            )
+
+            await self.send(text_data=json.dumps({
+                'type':         'report',
+                'message':      html,
+                'report':       result.get('report', {}),
+                'pdf_b64':      result.get('pdf_base64', ''),
+                'pdf_filename': result.get('pdf_filename', 'climate_report.pdf'),
+            }))
+            return  # Skip standard pipeline
+
+        # ── Standard agent pipeline ───────────────────────────────────
         try:
             from .agents.core_agents import run_all_agents
             results = await sync_to_async(run_all_agents)(message, lat, lon, location_name)
         except Exception as e:
             logger.exception("Agent pipeline failed")
             await self.send(text_data=json.dumps({
-                'message': f'⚠️ Pipeline error: {str(e)}',
+                'message': f'Pipeline error: {str(e)}',
                 'type': 'error'
             }))
             return
@@ -471,28 +575,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if step:
                 meta = (
                     f'<div style="font-size:10px;color:#9ca3af;margin-bottom:6px;font-family:monospace;">'
-                    f'🤖 {step.get("model","")} &nbsp;·&nbsp; {step.get("source","")} &nbsp;·&nbsp; {step.get("latency_ms","")}ms'
+                    f'{step.get("model","")} &nbsp;·&nbsp; {step.get("source","")} &nbsp;·&nbsp; {step.get("latency_ms","")}ms'
                     f'</div>'
                 )
 
             structured_key = f'{agent_key}_data'
             payload = results.get(structured_key) or output
-            body = parse_and_render(agent_key, payload)
+            body    = parse_and_render(agent_key, payload)
 
             await self.send(text_data=json.dumps({
                 'message': meta + body,
-                'type': agent_key,
-                'label': f'{style["icon"]} {style["label"]}',
-                'color': style['color'],
+                'type':    agent_key,
+                'label':   style['label'],
+                'color':   style['color'],
             }))
 
+        # Runtime routing panel
         runtime_html = _render_runtime_metadata(results)
         if runtime_html:
             await self.send(text_data=json.dumps({
                 'message': runtime_html,
-                'type': 'system',
-                'label': '🧭 Runtime Routing',
-                'color': '#0ea5e9',
+                'type':    'system',
+                'label':   'Runtime Routing',
+                'color':   '#0ea5e9',
             }))
 
         # MCP actions panel
@@ -501,25 +606,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
             lines_html = []
             for line in mcp_output.strip().split('\n'):
                 is_live = '[LIVE]' in line
-                badge   = '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-family:monospace;">LIVE</span>' if is_live \
-                     else '<span style="background:#94a3b8;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-family:monospace;">SIM</span>'
-                clean = line.replace('[LIVE]','').replace('[SIM]','').strip()
+                badge   = (
+                    '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-family:monospace;">LIVE</span>'
+                    if is_live else
+                    '<span style="background:#94a3b8;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-family:monospace;">SIM</span>'
+                )
+                clean = line.replace('[LIVE]', '').replace('[SIM]', '').strip()
                 lines_html.append(f'<div style="font-size:12px;padding:3px 0;">{badge} {clean}</div>')
             await self.send(text_data=json.dumps({
                 'message': ''.join(lines_html),
-                'type': 'mcp_actions',
-                'label': '☁️ Azure MCP Actions',
-                'color': '#0078d4',
+                'type':    'mcp_actions',
+                'label':   'Azure MCP Actions',
+                'color':   '#0078d4',
             }))
 
-        # Summary
+        # Pipeline summary
         if chain:
             total_ms    = sum(s.get('latency_ms', 0) for s in chain)
-            models_used = list(dict.fromkeys(s.get('model','') for s in chain if s.get('model')))
-            sources     = list(dict.fromkeys(s.get('source','') for s in chain if s.get('source')))
+            models_used = list(dict.fromkeys(s.get('model', '') for s in chain if s.get('model')))
+            sources     = list(dict.fromkeys(s.get('source', '') for s in chain if s.get('source')))
             await self.send(text_data=json.dumps({
                 'message': (
-                    f'✅ <strong>Pipeline Complete — {location_name}</strong><br>'
+                    f'<strong>Pipeline Complete — {location_name}</strong><br>'
                     f'<span style="font-size:12px;color:#6b7280;">'
                     f'Session {session_id} &nbsp;·&nbsp; {len(chain)} agents &nbsp;·&nbsp; {total_ms}ms total &nbsp;·&nbsp; '
                     f'{", ".join(models_used)} via {", ".join(sources)}'

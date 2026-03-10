@@ -603,10 +603,12 @@ async function loadOrgAlerts(targetId, riskType) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// PERSISTENT CHAT
+// PERSISTENT CHAT  — WebSocket-based, report-aware
 // ══════════════════════════════════════════════════════════════════
 const CHAT_MAX = 80;
 let _chatBusy  = false;
+let _orgWs     = null;          // single shared WebSocket per page
+let _wsResolve = null;          // resolves when WS response is complete
 
 function _chatKey(messagesId) {
     let uid = 'anon';
@@ -653,8 +655,63 @@ function _typingStart(box, label) {
 }
 function _typingEnd() { document.getElementById('chat-typing')?.remove(); }
 
+// ── WebSocket connection ───────────────────────────────────────
+function _getWsUrl() {
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${window.location.host}/ws/chat/${ORG_ID}/`;
+}
+
+function _ensureWs() {
+    if (_orgWs && (_orgWs.readyState === WebSocket.OPEN || _orgWs.readyState === WebSocket.CONNECTING)) {
+        return _orgWs;
+    }
+    _orgWs = new WebSocket(_getWsUrl());
+    return _orgWs;
+}
+
+// ── PDF download helper ────────────────────────────────────────
+function downloadReportPDF(filename, btn) {
+    const b64 = btn?.dataset?.pdf;
+    if (!b64) return;
+    try {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const blob  = new Blob([bytes], { type: 'application/pdf' });
+        const url   = URL.createObjectURL(blob);
+        const a     = document.createElement('a');
+        a.href = url; a.download = filename || 'climate_report.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        console.error('PDF download failed:', e);
+    }
+}
+
+// ── Render report card ─────────────────────────────────────────
+function _renderReportBubble(box, label, data) {
+    const html  = data.message || '';
+    const pdfB64 = data.pdf_b64 || '';
+    const fname  = data.pdf_filename || 'climate_report.pdf';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg agent';
+
+    // Inject PDF base64 into the button's data attribute after render
+    wrapper.innerHTML = (label ? `<div class="msg-label">${label}</div>` : '') + html;
+
+    // Wire up the PDF button if present
+    if (pdfB64) {
+        const btn = wrapper.querySelector('button[onclick*="downloadReportPDF"]');
+        if (btn) btn.dataset.pdf = pdfB64;
+    }
+
+    box.appendChild(wrapper);
+    box.scrollTop = box.scrollHeight;
+    return wrapper;
+}
+
+// ── initOrgChat ────────────────────────────────────────────────
 function initOrgChat(inputId, messagesId, systemLabel) {
-    const label = systemLabel || '🌍 Guardian AI';
+    const label = systemLabel || 'Guardian AI';
     const box   = document.getElementById(messagesId);
     if (!box) return;
     const hist = _loadHist(messagesId);
@@ -670,12 +727,13 @@ function initOrgChat(inputId, messagesId, systemLabel) {
     });
 }
 
-async function sendOrgMsg(inputId, messagesId, agentLabel) {
+// ── sendOrgMsg — WebSocket path ────────────────────────────────
+async function sendOrgMsg(inputId, messagesId, agentLabel, resultCallback) {
     if (_chatBusy) return;
     const input = document.getElementById(inputId);
     const box   = document.getElementById(messagesId);
     const msg   = input?.value.trim();
-    const label = agentLabel || '🌍 Guardian AI';
+    const label = agentLabel || 'Guardian AI';
     if (!msg || !box) return;
 
     input.value = '';
@@ -689,68 +747,164 @@ async function sendOrgMsg(inputId, messagesId, agentLabel) {
 
     _typingStart(box, label);
 
-    const loc = ORG_LOCATIONS.find(l => l.primary) || ORG_LOCATIONS[0] || { lat: -1.2921, lon: 36.8219, name: 'Nairobi' };
-
     try {
-        const r = await orgFetch('/api/agent/run/', {
-            method: 'POST',
-            body: JSON.stringify({ query: msg, location_name: loc.name, lat: loc.lat, lon: loc.lon, org_id: ORG_ID }),
+        const ws = _ensureWs();
+
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 8000);
+
+            function onOpen() {
+                clearTimeout(timeout);
+                ws.removeEventListener('open', onOpen);
+                ws.removeEventListener('error', onError);
+                resolve();
+            }
+            function onError(e) {
+                clearTimeout(timeout);
+                ws.removeEventListener('open', onOpen);
+                ws.removeEventListener('error', onError);
+                reject(e);
+            }
+
+            if (ws.readyState === WebSocket.OPEN) { clearTimeout(timeout); resolve(); return; }
+            ws.addEventListener('open', onOpen);
+            ws.addEventListener('error', onError);
         });
 
-        _typingEnd();
+        // Send the message
+        ws.send(JSON.stringify({ message: msg }));
 
-        // Handle auth failure gracefully — show actionable message, not "No response"
-        if (r.status === 401) {
-            const authMsg = '🔒 Session expired. Please <a href="/login/?next={{ request.path }}" style="color:var(--org-color);font-weight:700;">sign in again</a> to continue.';
-            _bubble(box, 'agent', authMsg, label, Date.now());
-            _chatBusy = false;
-            return;
-        }
+        // Listen for responses
+        await new Promise((resolve) => {
+            let lastResultData = null;
 
-        if (!r.ok) {
-            _bubble(box, 'agent', `⚠️ Agent returned an error (${r.status}). Please try again.`, label, Date.now());
-            _chatBusy = false;
-            return;
-        }
+            function onMessage(event) {
+                let data;
+                try { data = JSON.parse(event.data); } catch(_) { return; }
 
-        const data = await r.json();
-        let reply = '';
-        const result = data.result;
+                const type = data.type || '';
 
-        if (typeof result === 'string') {
-            reply = cleanAlertMessage(result);
-        } else if (result && typeof result === 'object') {
-            for (const key of ['action','governance','decision','predict','monitor']) {
-                const raw = result[key] || '';
-                if (!raw) continue;
-                const clean = cleanAlertMessage(String(raw));
-                if (clean && clean.length > 15) { reply = clean; break; }
+                // Thinking / status messages — update typing indicator
+                if (type === 'thinking' || type === 'system') {
+                    _typingEnd();
+                    if (data.message) {
+                        const thinking = document.createElement('div');
+                        thinking.id = 'chat-typing';
+                        thinking.className = 'msg agent';
+                        thinking.innerHTML = `<span style="font-size:11px;color:var(--slate-400);">${data.message}</span>`;
+                        box.appendChild(thinking);
+                        box.scrollTop = box.scrollHeight;
+                    }
+                    return;
+                }
+
+                // Report card — rich HTML with PDF button
+                if (type === 'report') {
+                    _typingEnd();
+                    _renderReportBubble(box, label, data);
+                    const rts = Date.now();
+                    hist.push({ role: 'agent', text: data.message || '', label, ts: rts });
+                    _saveHist(messagesId, hist);
+                    ws.removeEventListener('message', onMessage);
+                    _chatBusy = false;
+                    input?.focus();
+                    resolve();
+                    return;
+                }
+
+                // Agent pipeline cards (monitor, predict, decision, action, governance)
+                if (['monitor','predict','decision','action','governance',
+                     'mcp_actions','error'].includes(type)) {
+                    _typingEnd();
+                    const cardLabel = data.label || label;
+                    const color     = data.color || '';
+                    const labelHtml = color
+                        ? `<div class="msg-label" style="color:${color};">${cardLabel}</div>`
+                        : `<div class="msg-label">${cardLabel}</div>`;
+                    const el = document.createElement('div');
+                    el.className = 'msg agent';
+                    el.innerHTML = labelHtml + (data.message || '');
+                    box.appendChild(el);
+                    box.scrollTop = box.scrollHeight;
+                    lastResultData = data;
+                    if (resultCallback) resultCallback(data);
+                    return;
+                }
+
+                // Pipeline complete
+                if (type === 'complete') {
+                    _typingEnd();
+                    if (data.message) {
+                        const el = document.createElement('div');
+                        el.className = 'msg agent';
+                        el.style.cssText = 'font-size:11px;color:var(--slate-400);background:transparent;border:none;box-shadow:none;padding:4px 0;';
+                        el.innerHTML = data.message;
+                        box.appendChild(el);
+                        box.scrollTop = box.scrollHeight;
+                    }
+                    const rts = Date.now();
+                    hist.push({ role: 'agent', text: data.message || 'Analysis complete.', label, ts: rts });
+                    _saveHist(messagesId, hist);
+                    ws.removeEventListener('message', onMessage);
+                    _chatBusy = false;
+                    input?.focus();
+                    resolve();
+                    return;
+                }
             }
-            if (!reply) reply = data.error || 'Analysis complete. No significant risks detected.';
-        } else {
-            reply = data.error || 'Analysis complete.';
-        }
 
-        // Prepend risk badge if available
-        const rl = result && (result.risk_level || result.flood_risk);
-        if (rl) {
-            const n = parseInt(rl);
-            const c = n >= 70 ? '#ef4444' : n >= 40 ? '#f97316' : '#22c55e';
-            reply = `<span class="risk-badge" style="background:${c};">Risk ${n}%</span><br>${reply}`;
-        }
+            ws.addEventListener('message', onMessage);
 
-        const rts = Date.now();
-        _bubble(box, 'agent', reply, label, rts);
-        hist.push({ role: 'agent', text: reply, label, ts: rts });
-        _saveHist(messagesId, hist);
+            // Fallback timeout — 120s for long AI calls
+            setTimeout(() => {
+                ws.removeEventListener('message', onMessage);
+                _typingEnd();
+                _chatBusy = false;
+                input?.focus();
+                resolve();
+            }, 120000);
+        });
 
     } catch(e) {
         _typingEnd();
-        _bubble(box, 'agent', '⚠️ Could not reach the agent pipeline. Check your connection and try again.', label, Date.now());
-    }
+        console.error('Chat WS error:', e);
 
-    _chatBusy = false;
-    input?.focus();
+        // Fallback to REST if WS fails
+        try {
+            const loc = ORG_LOCATIONS.find(l => l.primary) || ORG_LOCATIONS[0] || { lat: -1.2921, lon: 36.8219, name: 'Nairobi' };
+            const r = await orgFetch('/api/agent/run/', {
+                method: 'POST',
+                body: JSON.stringify({ query: msg, location_name: loc.name, lat: loc.lat, lon: loc.lon, org_id: ORG_ID }),
+            });
+            if (r.status === 401) {
+                _bubble(box, 'agent', 'Session expired. Please sign in again.', label, Date.now());
+            } else if (r.ok) {
+                const data = await r.json();
+                const result = data.result;
+                let reply = '';
+                if (typeof result === 'string') {
+                    reply = cleanAlertMessage(result);
+                } else if (result && typeof result === 'object') {
+                    for (const key of ['action','governance','decision','predict','monitor']) {
+                        const clean = cleanAlertMessage(String(result[key] || ''));
+                        if (clean && clean.length > 15) { reply = clean; break; }
+                    }
+                }
+                reply = reply || 'Analysis complete.';
+                const rts = Date.now();
+                _bubble(box, 'agent', reply, label, rts);
+                hist.push({ role: 'agent', text: reply, label, ts: rts });
+                _saveHist(messagesId, hist);
+                if (resultCallback) resultCallback(result);
+            } else {
+                _bubble(box, 'agent', `Agent returned an error (${r.status}). Please try again.`, label, Date.now());
+            }
+        } catch(e2) {
+            _bubble(box, 'agent', 'Could not reach the agent pipeline. Check your connection and try again.', label, Date.now());
+        }
+        _chatBusy = false;
+        input?.focus();
+    }
 }
 
 function clearChatHistory(messagesId) {

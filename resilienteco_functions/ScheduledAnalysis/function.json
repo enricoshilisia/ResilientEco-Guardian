@@ -1,0 +1,1 @@
+'{"scriptFile":"__init__.py","bindings":[{"name":"timer","type":"timerTrigger","direction":"in","schedule":"0 0 6 * * *"}]}' | Set-Content "D:\MaCo\resilienteco-guardian\resilienteco_functions\ScheduledAnalysis\function.json"

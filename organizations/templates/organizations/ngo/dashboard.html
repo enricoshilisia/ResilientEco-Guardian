@@ -1,0 +1,2027 @@
+{% extends "organizations/base/org_dashboard_base.html" %}
+
+{% block title %}{{ org.name }} · Humanitarian Response · ResilientEco{% endblock %}
+
+{% block org_extra_styles %}
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --red-950:   #450a0a;
+  --red-900:   #7f1d1d;
+  --red-800:   #991b1b;
+  --red-700:   #b91c1c;
+  --red-600:   #dc2626;
+  --red-500:   #ef4444;
+  --red-200:   #fecaca;
+  --red-100:   #fee2e2;
+  --red-50:    #fff1f2;
+
+  --orange-600: #ea580c;
+  --orange-100: #ffedd5;
+  --orange-50:  #fff7ed;
+
+  --amber-600:  #d97706;
+  --amber-500:  #f59e0b;
+  --amber-200:  #fde68a;
+  --amber-100:  #fef3c7;
+  --amber-50:   #fffbeb;
+
+  --teal-700:   #0f766e;
+  --teal-600:   #0d9488;
+  --teal-100:   #ccfbf1;
+  --teal-50:    #f0fdfa;
+
+  --blue-700:   #1d4ed8;
+  --blue-600:   #2563eb;
+  --blue-100:   #dbeafe;
+  --blue-50:    #eff6ff;
+
+  --green-700:  #15803d;
+  --green-600:  #16a34a;
+  --green-100:  #dcfce7;
+  --green-50:   #f0fdf4;
+
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-700: #334155;
+  --slate-600: #475569;
+  --slate-500: #64748b;
+  --slate-400: #94a3b8;
+  --slate-300: #cbd5e1;
+  --slate-200: #e2e8f0;
+  --slate-100: #f1f5f9;
+  --slate-50:  #f8fafc;
+
+  --ngo-primary: #b91c1c;
+  --ngo-dark:    #7f1d1d;
+  --ngo-sand:    #f5f0e8;
+
+  --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.10);
+}
+
+* { font-family: var(--font-body); }
+code, .mono { font-family: var(--font-mono); }
+
+/* ── Loading overlay ─────────────────────────────────────────── */
+#analysisLoadingOverlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(15,23,42,.88);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+  opacity: 1; transition: opacity .4s ease;
+}
+#analysisLoadingOverlay.hidden { opacity: 0; pointer-events: none; }
+.loading-card {
+  background: white; border-radius: var(--radius-lg);
+  padding: 36px 48px; width: min(500px, 92vw);
+  box-shadow: var(--shadow-lg); text-align: center;
+}
+.loading-title { font-size: 17px; font-weight: 700; color: var(--slate-900); margin-bottom: 6px; }
+.loading-sub   { font-size: 13px; color: var(--slate-500); margin-bottom: 24px; }
+.loading-steps { display: flex; flex-direction: column; gap: 8px; text-align: left; margin-bottom: 24px; }
+.loading-step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--slate-600); padding: 8px 12px;
+  border-radius: var(--radius-sm); background: var(--slate-50);
+  border: 1px solid var(--slate-200); transition: all .3s ease;
+}
+.loading-step.active { background: var(--red-50); border-color: var(--red-200); color: var(--red-800); }
+.loading-step.done   { background: var(--red-100); border-color: var(--red-200); color: var(--red-700); }
+.loading-step .step-icon {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--slate-200); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: var(--slate-500);
+}
+.loading-step.active .step-icon { background: var(--ngo-primary); color: white; animation: pulse 1.2s ease infinite; }
+.loading-step.done   .step-icon { background: var(--ngo-primary); color: white; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.loading-bar-wrap { height: 4px; background: var(--slate-200); border-radius: 99px; overflow: hidden; }
+.loading-bar { height: 100%; background: var(--ngo-primary); border-radius: 99px; width: 0%; transition: width 8s cubic-bezier(.1,0,.2,1); }
+.loading-location { font-size: 12px; color: var(--slate-400); margin-top: 12px; font-family: var(--font-mono); }
+
+/* ── Status header bar ───────────────────────────────────────── */
+.intel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; background: var(--slate-900); border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+.intel-header-left { display: flex; align-items: center; gap: 14px; }
+.intel-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74,222,128,.2);
+  animation: statusPulse 2s ease infinite;
+}
+@keyframes statusPulse { 0%,100%{box-shadow:0 0 0 3px rgba(74,222,128,.2)} 50%{box-shadow:0 0 0 6px rgba(74,222,128,.08)} }
+.intel-header-title { font-size: 13px; font-weight: 600; color: white; letter-spacing: .01em; }
+.intel-header-sub   { font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--font-mono); }
+.intel-header-right { display: flex; align-items: center; gap: 8px; }
+.intel-badge {
+  padding: 3px 10px; border-radius: 99px;
+  font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+}
+.badge-live    { background: rgba(74,222,128,.15); color: #86efac; border: 1px solid rgba(74,222,128,.3); }
+.badge-phase   { background: rgba(239,68,68,.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+.badge-refresh {
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.6);
+  border: 1px solid rgba(255,255,255,.12); cursor: pointer; transition: all .15s;
+}
+.badge-refresh:hover { background: rgba(255,255,255,.15); color: white; }
+
+/* ── KPI row ─────────────────────────────────────────────────── */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3,1fr); } }
+@media (max-width: 700px)  { .kpi-row { grid-template-columns: 1fr 1fr; } }
+.kpi-card {
+  background: white; border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md); padding: 16px 18px;
+  box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+}
+.kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.kpi-card.displaced::before  { background: var(--red-600); }
+.kpi-card.zones::before      { background: var(--teal-600); }
+.kpi-card.flood::before      { background: var(--blue-600); }
+.kpi-card.alerts::before     { background: var(--amber-600); }
+.kpi-card.pipeline::before   { background: var(--green-600); }
+.kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--slate-400); margin-bottom: 8px; }
+.kpi-value { font-size: 28px; font-weight: 700; color: var(--slate-900); line-height: 1; margin-bottom: 4px; font-family: var(--font-mono); }
+.kpi-meta  { font-size: 11px; color: var(--slate-400); }
+
+/* ── Main grid ───────────────────────────────────────────────── */
+.intel-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .intel-grid { grid-template-columns: 1fr; } }
+
+/* ── Panels ──────────────────────────────────────────────────── */
+.panel {
+  background: white; border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md); overflow: hidden;
+  box-shadow: var(--shadow-sm); margin-bottom: 16px;
+}
+.panel-head {
+  padding: 14px 18px; border-bottom: 1px solid var(--slate-200);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-head-title {
+  font-size: 13px; font-weight: 600; color: var(--slate-900);
+  display: flex; align-items: center; gap: 8px;
+}
+.panel-head-title .icon { width: 18px; height: 18px; opacity: .7; }
+.panel-head-action {
+  font-size: 12px; color: var(--slate-500); cursor: pointer;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--slate-200);
+  background: var(--slate-50); transition: all .15s; font-weight: 500;
+}
+.panel-head-action:hover { border-color: var(--ngo-primary); color: var(--ngo-primary); }
+.panel-body { padding: 18px; }
+
+/* ── Alert severity bar ──────────────────────────────────────── */
+.alert-level-bar {
+  display: flex; align-items: stretch; gap: 0;
+  border-radius: var(--radius-md); overflow: hidden;
+  border: 1px solid var(--slate-200); margin-bottom: 16px;
+}
+.alert-level-seg {
+  flex: 1; padding: 14px 10px; text-align: center;
+  cursor: default; position: relative; transition: filter .2s;
+}
+.alert-level-seg:not(:last-child) { border-right: 1px solid var(--slate-200); }
+.alert-level-seg.active-GREEN  { background: var(--green-50); }
+.alert-level-seg.active-YELLOW { background: var(--amber-50); }
+.alert-level-seg.active-ORANGE { background: var(--orange-50); }
+.alert-level-seg.active-RED    { background: var(--red-50); }
+.alert-level-seg:not([class*="active"]) { background: var(--slate-50); filter: opacity(.5); }
+.alert-seg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.alert-seg-val   { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
+.seg-GREEN  .alert-seg-label, .seg-GREEN  .alert-seg-val { color: var(--green-700); }
+.seg-YELLOW .alert-seg-label, .seg-YELLOW .alert-seg-val { color: var(--amber-600); }
+.seg-ORANGE .alert-seg-label, .seg-ORANGE .alert-seg-val { color: var(--orange-600); }
+.seg-RED    .alert-seg-label, .seg-RED    .alert-seg-val { color: var(--red-700); }
+
+/* ── Risk gauges ─────────────────────────────────────────────── */
+.risk-gauges { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.risk-gauge  { border: 1px solid var(--slate-200); border-radius: var(--radius-md); padding: 14px; background: var(--slate-50); }
+.gauge-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--slate-400); margin-bottom: 10px; }
+.gauge-track { height: 6px; background: var(--slate-200); border-radius: 99px; overflow: hidden; margin-bottom: 8px; }
+.gauge-fill  { height: 100%; border-radius: 99px; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+.gauge-flood   .gauge-fill { background: var(--blue-600); }
+.gauge-drought .gauge-fill { background: var(--amber-600); }
+.gauge-heat    .gauge-fill { background: var(--red-600); }
+.gauge-num { font-size: 22px; font-weight: 700; font-family: var(--font-mono); color: var(--slate-900); }
+.gauge-pct { font-size: 13px; color: var(--slate-400); margin-left: 1px; }
+
+/* ── Pipeline strip ──────────────────────────────────────────── */
+.pipeline-strip {
+  display: flex; align-items: center; gap: 0; margin-top: 12px;
+  background: var(--slate-50); border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm); overflow: hidden;
+  font-family: var(--font-mono); font-size: 11px;
+}
+.pipe-step {
+  flex: 1; padding: 7px 8px; text-align: center;
+  color: var(--slate-300); border-right: 1px solid var(--slate-200);
+  transition: all .3s ease; white-space: nowrap;
+}
+.pipe-step:last-child { border-right: none; }
+.pipe-step.done   { background: var(--red-50); color: var(--red-700); font-weight: 600; }
+.pipe-step.active { background: var(--amber-50); color: var(--amber-600); font-weight: 600; }
+.pipe-step.pending{ color: var(--slate-300); }
+.pipe-step .latency { font-size: 9px; display: block; margin-top: 1px; opacity: .7; }
+
+/* ── Needs needs-tiles ────────────────────────────────────────── */
+.needs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.needs-tile {
+  background: var(--ngo-sand); border-radius: var(--radius-md);
+  padding: 14px; border: 1px solid #e8e0d0;
+}
+.needs-tile .nt-val { font-size: 24px; font-weight: 800; color: var(--slate-900); font-family: var(--font-mono); line-height: 1; }
+.needs-tile .nt-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--slate-500); margin-top: 4px; }
+.needs-tile .nt-ctx { font-size: 11px; color: var(--slate-400); margin-top: 2px; }
+
+/* ── Advisory cards ──────────────────────────────────────────── */
+.advisory-list { display: flex; flex-direction: column; gap: 10px; }
+.advisory-item {
+  border-radius: var(--radius-md); padding: 14px 16px;
+  border: 1px solid; position: relative; overflow: hidden;
+}
+.advisory-item.level-green  { background: var(--green-50); border-color: var(--green-100); }
+.advisory-item.level-yellow { background: var(--amber-50); border-color: var(--amber-200); }
+.advisory-item.level-orange { background: var(--orange-50); border-color: #fed7aa; }
+.advisory-item.level-red    { background: var(--red-50);  border-color: var(--red-200); }
+.advisory-item.level-info   { background: var(--blue-50); border-color: #bfdbfe; }
+.advisory-item.level-teal   { background: var(--teal-50); border-color: var(--teal-100); }
+.advisory-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.advisory-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.level-green  .advisory-title { color: var(--green-700); }
+.level-yellow .advisory-title { color: var(--amber-600); }
+.level-orange .advisory-title { color: var(--orange-600); }
+.level-red    .advisory-title { color: var(--red-700); }
+.level-info   .advisory-title { color: var(--blue-700); }
+.level-teal   .advisory-title { color: var(--teal-700); }
+.advisory-level-chip {
+  flex-shrink: 0; padding: 2px 8px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+}
+.chip-GREEN  { background: var(--green-700); color: white; }
+.chip-YELLOW { background: var(--amber-500); color: white; }
+.chip-ORANGE { background: var(--orange-600); color: white; }
+.chip-RED    { background: var(--red-600); color: white; }
+.advisory-body { font-size: 13px; line-height: 1.55; color: var(--slate-600); }
+.advisory-meta { font-size: 11px; color: var(--slate-400); margin-top: 8px; font-family: var(--font-mono); }
+
+/* ── Checkpoint banner ───────────────────────────────────────── */
+.checkpoint-banner {
+  background: var(--amber-50); border: 1.5px solid var(--amber-200);
+  border-radius: var(--radius-md); padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+}
+.checkpoint-icon {
+  width: 36px; height: 36px; background: var(--amber-500); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.checkpoint-icon svg { width: 18px; height: 18px; color: white; }
+.checkpoint-text { flex: 1; }
+.checkpoint-title { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 2px; }
+.checkpoint-sub   { font-size: 12px; color: var(--amber-600); }
+.btn-approve {
+  padding: 8px 18px; background: var(--amber-500); color: white;
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
+  cursor: pointer; border: none; white-space: nowrap; transition: background .15s;
+}
+.btn-approve:hover { background: var(--amber-600); }
+
+/* ── Zone / Population table ─────────────────────────────────── */
+.zone-tbl { width: 100%; border-collapse: collapse; }
+.zone-tbl th {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--slate-400); padding: 10px 14px;
+  border-bottom: 2px solid var(--slate-200); text-align: left;
+  background: var(--slate-50);
+}
+.zone-tbl td {
+  padding: 11px 14px; border-bottom: 1px solid var(--slate-100);
+  font-size: 13px; color: var(--slate-600); vertical-align: middle;
+}
+.zone-tbl tr:last-child td { border-bottom: none; }
+.zone-tbl tr:hover td { background: var(--slate-50); }
+.zone-name-cell { font-weight: 600; color: var(--slate-900); }
+.zone-coord-cell { font-size: 11px; color: var(--slate-400); font-family: var(--font-mono); margin-top: 2px; }
+
+/* ── Severity / Status chips ─────────────────────────────────── */
+.sev { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; color: white; }
+.sev-critical { background: var(--red-700); }
+.sev-high     { background: var(--orange-600); }
+.sev-medium   { background: var(--amber-500); color: #713f12; }
+.sev-low      { background: var(--green-600); }
+.sev-monitor  { background: var(--teal-600); }
+
+.rs-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.rs-active   { background: var(--red-100); color: var(--red-800); border: 1px solid var(--red-200); }
+.rs-standby  { background: var(--amber-100); color: #92400e; border: 1px solid var(--amber-200); }
+.rs-resolved { background: var(--green-100); color: var(--green-700); border: 1px solid var(--green-100); }
+.rs-monitor  { background: var(--blue-100); color: var(--blue-700); border: 1px solid var(--blue-100); }
+
+/* ── Resource gauge row ──────────────────────────────────────── */
+.res-gauge-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; }
+.res-gauge-label { width: 140px; flex-shrink: 0; color: var(--slate-600); font-weight: 600; }
+.res-gauge-bar   { flex: 1; background: var(--slate-200); border-radius: 4px; height: 7px; }
+.res-gauge-fill  { height: 7px; border-radius: 4px; transition: width .4s; }
+.res-gauge-pct   { width: 36px; text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--slate-500); }
+
+/* ── Population matrix table ─────────────────────────────────── */
+.pop-tbl { width: 100%; border-collapse: collapse; }
+.pop-tbl th {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--slate-400); padding: 10px 14px; border-bottom: 2px solid var(--slate-200);
+  text-align: left; background: var(--slate-50);
+}
+.pop-tbl td {
+  padding: 11px 14px; border-bottom: 1px solid var(--slate-100);
+  font-size: 13px; color: var(--slate-600); vertical-align: middle;
+}
+.pop-tbl tr:last-child td { border-bottom: none; }
+.pop-tbl tr:hover td { background: var(--slate-50); }
+.mini-bar { height: 4px; background: var(--slate-200); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+.mini-bar-fill { height: 100%; border-radius: 99px; }
+
+/* ── Response action cards ───────────────────────────────────── */
+.action-cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 800px) { .action-cards-grid { grid-template-columns: 1fr; } }
+.action-card {
+  border: 1px solid var(--slate-200); border-radius: var(--radius-md);
+  padding: 14px 16px; background: var(--slate-50);
+}
+.action-card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--slate-500); margin-bottom: 8px; }
+.action-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.action-card ul li { font-size: 13px; color: var(--slate-700); line-height: 1.5; }
+
+/* ── Explainability rows ─────────────────────────────────────── */
+.explain-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--slate-100); font-size: 12px; }
+.explain-row:last-child { border-bottom: none; }
+.explain-key { color: var(--slate-400); width: 130px; flex-shrink: 0; font-family: var(--font-mono); }
+.explain-val { color: var(--slate-600); flex: 1; }
+.explain-val.highlight { color: var(--red-700); font-weight: 600; }
+
+/* ── Weather tiles ───────────────────────────────────────────── */
+.wx-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 14px; }
+.wx-tile { background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+.wx-val { font-size: 22px; font-weight: 700; color: var(--slate-800); font-family: var(--font-mono); }
+.wx-lbl { font-size: 10px; color: var(--slate-400); text-transform: uppercase; letter-spacing: .07em; margin-top: 3px; font-weight: 600; }
+
+/* ── Region tabs ─────────────────────────────────────────────── */
+.region-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.region-tab {
+  padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--slate-200); background: white; color: var(--slate-600);
+  cursor: pointer; transition: all .15s;
+}
+.region-tab:hover  { border-color: var(--ngo-primary); color: var(--ngo-primary); }
+.region-tab.active { background: var(--red-900); border-color: var(--red-900); color: white; }
+
+/* ── Chat interface ──────────────────────────────────────────── */
+#orgChatMessages {
+  min-height: 280px; max-height: 460px; overflow-y: auto;
+  padding: 16px; background: var(--slate-50);
+  border-radius: var(--radius-sm); margin-bottom: 12px;
+  border: 1px solid var(--slate-200);
+}
+.org-chat-input { display: flex; gap: 8px; }
+.org-chat-input input {
+  flex: 1; padding: 10px 14px; border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--slate-900);
+  background: white; transition: border-color .15s;
+}
+.org-chat-input input:focus { outline: none; border-color: var(--ngo-primary); box-shadow: 0 0 0 3px rgba(185,28,28,.1); }
+.btn-send {
+  padding: 10px 20px; background: var(--red-900); color: white;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; transition: background .15s; white-space: nowrap;
+}
+.btn-send:hover { background: var(--red-800); }
+.btn-ghost {
+  padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px;
+  font-weight: 500; border: 1px solid var(--slate-200); background: white;
+  color: var(--slate-600); cursor: pointer; transition: all .15s;
+}
+.btn-ghost:hover { border-color: var(--slate-400); }
+.btn-primary {
+  padding: 9px 18px; background: var(--red-900); color: white;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; transition: background .15s;
+}
+.btn-primary:hover { background: var(--red-800); }
+
+/* ── Alert log ───────────────────────────────────────────────── */
+.alert-log { display: flex; flex-direction: column; gap: 0; }
+.alert-log-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--slate-200);
+  transition: background .15s;
+}
+.alert-log-item:last-child { border-bottom: none; }
+.alert-log-item:hover { background: var(--slate-50); }
+.alert-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.dot-red    { background: var(--red-600); }
+.dot-orange { background: var(--orange-600); }
+.dot-yellow { background: var(--amber-500); }
+.dot-green  { background: var(--green-600); }
+.alert-log-body { flex: 1; }
+.alert-log-title { font-size: 13px; font-weight: 500; color: var(--slate-900); margin-bottom: 2px; }
+.alert-log-meta  { font-size: 11px; color: var(--slate-400); font-family: var(--font-mono); }
+
+/* ── Zone manager rows ───────────────────────────────────────── */
+.zone-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--slate-200); transition: background .12s;
+}
+.zone-row:last-child { border-bottom: none; }
+.zone-row:hover { background: var(--slate-50); }
+.zone-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--ngo-primary); flex-shrink: 0; }
+.zone-indicator.primary { background: var(--amber-500); }
+.zone-info { flex: 1; }
+.zone-name   { font-size: 13px; font-weight: 600; color: var(--slate-900); }
+.zone-coords { font-size: 11px; color: var(--slate-400); font-family: var(--font-mono); margin-top: 1px; }
+.zone-actions { display: flex; gap: 6px; }
+.zone-btn {
+  padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 500;
+  border: 1px solid var(--slate-200); background: white; color: var(--slate-600); cursor: pointer; transition: all .15s;
+}
+.zone-btn:hover { border-color: var(--ngo-primary); color: var(--ngo-primary); }
+.zone-btn.danger:hover { border-color: var(--red-600); color: var(--red-600); }
+
+/* ── Add zone modal ──────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999; backdrop-filter: blur(4px);
+  animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal-box {
+  background: white; border-radius: var(--radius-lg); padding: 28px;
+  width: min(520px, 95vw); box-shadow: var(--shadow-lg);
+  animation: slideUp .2s ease;
+}
+@keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--slate-900); }
+.modal-sub   { font-size: 13px; color: var(--slate-400); margin-bottom: 22px; }
+.form-label  { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--slate-400); margin-bottom: 6px; }
+.form-input, .form-select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--slate-900);
+  box-sizing: border-box; margin-bottom: 14px; background: white;
+}
+.form-input:focus, .form-select:focus { outline: none; border-color: var(--ngo-primary); box-shadow: 0 0 0 3px rgba(185,28,28,.1); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.city-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.city-chip {
+  padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 500;
+  border: 1px solid var(--slate-200); background: white; color: var(--slate-600);
+  cursor: pointer; transition: all .15s;
+}
+.city-chip:hover    { border-color: var(--ngo-primary); color: var(--ngo-primary); }
+.city-chip.selected { background: var(--red-900); border-color: var(--red-900); color: white; }
+.form-error { color: var(--red-600); font-size: 12px; margin-bottom: 10px; display: none; }
+
+.inline-badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; vertical-align: middle; margin-left: 4px; }
+.badge-primary { background: var(--amber-100); color: #92400e; }
+.run-meta { font-size: 11px; color: var(--slate-400); font-family: var(--font-mono); }
+.section-divider { height: 1px; background: var(--slate-200); margin: 16px 0; }
+.empty-state { text-align: center; padding: 32px; color: var(--slate-400); font-size: 13px; }
+.empty-state .empty-title { font-weight: 600; color: var(--slate-600); margin-bottom: 4px; font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block org_nav_tabs %}
+<a href="#overview"    class="org-tab active" onclick="showTab('overview',this)">Overview</a>
+<a href="#population"  class="org-tab"        onclick="showTab('population',this)">Population Needs</a>
+<a href="#response"    class="org-tab"        onclick="showTab('response',this)">Response Actions</a>
+<a href="#resources"   class="org-tab"        onclick="showTab('resources',this)">Resources</a>
+<a href="#weather"     class="org-tab"        onclick="showTab('weather',this)">Field Conditions</a>
+<a href="#alerts"      class="org-tab"        onclick="showTab('alerts',this)">Alert Log</a>
+<a href="#zones"       class="org-tab"        onclick="showTab('zones',this)">Operation Zones</a>
+<a href="#advisor"     class="org-tab"        onclick="showTab('advisor',this)">Advisor</a>
+{% endblock %}
+
+{% block sidebar_extra %}
+<!-- Operation phase -->
+<div class="sidebar-card">
+  <div class="sidebar-card-head">Operation Phase</div>
+  <div class="sidebar-card-body" id="sidebarPhase">
+    <div style="font-size:13px;font-weight:600;color:var(--slate-800);margin-bottom:4px;" id="phaseName">Detecting…</div>
+    <div style="font-size:12px;color:var(--slate-500);" id="phaseDesc"></div>
+  </div>
+</div>
+
+<!-- Live conditions -->
+<div class="sidebar-card">
+  <div class="sidebar-card-head">Field Conditions</div>
+  <div class="sidebar-card-body" id="sidebarWeather">
+    {% if locations %}<div style="color:var(--slate-400);font-size:12px;text-align:center;">Loading…</div>
+    {% else %}<div class="empty-state" style="padding:12px;">Add zones to see conditions</div>{% endif %}
+  </div>
+  {% if locations %}<div style="font-size:11px;color:var(--slate-400);padding:0 14px 10px;font-family:'IBM Plex Mono',monospace;">{{ locations.0.name }}</div>{% endif %}
+</div>
+
+<!-- Pipeline status -->
+<div class="sidebar-card">
+  <div class="sidebar-card-head">Analysis Pipeline</div>
+  <div class="sidebar-card-body" id="sidebarPipeline">
+    <div style="font-size:12px;color:var(--slate-500);">Initialising…</div>
+  </div>
+</div>
+
+<!-- Zone quick-switch -->
+{% if locations %}
+<div class="sidebar-card">
+  <div class="sidebar-card-head">Operation Zones</div>
+  <div class="sidebar-card-body" style="padding:0;">
+    {% for loc in locations %}
+    <div class="zone-row" onclick="switchZone({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')" style="cursor:pointer;">
+      <div class="zone-indicator {% if loc.is_primary %}primary{% endif %}"></div>
+      <div>
+        <div class="zone-name">{{ loc.name }}{% if loc.is_primary %}<span class="inline-badge badge-primary">HQ</span>{% endif %}</div>
+        <div class="zone-coords">{{ loc.latitude|floatformat:3 }}, {{ loc.longitude|floatformat:3 }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if can_manage %}
+  <div style="padding:10px 14px;">
+    <button onclick="openAddZoneModal()" style="width:100%;padding:8px;border:1px dashed var(--slate-300);border-radius:6px;background:white;color:var(--slate-500);font-size:12px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='var(--ngo-primary)';this.style.color='var(--ngo-primary)'" onmouseout="this.style.borderColor='var(--slate-300)';this.style.color='var(--slate-500)'">
+      + Add Zone
+    </button>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block org_main %}
+
+<!-- ── Loading overlay ──────────────────────────────────────── -->
+<div id="analysisLoadingOverlay">
+  <div class="loading-card">
+    <div class="loading-title">Initialising Humanitarian Intelligence</div>
+    <div class="loading-sub">Running full 5-agent risk assessment for {{ org.name }}</div>
+    <div class="loading-steps" id="loadingSteps">
+      <div class="loading-step" id="lstep-weather"><div class="step-icon">1</div><span>Fetching field weather &amp; conditions</span></div>
+      <div class="loading-step" id="lstep-monitor"><div class="step-icon">2</div><span>Monitor Agent — scanning environmental signals</span></div>
+      <div class="loading-step" id="lstep-predict"><div class="step-icon">3</div><span>Predict Agent — assessing flood, drought, heat risk</span></div>
+      <div class="loading-step" id="lstep-decision"><div class="step-icon">4</div><span>Decision Agent — determining alert levels</span></div>
+      <div class="loading-step" id="lstep-action"><div class="step-icon">5</div><span>Action &amp; Governance — generating response advisories</span></div>
+    </div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loadingBar"></div></div>
+    <div class="loading-location" id="loadingLocation">{% if locations %}{{ locations.0.name }}{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+<!-- ── Status header ────────────────────────────────────────── -->
+<div class="intel-header" id="intelHeader">
+  <div class="intel-header-left">
+    <div class="intel-status-dot" id="statusDot"></div>
+    <div>
+      <div class="intel-header-title">{{ org.name }} — Humanitarian Response Intelligence</div>
+      <div class="intel-header-sub" id="lastAnalysisTime">Initialising…</div>
+    </div>
+  </div>
+  <div class="intel-header-right">
+    <div class="intel-badge badge-live">Live</div>
+    <div class="intel-badge badge-phase" id="phaseBadge">—</div>
+    <div class="intel-badge badge-refresh" onclick="triggerFullRefresh()" id="refreshBtn">Refresh Analysis</div>
+  </div>
+</div>
+
+<!-- ── KPI row ──────────────────────────────────────────────── -->
+<div class="kpi-row">
+  <div class="kpi-card displaced">
+    <div class="kpi-label">Active Zones</div>
+    <div class="kpi-value" id="kpiZonesVal">{{ locations|length }}</div>
+    <div class="kpi-meta">Monitored locations</div>
+  </div>
+  <div class="kpi-card alerts">
+    <div class="kpi-label">Active Alerts</div>
+    <div class="kpi-value" id="kpiAlertsVal" style="color:var(--red-700);">{{ recent_alerts|length }}</div>
+    <div class="kpi-meta">Requiring response · <span id="kpiAlertsLive">—</span></div>
+  </div>
+  <div class="kpi-card flood">
+    <div class="kpi-label">Flood Risk</div>
+    <div class="kpi-value" id="kpiFloodVal">—</div>
+    <div class="kpi-meta">Highest zone · <span id="kpiFloodLive" style="color:var(--blue-600);">—</span></div>
+  </div>
+  <div class="kpi-card zones">
+    <div class="kpi-label">Drought Risk</div>
+    <div class="kpi-value" id="kpiDroughtVal">—</div>
+    <div class="kpi-meta">Highest zone · <span id="kpiDroughtLive" style="color:var(--amber-600);">—</span></div>
+  </div>
+  <div class="kpi-card pipeline">
+    <div class="kpi-label">Pipeline</div>
+    <div class="kpi-value" style="color:var(--green-600);">5</div>
+    <div class="kpi-meta">Agents active</div>
+  </div>
+</div>
+
+<!-- ══ TAB: OVERVIEW ══════════════════════════════════════════ -->
+<div id="tab-overview">
+
+  <!-- Checkpoint banner -->
+  <div id="checkpointBanner" class="checkpoint-banner" style="display:none;">
+    <div class="checkpoint-icon">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    </div>
+    <div class="checkpoint-text">
+      <div class="checkpoint-title">Checkpoint — Administrator Approval Required</div>
+      <div class="checkpoint-sub" id="checkpointDetail">Critical risk conditions detected. Approval required before issuing RED-level humanitarian alert.</div>
+    </div>
+    <button class="btn-approve" onclick="approveCheckpoint()">Approve</button>
+  </div>
+
+  <div class="intel-grid">
+    <div>
+
+      <!-- Alert status -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Operational Alert Status
+          </div>
+          <div class="run-meta" id="alertRunMeta"></div>
+        </div>
+        <div class="panel-body">
+          <div class="alert-level-bar" id="alertLevelBar">
+            <div class="alert-level-seg seg-GREEN"  id="seg-GREEN" ><div class="alert-seg-label">Green</div><div class="alert-seg-val">—</div></div>
+            <div class="alert-level-seg seg-YELLOW" id="seg-YELLOW"><div class="alert-seg-label">Yellow</div><div class="alert-seg-val">—</div></div>
+            <div class="alert-level-seg seg-ORANGE" id="seg-ORANGE"><div class="alert-seg-label">Orange</div><div class="alert-seg-val">—</div></div>
+            <div class="alert-level-seg seg-RED"    id="seg-RED"   ><div class="alert-seg-label">Red</div><div class="alert-seg-val">—</div></div>
+          </div>
+          <div class="risk-gauges">
+            <div class="risk-gauge gauge-flood">
+              <div class="gauge-label">Flood Risk</div>
+              <div class="gauge-track"><div class="gauge-fill" id="gauge-flood" style="width:0%"></div></div>
+              <div><span class="gauge-num" id="gaugeFloodNum">—</span><span class="gauge-pct">%</span></div>
+            </div>
+            <div class="risk-gauge gauge-drought">
+              <div class="gauge-label">Drought Risk</div>
+              <div class="gauge-track"><div class="gauge-fill" id="gauge-drought" style="width:0%"></div></div>
+              <div><span class="gauge-num" id="gaugeDroughtNum">—</span><span class="gauge-pct">%</span></div>
+            </div>
+            <div class="risk-gauge gauge-heat">
+              <div class="gauge-label">Heat Stress Risk</div>
+              <div class="gauge-track"><div class="gauge-fill" id="gauge-heat" style="width:0%"></div></div>
+              <div><span class="gauge-num" id="gaugeHeatNum">—</span><span class="gauge-pct">%</span></div>
+            </div>
+          </div>
+          <div class="pipeline-strip" id="pipelineStrip">
+            <div class="pipe-step pending" id="pipe-monitor">Monitor</div>
+            <div class="pipe-step pending" id="pipe-predict">Predict</div>
+            <div class="pipe-step pending" id="pipe-decision">Decision</div>
+            <div class="pipe-step pending" id="pipe-action">Action</div>
+            <div class="pipe-step pending" id="pipe-governance">Governance</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Humanitarian advisories -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Humanitarian Advisories
+          </div>
+          <span class="run-meta" id="advisoryMeta"></span>
+        </div>
+        <div class="panel-body" id="advisoryList">
+          <div class="advisory-list">
+            <div class="advisory-item level-info">
+              <div class="advisory-top"><div class="advisory-title">Analysis Running</div></div>
+              <div class="advisory-body">5-agent pipeline is analysing all {{ locations|length }} operation zone{{ locations|length|pluralize }}. Advisories will appear here shortly.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+            Operations Map
+          </div>
+          <div class="panel-head-action" id="mapZoneLabel">{{ locations|length }} zone{{ locations|length|pluralize }}</div>
+        </div>
+        <div id="orgMap"></div>
+        <div style="padding:10px 16px;background:var(--slate-50);border-top:1px solid var(--slate-200);font-size:12px;color:var(--slate-500);" id="mapInfo">
+          Select a zone to focus the map
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column -->
+    <div>
+
+      <!-- Needs summary tiles -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Population Exposure Summary
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="needs-grid">
+            <div class="needs-tile">
+              <div class="nt-val">{{ locations|length }}</div>
+              <div class="nt-lbl">Active Zones</div>
+              <div class="nt-ctx">Under monitoring</div>
+            </div>
+            <div class="needs-tile">
+              <div class="nt-val" id="needsFlood" style="color:var(--red-700);">—</div>
+              <div class="nt-lbl">Flood Exposure</div>
+              <div class="nt-ctx">Peak zone risk</div>
+            </div>
+            <div class="needs-tile">
+              <div class="nt-val" id="needsAlert" style="color:var(--amber-600);">—</div>
+              <div class="nt-lbl">Alert Level</div>
+              <div class="nt-ctx">Current status</div>
+            </div>
+          </div>
+          <!-- Active alerts table -->
+          {% if recent_alerts %}
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:8px;">Active Alerts</div>
+          {% for alert in recent_alerts %}
+          <div class="alert-log-item" style="padding:8px 0;border-color:var(--slate-100);">
+            <div class="alert-dot {% if alert.risk_level >= 70 %}dot-red{% elif alert.risk_level >= 40 %}dot-orange{% else %}dot-yellow{% endif %}"></div>
+            <div class="alert-log-body">
+              <div class="alert-log-title" style="font-size:12px;">{{ alert.risk_type|title|default:"Alert" }} — {{ alert.location.name|default:"Zone" }}</div>
+              <div class="alert-log-meta">{{ alert.risk_level }}% · {{ alert.timestamp|timesince }} ago</div>
+            </div>
+            <span class="sev {% if alert.risk_level >= 70 %}sev-critical{% elif alert.risk_level >= 50 %}sev-high{% elif alert.risk_level >= 30 %}sev-medium{% else %}sev-low{% endif %}">{{ alert.risk_level }}%</span>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="empty-state" style="padding:16px 0;"><div class="empty-title">No active alerts</div></div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Decision explainability -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Decision Explainability
+          </div>
+        </div>
+        <div class="panel-body" id="explainPanel">
+          <div class="empty-state" style="padding:12px 0;"><div class="empty-title" style="font-size:13px;">Analysis pending…</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: POPULATION NEEDS ══════════════════════════════════ -->
+<div id="tab-population" style="display:none;">
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-title">
+        <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Population Vulnerability Matrix
+      </div>
+      <div class="panel-head-action" onclick="refreshPopulationAnalysis()">Re-analyse</div>
+    </div>
+    <div class="panel-body" style="padding:14px 16px 8px;">
+      <div class="region-tabs" id="popRegionTabs">
+        {% for loc in locations %}
+        <div class="region-tab {% if forloop.first %}active{% endif %}" onclick="selectPopRegion(this,'{{ loc.name|escapejs }}',{{ loc.latitude }},{{ loc.longitude }})">{{ loc.name }}</div>
+        {% empty %}
+        <div class="region-tab active">All Zones</div>
+        {% endfor %}
+      </div>
+      <div id="popRegionNote" style="font-size:12px;color:var(--slate-400);margin-bottom:12px;font-family:'IBM Plex Mono',monospace;"></div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="pop-tbl" id="popTable">
+        <thead>
+          <tr>
+            <th style="width:180px;">Group / Zone</th>
+            <th>Flood Exposure</th>
+            <th style="width:70px;"></th>
+            <th>Drought Risk</th>
+            <th style="width:70px;"></th>
+            <th>Heat Stress</th>
+            <th style="width:70px;"></th>
+            <th>Vulnerability</th>
+            <th>Priority Action</th>
+          </tr>
+        </thead>
+        <tbody id="popTableBody">
+          <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--slate-400);">Loading vulnerability analysis…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pipeline-strip" id="popPipelineStrip" style="margin:12px 16px;"></div>
+  </div>
+
+  <!-- Displacement risk panel -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-head-title">
+        <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Displacement &amp; Shelter Assessment
+      </div>
+    </div>
+    <div class="panel-body" id="displacementPanel">
+      <div class="empty-state"><div class="empty-title">Select a region above to view displacement assessment</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ TAB: RESPONSE ACTIONS ══════════════════════════════════ -->
+<div id="tab-response" style="display:none;">
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-title">
+        <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Agent-Generated Response Protocols
+      </div>
+      <div class="panel-head-action" onclick="refreshResponseActions()">Refresh</div>
+    </div>
+    <div class="panel-body">
+      <div class="region-tabs" id="responseRegionTabs">
+        {% for loc in locations %}
+        <div class="region-tab {% if forloop.first %}active{% endif %}" onclick="selectResponseRegion(this,'{{ loc.name|escapejs }}',{{ loc.latitude }},{{ loc.longitude }})">{{ loc.name }}</div>
+        {% endfor %}
+      </div>
+      <div id="responseActionCards">
+        <div class="empty-state"><div class="empty-title">Analysis loading…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Governance & SDG panel -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-head-title">
+        <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+        Governance Review &amp; SDG Alignment
+      </div>
+    </div>
+    <div class="panel-body" id="governancePanel">
+      <div class="empty-state"><div class="empty-title">Governance data loading…</div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ TAB: RESOURCES ═════════════════════════════════════════ -->
+<div id="tab-resources" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">
+          <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          Supply &amp; Equipment Levels
+        </div>
+        <span style="font-size:11px;color:var(--slate-400);">Connect ERP for live data</span>
+      </div>
+      <div class="panel-body">
+        <div class="res-gauge-row"><div class="res-gauge-label">Emergency Kits</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:72%;background:var(--green-600);"></div></div><div class="res-gauge-pct">72%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Medical Supplies</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:48%;background:var(--amber-500);"></div></div><div class="res-gauge-pct">48%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Water / Sanitation</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:61%;background:var(--green-600);"></div></div><div class="res-gauge-pct">61%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Food Stocks</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:34%;background:var(--orange-600);"></div></div><div class="res-gauge-pct">34%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Shelter Materials</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:55%;background:var(--amber-500);"></div></div><div class="res-gauge-pct">55%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Comms Equipment</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:88%;background:var(--green-600);"></div></div><div class="res-gauge-pct">88%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Vehicles</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:60%;background:var(--amber-500);"></div></div><div class="res-gauge-pct">60%</div></div>
+        <div class="res-gauge-row"><div class="res-gauge-label">Fuel Reserves</div><div class="res-gauge-bar"><div class="res-gauge-fill" style="width:41%;background:var(--orange-600);"></div></div><div class="res-gauge-pct">41%</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">
+          <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Team Deployment Status
+        </div>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div style="text-align:center;padding:16px;background:var(--red-50);border-radius:10px;border:1px solid var(--red-200);">
+            <div style="font-size:28px;font-weight:800;color:var(--red-700);font-family:var(--font-mono);" id="teamsDeployed">0</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-top:4px;">Deployed</div>
+          </div>
+          <div style="text-align:center;padding:16px;background:var(--amber-50);border-radius:10px;border:1px solid var(--amber-200);">
+            <div style="font-size:28px;font-weight:800;color:var(--amber-600);font-family:var(--font-mono);" id="teamsStandby">0</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-top:4px;">On Standby</div>
+          </div>
+          <div style="text-align:center;padding:16px;background:var(--green-50);border-radius:10px;border:1px solid var(--green-100);">
+            <div style="font-size:28px;font-weight:800;color:var(--green-600);font-family:var(--font-mono);" id="teamsAvail">0</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-top:4px;">Available</div>
+          </div>
+          <div style="text-align:center;padding:16px;background:var(--slate-50);border-radius:10px;border:1px solid var(--slate-200);">
+            <div style="font-size:28px;font-weight:800;color:var(--slate-700);font-family:var(--font-mono);" id="teamsTotal">0</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-top:4px;">Total Teams</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--slate-400);text-align:center;">Connect HR / Field Management system for live team data</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource allocation by zone -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-head-title">
+        <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Resource Allocation by Zone — Agent Recommendation
+      </div>
+    </div>
+    <div class="panel-body" id="resourceAllocationPanel">
+      <div class="empty-state"><div class="empty-title">Run analysis to see resource recommendations</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: FIELD CONDITIONS ══════════════════════════════════ -->
+<div id="tab-weather" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" id="weatherZoneGrid">
+    {% for loc in locations|slice:":4" %}
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">{{ loc.name }}</div>
+        <div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--slate-400);">{{ loc.latitude|floatformat:3 }}, {{ loc.longitude|floatformat:3 }}</div>
+      </div>
+      <div class="panel-body" id="wxZone-{{ forloop.counter }}">
+        <div class="wx-grid">
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-temp">—</div><div class="wx-lbl">Temp °C</div></div>
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-rain">—</div><div class="wx-lbl">Rain 24h</div></div>
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-hum">—</div><div class="wx-lbl">Humidity</div></div>
+        </div>
+        <div style="font-size:12px;color:var(--slate-400);margin-top:6px;" id="wxz{{ forloop.counter }}-cond">Loading…</div>
+        <div style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Field Access Risk</div>
+          <div style="font-size:13px;color:var(--slate-600);" id="wxz{{ forloop.counter }}-access">Calculating…</div>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="panel" style="grid-column:1/-1;"><div class="panel-body"><div class="empty-state"><div class="empty-title">No zones configured</div>Add operation zones from the Zones tab.</div></div></div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══ TAB: ALERT LOG ═════════════════════════════════════════ -->
+<div id="tab-alerts" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">Flood Alerts</div>
+        <div style="font-size:12px;padding:2px 10px;border-radius:99px;background:var(--blue-100);color:var(--blue-700);font-weight:600;">{{ flood_alerts|length }}</div>
+      </div>
+      <div class="alert-log">
+        {% for a in flood_alerts %}
+        <div class="alert-log-item">
+          <div class="alert-dot {% if a.risk_level >= 70 %}dot-red{% elif a.risk_level >= 40 %}dot-orange{% else %}dot-green{% endif %}"></div>
+          <div class="alert-log-body">
+            <div class="alert-log-title">{{ a.message|truncatechars:100 }}</div>
+            <div class="alert-log-meta">{{ a.timestamp|date:"M d, Y · H:i" }} · Risk: {{ a.risk_level }}%</div>
+          </div>
+        </div>
+        {% empty %}<div class="empty-state">No flood alerts</div>{% endfor %}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">Drought Alerts</div>
+        <div style="font-size:12px;padding:2px 10px;border-radius:99px;background:var(--amber-100);color:var(--amber-600);font-weight:600;">{{ drought_alerts|length }}</div>
+      </div>
+      <div class="alert-log">
+        {% for a in drought_alerts %}
+        <div class="alert-log-item">
+          <div class="alert-dot {% if a.risk_level >= 70 %}dot-red{% elif a.risk_level >= 40 %}dot-orange{% else %}dot-yellow{% endif %}"></div>
+          <div class="alert-log-body">
+            <div class="alert-log-title">{{ a.message|truncatechars:100 }}</div>
+            <div class="alert-log-meta">{{ a.timestamp|date:"M d, Y · H:i" }} · Risk: {{ a.risk_level }}%</div>
+          </div>
+        </div>
+        {% empty %}<div class="empty-state">No drought alerts</div>{% endfor %}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-title">Heatwave Alerts</div>
+        <div style="font-size:12px;padding:2px 10px;border-radius:99px;background:var(--red-100);color:var(--red-600);font-weight:600;">{{ heatwave_alerts|length }}</div>
+      </div>
+      <div class="alert-log">
+        {% for a in heatwave_alerts %}
+        <div class="alert-log-item">
+          <div class="alert-dot {% if a.risk_level >= 70 %}dot-red{% elif a.risk_level >= 40 %}dot-orange{% else %}dot-yellow{% endif %}"></div>
+          <div class="alert-log-body">
+            <div class="alert-log-title">{{ a.message|truncatechars:100 }}</div>
+            <div class="alert-log-meta">{{ a.timestamp|date:"M d, Y · H:i" }} · Risk: {{ a.risk_level }}%</div>
+          </div>
+        </div>
+        {% empty %}<div class="empty-state">No heatwave alerts</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% if can_manage %}
+  <div class="panel" style="margin-top:14px;">
+    <div class="panel-head"><div class="panel-head-title">Run Analysis by Zone</div></div>
+    <div class="panel-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% for loc in locations|slice:":6" %}
+        <button class="btn-ghost" onclick="runZoneAnalysis({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">Analyse {{ loc.name }}</button>
+        {% endfor %}
+      </div>
+      <div id="zoneRunResult" style="margin-top:14px;"></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ TAB: OPERATION ZONES ═══════════════════════════════════ -->
+<div id="tab-zones" style="display:none;">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-head-title">Operation Zones</div>
+      {% if can_manage %}<button class="btn-primary" onclick="openAddZoneModal()">Add Zone</button>{% endif %}
+    </div>
+    <div class="zone-list" id="zoneList">
+      {% if locations %}
+      {% for loc in locations %}
+      <div class="zone-row" id="zone-row-{{ loc.id }}">
+        <div class="zone-indicator {% if loc.is_primary %}primary{% endif %}"></div>
+        <div class="zone-info">
+          <div class="zone-name">{{ loc.name }}{% if loc.is_primary %}<span class="inline-badge badge-primary">HQ</span>{% endif %}</div>
+          <div class="zone-coords">{{ loc.latitude }}, {{ loc.longitude }}{% if loc.radius_km %} · {{ loc.radius_km }} km radius{% endif %}</div>
+        </div>
+        <div class="zone-actions">
+          <button class="zone-btn" onclick="flyToZone({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">Map</button>
+          <button class="zone-btn" onclick="runZoneAnalysis({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">Analyse</button>
+          {% if can_manage %}<button class="zone-btn danger" onclick="removeZone({{ loc.id }},'{{ loc.name|escapejs }}',this)">Remove</button>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-state"><div class="empty-title">No zones configured</div>Add your first operation zone to begin analysis.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div class="panel-head-title">Zone Map</div></div>
+    <div id="zonesMap" style="height:340px;border-radius:0 0 10px 10px;overflow:hidden;"></div>
+  </div>
+</div>
+
+<!-- ══ TAB: ADVISOR ════════════════════════════════════════════ -->
+<div id="tab-advisor" style="display:none;">
+  <div class="intel-grid">
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-title">
+            <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            Humanitarian Response Advisor
+          </div>
+          <div style="font-size:11px;color:var(--slate-400);font-family:'IBM Plex Mono',monospace;">Azure AI Foundry · 5-agent pipeline</div>
+        </div>
+        <div class="panel-body">
+          <div id="orgChatMessages"></div>
+          <div class="org-chat-input">
+            <input type="text" id="orgChatInput" placeholder="Ask about flood risk, evacuation routes, population needs, resource deployment…" />
+            <button class="btn-send" onclick="sendOrgMsg('orgChatInput','orgChatMessages','Humanitarian Advisor', onChatResult)">Send</button>
+            <button class="btn-ghost" onclick="clearChatHistory('orgChatMessages')" style="padding:10px 12px;">Clear</button>
+          </div>
+        </div>
+        <div id="chatPipelineWrap" style="padding:0 16px 12px;display:none;">
+          <div class="pipeline-strip" id="chatPipelineStrip"></div>
+          <div style="font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--slate-400);margin-top:6px;" id="chatIntentMeta"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-head-title">Quick Queries</div></div>
+        <div class="panel-body">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            {% for loc in locations|slice:":3" %}
+            <button class="btn-ghost" style="text-align:left;justify-content:flex-start;" onclick="quickPrompt('What is the current flood and displacement risk in {{ loc.name|escapejs }}? Provide specific guidance for humanitarian response teams.')">Flood &amp; displacement risk — {{ loc.name }}</button>
+            <button class="btn-ghost" style="text-align:left;justify-content:flex-start;" onclick="quickPrompt('Provide a full climate risk report for {{ loc.name|escapejs }} including population exposure, immediate actions, and resource needs.')">Full report — {{ loc.name }}</button>
+            {% endfor %}
+            <button class="btn-ghost" style="text-align:left;" onclick="quickPrompt('What is the drought and water security outlook for the next 14 days across all monitored zones?')">14-day water security outlook</button>
+            <button class="btn-ghost" style="text-align:left;" onclick="quickPrompt('Give me a comprehensive humanitarian risk assessment for all operation zones including specific response recommendations.')">Full zone assessment</button>
+            <button class="btn-ghost" style="text-align:left;" onclick="quickPrompt('Which zones require immediate evacuation or emergency resource deployment based on current climate risk?')">Evacuation prioritisation</button>
+            <button class="btn-ghost" style="text-align:left;" onclick="quickPrompt('What are the SDG implications of the current climate risk profile across our operation zones?')">SDG impact analysis</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD ZONE MODAL ═════════════════════════════════════════ -->
+<div id="addZoneModal" style="display:none;" class="modal-overlay" onclick="if(event.target===this)closeAddZoneModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">Add Operation Zone</div>
+    <div class="modal-sub">Add a field operation zone, camp, or area of concern.</div>
+    <label class="form-label">Quick-select a location</label>
+    <div class="city-chips" id="cityChips">
+      <div class="city-chip" onclick="selectCity('Nairobi',-1.2921,36.8219,this)">Nairobi</div>
+      <div class="city-chip" onclick="selectCity('Mombasa',-4.0435,39.6682,this)">Mombasa</div>
+      <div class="city-chip" onclick="selectCity('Kisumu',-0.0917,34.768,this)">Kisumu</div>
+      <div class="city-chip" onclick="selectCity('Nakuru',-0.3031,36.08,this)">Nakuru</div>
+      <div class="city-chip" onclick="selectCity('Eldoret',0.5143,35.2698,this)">Eldoret</div>
+      <div class="city-chip" onclick="selectCity('Kakamega',0.2827,34.7519,this)">Kakamega</div>
+      <div class="city-chip" onclick="selectCity('Malindi',-3.2167,40.1167,this)">Malindi</div>
+      <div class="city-chip" onclick="selectCity('Nyeri',-0.4167,36.95,this)">Nyeri</div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--slate-400);margin:-4px 0 14px;">— or enter custom coordinates —</div>
+    <label class="form-label">Zone Name *</label>
+    <input type="text" id="newZoneName" class="form-input" placeholder="e.g. Dadaab Camp, Tana River Basin" />
+    <div class="form-row">
+      <div><label class="form-label">Latitude *</label><input type="number" id="newZoneLat" class="form-input" placeholder="-1.2921" step="0.0001" /></div>
+      <div><label class="form-label">Longitude *</label><input type="number" id="newZoneLon" class="form-input" placeholder="36.8219" step="0.0001" /></div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label class="form-label">Zone Type</label>
+        <select id="newZoneType" class="form-select">
+          <option value="camp">Refugee / IDP Camp</option>
+          <option value="urban">Urban Area</option>
+          <option value="rural">Rural / Remote</option>
+          <option value="coastal">Coastal Zone</option>
+          <option value="border">Border Area</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div><label class="form-label">Radius (km)</label><input type="number" id="newZoneRadius" class="form-input" value="15" min="1" max="200" /></div>
+    </div>
+    <div class="form-error" id="zoneModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAddZoneModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveNewZone()" id="saveZoneBtn">Add Zone</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block org_extra_scripts %}
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let _analysisResults   = {};
+let _activePopRegion   = null;
+let _activeRespRegion  = null;
+let _checkpointState   = null;
+
+const VULNERABILITY_GROUPS = [
+  { name: 'Children (0-14)',  sensitivity: { flood: .90, drought: .85, heat: .95 } },
+  { name: 'Elderly (60+)',    sensitivity: { flood: .85, drought: .80, heat: .90 } },
+  { name: 'Pregnant Women',   sensitivity: { flood: .80, drought: .90, heat: .85 } },
+  { name: 'Displaced / IDP',  sensitivity: { flood: .95, drought: .90, heat: .80 } },
+  { name: 'Pastoralists',     sensitivity: { flood: .60, drought: .95, heat: .70 } },
+  { name: 'Smallholder Farm', sensitivity: { flood: .75, drought: .90, heat: .65 } },
+  { name: 'Urban Poor',       sensitivity: { flood: .70, drought: .55, heat: .85 } },
+  { name: 'General Pop.',     sensitivity: { flood: .55, drought: .50, heat: .55 } },
+];
+
+const GROUP_ACTIONS = [
+  'Pre-position oral rehydration salts and emergency food packs at health centres',
+  'Issue heat-health advisory; activate elderly welfare checks across all zones',
+  'Ensure antenatal clinics are stocked and accessible; activate maternal health protocols',
+  'Pre-register displaced populations; prepare rapid shelter deployment kits',
+  'Issue livestock movement advisory; coordinate with NDMA for feed distribution',
+  'Trigger Early Warning Early Action for crop protection and input distribution',
+  'Alert urban community health workers; deploy water trucking to informal settlements',
+  'Disseminate public alerts via local radio and community networks',
+];
+
+const DISPLACEMENT_NOTES = {
+  high_flood:   'Immediate pre-positioning of shelter kits recommended. Identify high-ground evacuation routes. Alert camp management systems.',
+  high_drought: 'Food security assessment required within 72h. Activate NDMA linkages for drought response financing.',
+  high_heat:    'Activate cooling centres and heat-health early action protocols. Increase water trucking frequency.',
+  normal:       'No immediate displacement triggers. Continue routine monitoring. Review contingency plans.',
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initOrgMap('orgMap');
+  initOperationPhase();
+  initOrgChat('orgChatInput', 'orgChatMessages', 'Humanitarian Advisor', onChatResult);
+
+  {% if locations %}
+  loadWeatherSidebar({{ locations.0.latitude }}, {{ locations.0.longitude }}, '{{ locations.0.name|escapejs }}');
+  runInitialAnalysis();
+  {% else %}
+  dismissLoadingOverlay();
+  {% endif %}
+});
+
+// ═══════════════════════════════════════════════════════════════
+// LOADING OVERLAY
+// ═══════════════════════════════════════════════════════════════
+function setLoadingStep(id, state) {
+  const el = document.getElementById('lstep-' + id);
+  if (!el) return;
+  el.classList.remove('active','done');
+  if (state) el.classList.add(state);
+  const icon = el.querySelector('.step-icon');
+  if (icon) icon.textContent = state === 'done' ? '✓' : ({'weather':'1','monitor':'2','predict':'3','decision':'4','action':'5'}[id] || '?');
+}
+function setLoadingProgress(pct) { const b = document.getElementById('loadingBar'); if (b) b.style.width = pct + '%'; }
+function dismissLoadingOverlay() {
+  const o = document.getElementById('analysisLoadingOverlay');
+  if (o) { o.classList.add('hidden'); setTimeout(() => o.style.display = 'none', 400); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INITIAL ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+async function runInitialAnalysis() {
+  const overlay = document.getElementById('analysisLoadingOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  setLoadingProgress(10);
+
+  const zones = ORG_LOCATIONS?.length ? ORG_LOCATIONS : [
+    {% for loc in locations %}{ lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}
+  ];
+  if (!zones.length) { dismissLoadingOverlay(); return; }
+
+  const locEl = document.getElementById('loadingLocation');
+  if (locEl) locEl.textContent = zones.map(z => z.name).join(', ');
+
+  setLoadingStep('weather', 'active');
+  try {
+    const wxR = await orgFetch(`/api/weather/?lat=${zones[0].lat}&lon=${zones[0].lon}&name=${encodeURIComponent(zones[0].name)}`);
+    const wxD = await wxR.json();
+    updateWeatherUI(wxD);
+    setLoadingStep('weather', 'done');
+    setLoadingProgress(20);
+  } catch(e) { setLoadingStep('weather', 'done'); }
+
+  setLoadingStep('monitor', 'active');
+  setLoadingProgress(35);
+
+  const agentPromises = zones.map(zone =>
+    orgFetch('/api/agent/run/', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: `Comprehensive humanitarian climate risk assessment for ${zone.name}. Assess flood, drought, and heatwave risk (0-100 each). Identify vulnerable populations at risk and provide immediate response recommendations. Include displacement risk, resource needs, and SDG impact.`,
+        lat: zone.lat, lon: zone.lon, location_name: zone.name, org_id: ORG_ID,
+      })
+    }).then(r => r.json()).then(d => ({ zone: zone.name, lat: zone.lat, lon: zone.lon, data: d }))
+    .catch(e => ({ zone: zone.name, lat: zone.lat, lon: zone.lon, data: null, error: e.message }))
+  );
+
+  const steps = ['monitor','predict','decision','action'];
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    if (stepIdx > 0) setLoadingStep(steps[stepIdx-1], 'done');
+    if (stepIdx < steps.length) { setLoadingStep(steps[stepIdx], 'active'); stepIdx++; }
+    setLoadingProgress(35 + stepIdx * 14);
+  }, 1800);
+
+  const results = await Promise.allSettled(agentPromises);
+  clearInterval(stepTimer);
+  steps.forEach(s => setLoadingStep(s, 'done'));
+  setLoadingProgress(100);
+
+  results.forEach(r => {
+    if (r.status === 'fulfilled' && r.value.data?.result) {
+      _analysisResults[r.value.zone] = r.value;
+    }
+  });
+
+  updateOverviewFromResults();
+  if (zones.length) {
+    populatePopMatrix(zones[0].name, zones[0].lat, zones[0].lon);
+    populateResponseActions(zones[0].name, zones[0].lat, zones[0].lon);
+  }
+
+  setTimeout(dismissLoadingOverlay, 600);
+}
+
+async function triggerFullRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.textContent = 'Refreshing…';
+  _analysisResults = {};
+  const overlay = document.getElementById('analysisLoadingOverlay');
+  if (overlay) {
+    ['weather','monitor','predict','decision','action'].forEach(s => setLoadingStep(s, ''));
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  }
+  await runInitialAnalysis();
+  if (btn) btn.textContent = 'Refresh Analysis';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATE OVERVIEW UI
+// ═══════════════════════════════════════════════════════════════
+function updateOverviewFromResults() {
+  const all = Object.values(_analysisResults);
+  if (!all.length) return;
+
+  let maxFlood = 0, maxDrought = 0, maxHeat = 0;
+  let alertLevelCounts = { GREEN:0, YELLOW:0, ORANGE:0, RED:0 };
+  let primaryAlert = 'GREEN';
+  let chainData = null, explainData = null;
+
+  all.forEach(r => {
+    const result = r.data?.result || {};
+    const pd = result.predict_data  || {};
+    const dd = result.decision_data || {};
+    maxFlood   = Math.max(maxFlood,   pd.flood_risk    || 0);
+    maxDrought = Math.max(maxDrought, pd.drought_risk  || 0);
+    maxHeat    = Math.max(maxHeat,    pd.heatwave_risk || 0);
+    const al = (dd.alert_level || 'GREEN').toUpperCase();
+    alertLevelCounts[al] = (alertLevelCounts[al] || 0) + 1;
+    if (!chainData   && result.agent_chain)   chainData = result;
+    if (!explainData && result.explainability) explainData = result;
+  });
+
+  if (alertLevelCounts.RED)         primaryAlert = 'RED';
+  else if (alertLevelCounts.ORANGE) primaryAlert = 'ORANGE';
+  else if (alertLevelCounts.YELLOW) primaryAlert = 'YELLOW';
+  else                              primaryAlert = 'GREEN';
+
+  animateGauge('flood',   maxFlood);
+  animateGauge('drought', maxDrought);
+  animateGauge('heat',    maxHeat);
+
+  document.getElementById('kpiFloodVal').textContent   = maxFlood + '%';
+  document.getElementById('kpiDroughtVal').textContent = maxDrought + '%';
+  document.getElementById('kpiFloodLive').textContent   = primaryAlert + ' alert';
+  document.getElementById('kpiDroughtLive').textContent = maxDrought + '% risk';
+  document.getElementById('kpiAlertsLive').textContent  = primaryAlert + ' level';
+
+  ['GREEN','YELLOW','ORANGE','RED'].forEach(level => {
+    const seg = document.getElementById('seg-' + level);
+    if (!seg) return;
+    seg.className = `alert-level-seg seg-${level}`;
+    if (level === primaryAlert) seg.classList.add('active-' + level);
+    seg.querySelector('.alert-seg-val').textContent = alertLevelCounts[level] || '0';
+  });
+
+  document.getElementById('needsFlood').textContent = maxFlood + '%';
+  document.getElementById('needsAlert').textContent = primaryAlert;
+  document.getElementById('needsAlert').style.color = {RED:'var(--red-700)',ORANGE:'var(--orange-600)',YELLOW:'var(--amber-600)',GREEN:'var(--green-600)'}[primaryAlert];
+
+  if (chainData?.agent_chain) renderPipelineStrip('pipelineStrip', chainData.agent_chain, chainData.checkpoint_status);
+  if (explainData) updateExplainPanel(explainData);
+  buildAdvisoryList(all);
+  updateSidebarPipeline(chainData);
+  buildResourceAllocation(all);
+
+  const cp = all.find(r => r.data?.result?.checkpoint_status?.requires_approval);
+  const cpBanner = document.getElementById('checkpointBanner');
+  if (cp && cpBanner) {
+    _checkpointState = cp;
+    cpBanner.style.display = 'flex';
+    const d = document.getElementById('checkpointDetail');
+    if (d) d.textContent = cp.data.result.checkpoint_status.pending_action || 'Approval required before issuing critical humanitarian alert.';
+  } else if (cpBanner) { cpBanner.style.display = 'none'; }
+
+  const timeEl = document.getElementById('lastAnalysisTime');
+  if (timeEl) timeEl.textContent = 'Last analysis: ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+}
+
+function animateGauge(type, value) {
+  const fill = document.getElementById('gauge-' + type);
+  const num  = document.getElementById('gauge-' + type + 'Num');
+  if (fill) fill.style.width = Math.min(100, value) + '%';
+  if (num)  num.textContent  = value;
+}
+
+function renderPipelineStrip(id, chain, checkpoint) {
+  const el = document.getElementById(id);
+  if (!el || !chain) return;
+  const steps = ['monitor','predict','decision','action','governance'];
+  const done  = new Set((chain||[]).map(s=>s.agent));
+  const paused = checkpoint?.paused_at_step;
+  el.innerHTML = steps.map(s => {
+    const step = (chain||[]).find(c=>c.agent===s);
+    const cls  = paused===s ? 'active' : done.has(s) ? 'done' : 'pending';
+    const lat  = step ? `<span class="latency">${step.latency_ms}ms</span>` : '';
+    return `<div class="pipe-step ${cls}">${s.charAt(0).toUpperCase()+s.slice(1)}${lat}</div>`;
+  }).join('');
+}
+
+function buildAdvisoryList(all) {
+  const container = document.getElementById('advisoryList');
+  if (!container) return;
+  const items = [];
+  all.forEach(r => {
+    const result = r.data?.result || {};
+    const dd = result.decision_data || {};
+    const ad = result.action_data   || {};
+    const gd = result.governance_data || {};
+    const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
+    const lvlClass   = {GREEN:'level-green',YELLOW:'level-yellow',ORANGE:'level-orange',RED:'level-red'}[alertLevel] || 'level-info';
+    const msg = ad.alert_message || gd.final_recommendation || result.action || '';
+    if (msg) items.push({ lvlClass, title: `${r.zone} — ${alertLevel} Alert`, chip: alertLevel, message: msg, meta: r.zone });
+    else     items.push({ lvlClass:'level-green', title:`${r.zone} — Normal Conditions`, chip:'GREEN', message:'No significant climate risks detected. Continue standard humanitarian monitoring schedule.', meta: r.zone });
+    if (gd.final_recommendation && gd.final_recommendation !== msg) {
+      items.push({ lvlClass:'level-teal', title:`${r.zone} — Governance Advisory`, chip:null, message: gd.final_recommendation, meta:`SDG: ${(gd.sdg_alignment||[]).join(', ')}` });
+    }
+  });
+  container.innerHTML = '<div class="advisory-list">' + items.map(i => `
+    <div class="advisory-item ${i.lvlClass}">
+      <div class="advisory-top">
+        <div class="advisory-title">${i.title}</div>
+        ${i.chip ? `<span class="advisory-level-chip chip-${i.chip}">${i.chip}</span>` : ''}
+      </div>
+      <div class="advisory-body">${i.message}</div>
+      ${i.meta ? `<div class="advisory-meta">${i.meta}</div>` : ''}
+    </div>`).join('') + '</div>';
+}
+
+function updateExplainPanel(result) {
+  const panel = document.getElementById('explainPanel');
+  if (!panel) return;
+  const ex = result.explainability || {};
+  const dd = result.decision_data  || {};
+  const rows = [
+    { k:'Alert Level',    v: dd.alert_level || '—', h: true },
+    { k:'Policy Rule',    v: dd.policy_rule_id || ex.policy_rule_id || '—' },
+    { k:'Selected Graph', v: result.selected_graph || '—' },
+    { k:'Intent',         v: `${result.intent_classification||'—'} (${Math.round((result.intent_confidence||0)*100)}% ${result.intent_source ? 'via '+result.intent_source : ''})` },
+    { k:'Why Alert',      v: ex.why_alert_level || dd.why_alert_level || '—' },
+    { k:'Priority',       v: dd.priority || '—' },
+    { k:'Response Time',  v: dd.response_timeline_hours != null ? dd.response_timeline_hours + ' hours' : '—' },
+  ];
+  panel.innerHTML = rows.map(r => `
+    <div class="explain-row">
+      <div class="explain-key">${r.k}</div>
+      <div class="explain-val ${r.h?'highlight':''}">${r.v}</div>
+    </div>`).join('');
+}
+
+function updateSidebarPipeline(result) {
+  const el = document.getElementById('sidebarPipeline');
+  if (!el) return;
+  if (!result) { el.innerHTML = '<div style="font-size:12px;color:var(--slate-500);">No data</div>'; return; }
+  const chain = result.agent_chain || [];
+  el.innerHTML = `
+    <div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--slate-500);">${chain.length} agents · ${chain.reduce((a,s)=>a+(s.latency_ms||0),0)}ms total</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;">
+      ${chain.map(s=>`<span style="padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;background:var(--red-100);color:var(--red-800);">${s.agent}</span>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POPULATION VULNERABILITY MATRIX
+// ═══════════════════════════════════════════════════════════════
+function selectPopRegion(el, name, lat, lon) {
+  document.querySelectorAll('#popRegionTabs .region-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  _activePopRegion = { name, lat, lon };
+  populatePopMatrix(name, lat, lon);
+}
+
+function populatePopMatrix(zoneName, lat, lon) {
+  _activePopRegion = { name: zoneName, lat, lon };
+  const noteEl = document.getElementById('popRegionNote');
+  if (noteEl) noteEl.textContent = `Zone: ${zoneName} · ${lat?.toFixed(3)}, ${lon?.toFixed(3)}`;
+  const r = _analysisResults[zoneName];
+  if (r?.data?.result) {
+    renderPopTable(r.data.result, zoneName);
+    renderDisplacementPanel(r.data.result);
+    if (r.data.result.agent_chain) renderPipelineStrip('popPipelineStrip', r.data.result.agent_chain, r.data.result.checkpoint_status);
+  } else {
+    const tbody = document.getElementById('popTableBody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--slate-400);">Loading analysis for ${zoneName}…</td></tr>`;
+  }
+}
+
+function renderPopTable(result, zoneName) {
+  const tbody = document.getElementById('popTableBody');
+  if (!tbody) return;
+  const pd = result.predict_data  || {};
+  const dd = result.decision_data || {};
+  const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
+  const floodBase   = pd.flood_risk    || (alertLevel==='RED'?85:alertLevel==='ORANGE'?65:alertLevel==='YELLOW'?40:10);
+  const droughtBase = pd.drought_risk  || 15;
+  const heatBase    = pd.heatwave_risk || (alertLevel==='ORANGE'?55:15);
+
+  tbody.innerHTML = VULNERABILITY_GROUPS.map((grp, i) => {
+    const f  = Math.min(100, Math.round(floodBase   * grp.sensitivity.flood));
+    const d  = Math.min(100, Math.round(droughtBase * grp.sensitivity.drought));
+    const h  = Math.min(100, Math.round(heatBase    * grp.sensitivity.heat));
+    const ov = Math.max(f, d, h);
+    return `<tr>
+      <td><div class="zone-name-cell">${grp.name}</div><div class="zone-coord-cell">${zoneName}</div></td>
+      <td>${vulnChip(f)}</td><td style="width:70px;">${popBar(f,'var(--blue-600)')}</td>
+      <td>${vulnChip(d)}</td><td style="width:70px;">${popBar(d,'var(--amber-600)')}</td>
+      <td>${vulnChip(h)}</td><td style="width:70px;">${popBar(h,'var(--red-600)')}</td>
+      <td>${vulnChip(ov)}</td>
+      <td style="font-size:12px;color:var(--slate-600);max-width:200px;">${GROUP_ACTIONS[i]}</td>
+    </tr>`;
+  }).join('');
+}
+
+function vulnChip(val) {
+  if (val < 25)  return `<span class="sev sev-low"    style="font-size:11px;">${val}%</span>`;
+  if (val < 55)  return `<span class="sev sev-medium" style="font-size:11px;">${val}%</span>`;
+  if (val < 80)  return `<span class="sev sev-high"   style="font-size:11px;">${val}%</span>`;
+  return             `<span class="sev sev-critical"  style="font-size:11px;">${val}%</span>`;
+}
+function popBar(val, color) {
+  return `<div class="mini-bar"><div class="mini-bar-fill" style="width:${val}%;background:${color};"></div></div>`;
+}
+
+function renderDisplacementPanel(result) {
+  const panel = document.getElementById('displacementPanel');
+  if (!panel) return;
+  const pd = result.predict_data  || {};
+  const dd = result.decision_data || {};
+  const f  = pd.flood_risk    || 0;
+  const d  = pd.drought_risk  || 0;
+  const h  = pd.heatwave_risk || 0;
+  let note = DISPLACEMENT_NOTES.normal;
+  if (f >= 60)      note = DISPLACEMENT_NOTES.high_flood;
+  else if (d >= 60) note = DISPLACEMENT_NOTES.high_drought;
+  else if (h >= 60) note = DISPLACEMENT_NOTES.high_heat;
+
+  const steps = dd.recommended_actions || [];
+  panel.innerHTML = `
+    <div style="font-size:14px;font-weight:600;color:var(--slate-900);margin-bottom:10px;">Displacement Risk Assessment</div>
+    <div style="font-size:13px;color:var(--slate-600);line-height:1.6;margin-bottom:16px;padding:14px;background:var(--slate-50);border-radius:8px;border:1px solid var(--slate-200);">${note}</div>
+    ${steps.length ? `<div style="font-size:13px;font-weight:600;color:var(--slate-900);margin-bottom:8px;">Agent-Recommended Response Steps</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+    ${steps.map((s,i) => `<div style="display:flex;gap:10px;font-size:13px;color:var(--slate-600);">
+      <span style="width:20px;height:20px;border-radius:50%;background:var(--red-900);color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${i+1}</span>
+      <span>${s}</span></div>`).join('')}
+    </div>` : ''}`;
+}
+
+async function refreshPopulationAnalysis() {
+  if (!_activePopRegion) return;
+  const { name, lat, lon } = _activePopRegion;
+  const tbody = document.getElementById('popTableBody');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--slate-400);">Re-running analysis for ${name}…</td></tr>`;
+  try {
+    const r = await orgFetch('/api/agent/run/', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: `Humanitarian population vulnerability and displacement risk for ${name}. Assess flood, drought, heatwave risk with population impact analysis.`,
+        lat, lon, location_name: name, org_id: ORG_ID
+      })
+    });
+    const d = await r.json();
+    if (d.result) {
+      _analysisResults[name] = { zone: name, lat, lon, data: d };
+      renderPopTable(d.result, name);
+      renderDisplacementPanel(d.result);
+      if (d.result.agent_chain) renderPipelineStrip('popPipelineStrip', d.result.agent_chain, d.result.checkpoint_status);
+    }
+  } catch(e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--red-600);">Analysis failed. Please retry.</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RESPONSE ACTIONS
+// ═══════════════════════════════════════════════════════════════
+function selectResponseRegion(el, name, lat, lon) {
+  document.querySelectorAll('#responseRegionTabs .region-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  _activeRespRegion = { name, lat, lon };
+  populateResponseActions(name, lat, lon);
+}
+
+function populateResponseActions(zoneName, lat, lon) {
+  _activeRespRegion = { name: zoneName, lat, lon };
+  const r = _analysisResults[zoneName];
+  if (r?.data?.result) renderResponseActionCards(r.data.result, zoneName);
+}
+
+function renderResponseActionCards(result, zoneName) {
+  const container = document.getElementById('responseActionCards');
+  if (!container) return;
+  const dd = result.decision_data  || {};
+  const ad = result.action_data    || {};
+  const gd = result.governance_data || {};
+  const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
+  const lvlClass   = {GREEN:'level-green',YELLOW:'level-yellow',ORANGE:'level-orange',RED:'level-red'}[alertLevel] || 'level-info';
+
+  const immediate = dd.recommended_actions || ad.immediate_steps || [];
+  const notifyGroups = dd.notify_groups || [];
+  const resources = ad.resources_needed || [];
+  const sdgs = gd.sdg_alignment || [];
+  const govApproved = gd.approved !== false;
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <span class="advisory-level-chip chip-${alertLevel}" style="font-size:12px;padding:4px 14px;">${alertLevel} — ${zoneName}</span>
+      <span style="font-size:12px;color:var(--slate-500);">Priority: <strong>${dd.priority || 'Standard'}</strong></span>
+      ${dd.response_timeline_hours != null ? `<span style="font-size:12px;color:var(--slate-500);">Response window: <strong>${dd.response_timeline_hours}h</strong></span>` : ''}
+      <span style="${govApproved ? 'background:var(--green-100);color:var(--green-700);' : 'background:var(--red-100);color:var(--red-700);'} padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;">
+        ${govApproved ? 'GOVERNANCE APPROVED' : 'AWAITING APPROVAL'}
+      </span>
+    </div>
+
+    ${ad.alert_message ? `<div class="advisory-item ${lvlClass}" style="margin-bottom:16px;"><div class="advisory-body" style="font-size:14px;">${ad.alert_message}</div></div>` : ''}
+
+    <div class="action-cards-grid">
+      <div class="action-card">
+        <div class="action-card-title">Immediate Actions (0–24h)</div>
+        <ul>${(immediate.length ? immediate : ['No immediate actions generated']).map(a=>`<li>${a}</li>`).join('')}</ul>
+      </div>
+      <div class="action-card">
+        <div class="action-card-title">Notify Groups</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${notifyGroups.length ? notifyGroups.map(g=>`<span class="rs-pill rs-active">${g}</span>`).join('') : '<span style="font-size:12px;color:var(--slate-400);">No notifications required</span>'}
+        </div>
+      </div>
+      <div class="action-card">
+        <div class="action-card-title">Resources Needed</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${resources.length ? resources.map(r=>`<span style="background:var(--teal-50);color:var(--teal-700);border:1px solid var(--teal-100);padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;">${r}</span>`).join('') : '<span style="font-size:12px;color:var(--slate-400);">Standard resources sufficient</span>'}
+        </div>
+      </div>
+      <div class="action-card">
+        <div class="action-card-title">SDG Alignment</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+          ${sdgs.length ? sdgs.map(s=>`<span style="background:var(--blue-100);color:var(--blue-700);padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;">${s}</span>`).join('') : '<span style="font-size:12px;color:var(--slate-400);">—</span>'}
+        </div>
+      </div>
+    </div>
+
+    ${ad.sms_message ? `
+    <div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:6px;">SMS / Radio Alert Message</div>
+      <div style="background:var(--slate-900);color:#86efac;border-radius:8px;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;">${ad.sms_message}</div>
+    </div>` : ''}
+
+    <div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:6px;">Pipeline Trace</div>
+      ${buildPipelineHtml(result.agent_chain, result.checkpoint_status)}
+    </div>`;
+
+  // Governance panel
+  const govPanel = document.getElementById('governancePanel');
+  if (govPanel) {
+    govPanel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="${govApproved ? 'background:var(--green-600)' : 'background:var(--red-600)'};color:white;padding:3px 14px;border-radius:99px;font-weight:700;font-size:12px;">${govApproved ? 'APPROVED' : 'REJECTED'}</span>
+        <span style="font-size:12px;color:var(--slate-500);">Chain confidence: <strong>${gd.confidence_in_chain || '—'}%</strong></span>
+      </div>
+      <div style="background:var(--green-50);border-radius:8px;padding:12px;font-size:13px;line-height:1.6;margin-bottom:14px;border:1px solid var(--green-100);">${gd.final_recommendation || 'No governance recommendation generated.'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:6px;">Issues</div>
+          ${(gd.issues||[]).length ? (gd.issues||[]).map(i=>`<div style="font-size:12px;color:var(--red-600);padding:2px 0;">${i}</div>`).join('') : '<div style="font-size:12px;color:var(--slate-400);">None</div>'}
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:6px;">RAI Flags</div>
+          ${(gd.rai_flags||[]).length ? (gd.rai_flags||[]).map(f=>`<div style="font-size:12px;color:var(--orange-600);padding:2px 0;">${f}</div>`).join('') : '<div style="font-size:12px;color:var(--slate-400);">None</div>'}
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--slate-400);margin-bottom:6px;">UN SDG Alignment</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${sdgs.map(s=>`<span style="background:var(--blue-100);color:var(--blue-700);padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;">${s}</span>`).join('') || '<span style="font-size:12px;color:var(--slate-400);">—</span>'}</div>
+      </div>`;
+  }
+}
+
+async function refreshResponseActions() {
+  if (!_activeRespRegion) return;
+  const { name, lat, lon } = _activeRespRegion;
+  document.getElementById('responseActionCards').innerHTML = `<div class="empty-state"><div class="empty-title">Re-running agent analysis for ${name}…</div></div>`;
+  try {
+    const r = await orgFetch('/api/agent/run/', {
+      method: 'POST',
+      body: JSON.stringify({
+        query: `Full humanitarian response assessment for ${name}. Include immediate actions, notify groups, resource needs, SDG alignment.`,
+        lat, lon, location_name: name, org_id: ORG_ID
+      })
+    });
+    const d = await r.json();
+    if (d.result) {
+      _analysisResults[name] = { zone: name, lat, lon, data: d };
+      renderResponseActionCards(d.result, name);
+    }
+  } catch(e) {
+    document.getElementById('responseActionCards').innerHTML = `<div class="advisory-item level-red"><div class="advisory-body">Analysis failed. Please retry.</div></div>`;
+  }
+}
+
+function buildPipelineHtml(chain, checkpoint) {
+  const steps = ['monitor','predict','decision','action','governance'];
+  const done  = new Set((chain||[]).map(s=>s.agent));
+  const paused = checkpoint?.paused_at_step;
+  return `<div class="pipeline-strip">${steps.map(s => {
+    const step = (chain||[]).find(c=>c.agent===s);
+    const cls  = paused===s?'active':done.has(s)?'done':'pending';
+    const lat  = step ? `<span class="latency">${step.latency_ms}ms</span>` : '';
+    return `<div class="pipe-step ${cls}">${s.charAt(0).toUpperCase()+s.slice(1)}${lat}</div>`;
+  }).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RESOURCE ALLOCATION
+// ═══════════════════════════════════════════════════════════════
+function buildResourceAllocation(all) {
+  const panel = document.getElementById('resourceAllocationPanel');
+  if (!panel || !all.length) return;
+  const rows = all.map(r => {
+    const dd = r.data?.result?.decision_data || {};
+    const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
+    const priority   = dd.priority || 'Standard';
+    const color = {RED:'var(--red-600)',ORANGE:'var(--orange-600)',YELLOW:'var(--amber-500)',GREEN:'var(--green-600)'}[alertLevel];
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--slate-100);">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--slate-900);">${r.zone}</div>
+        <div style="font-size:11px;color:var(--slate-400);font-family:'IBM Plex Mono',monospace;">${r.lat?.toFixed(3)}, ${r.lon?.toFixed(3)}</div>
+      </div>
+      <span style="background:${color};color:white;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;">${alertLevel}</span>
+      <span style="font-size:12px;color:var(--slate-500);">Priority: <strong>${priority}</strong></span>
+      <span style="font-size:12px;color:var(--slate-500);">Response: <strong>${dd.response_timeline_hours != null ? dd.response_timeline_hours+'h' : '—'}</strong></span>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--slate-900);margin-bottom:12px;">Zone Prioritisation for Resource Deployment</div>${rows}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WEATHER
+// ═══════════════════════════════════════════════════════════════
+function updateWeatherUI(d) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+}
+
+async function loadWeatherSidebar(lat, lon, name) {
+  const el = document.getElementById('sidebarWeather');
+  if (!el) return;
+  try {
+    const r = await orgFetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
+    const d = await r.json();
+    el.innerHTML = `
+      <div class="wx-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.temperature != null ? d.temperature+'°' : '—'}</div><div class="wx-lbl">Temp</div></div>
+        <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.rain_24h != null ? d.rain_24h : '—'}mm</div><div class="wx-lbl">Rain 24h</div></div>
+        <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.humidity != null ? d.humidity+'%' : '—'}</div><div class="wx-lbl">Hum.</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--slate-400);text-align:center;margin-top:6px;">${d.is_raining ? 'Currently raining' : 'Dry'} · ${d.source||''}</div>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--slate-400);font-size:12px;text-align:center;">Conditions unavailable</div>';
+  }
+}
+
+let _weatherTabLoaded = false;
+async function initWeatherTab() {
+  if (_weatherTabLoaded) return;
+  _weatherTabLoaded = true;
+  const zones = [
+    {% for loc in locations|slice:":4" %}{ lat:{{ loc.latitude }}, lon:{{ loc.longitude }}, name:'{{ loc.name|escapejs }}', idx:{{ forloop.counter }} },{% endfor %}
+  ];
+  for (const z of zones) {
+    try {
+      const r = await orgFetch(`/api/weather/?lat=${z.lat}&lon=${z.lon}&name=${encodeURIComponent(z.name)}`);
+      const d = await r.json();
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set(`wxz${z.idx}-temp`, d.temperature != null ? d.temperature+'°' : '—');
+      set(`wxz${z.idx}-rain`, d.rain_24h != null ? d.rain_24h+'mm' : '—');
+      set(`wxz${z.idx}-hum`,  d.humidity  != null ? d.humidity+'%' : '—');
+      const c = document.getElementById(`wxz${z.idx}-cond`);
+      if (c) c.textContent = (d.is_raining ? 'Currently raining' : 'No current rain') + ' · ' + (d.source||'');
+      // Field access risk
+      const a = document.getElementById(`wxz${z.idx}-access`);
+      if (a) {
+        const r2 = _analysisResults[z.name];
+        const f = r2?.data?.result?.predict_data?.flood_risk || 0;
+        a.textContent = f >= 70 ? 'HIGH — Roads may be impassable' : f >= 40 ? 'MODERATE — 4WD recommended' : 'LOW — Normal field access';
+        a.style.color = f >= 70 ? 'var(--red-600)' : f >= 40 ? 'var(--orange-600)' : 'var(--green-600)';
+      }
+    } catch(e) {}
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OPERATION PHASE
+// ═══════════════════════════════════════════════════════════════
+function initOperationPhase() {
+  const m = new Date().getMonth() + 1;
+  let name, desc;
+  if      (m >= 3 && m <= 5)   { name = 'Long Rains Season';  desc = 'Elevated flood and displacement risk. Pre-position emergency stocks.'; }
+  else if (m >= 10 && m <= 12) { name = 'Short Rains Season'; desc = 'Second flood risk window. Monitor Tana River and coastal zones.'; }
+  else                          { name = 'Dry Season';         desc = 'Drought and food security risk elevated. Activate WASH protocols.'; }
+  const badge = document.getElementById('phaseBadge');
+  if (badge) badge.textContent = name;
+  document.getElementById('phaseName').textContent = name;
+  document.getElementById('phaseDesc').textContent = desc;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHECKPOINT
+// ═══════════════════════════════════════════════════════════════
+function approveCheckpoint() {
+  const banner = document.getElementById('checkpointBanner');
+  if (banner) banner.style.display = 'none';
+  showToast('Checkpoint approved — re-running analysis with authorisation');
+  triggerFullRefresh();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SINGLE ZONE ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+async function runZoneAnalysis(lat, lon, name) {
+  const el = document.getElementById('zoneRunResult');
+  if (el) el.innerHTML = `<div style="font-size:13px;color:var(--slate-400);">Analysing ${name}…</div>`;
+  try {
+    const r = await orgFetch('/api/agent/run/', {
+      method: 'POST',
+      body: JSON.stringify({ query:`Full humanitarian climate risk assessment for ${name}.`, lat, lon, org_id:ORG_ID, location_name:name })
+    });
+    const d = await r.json();
+    const result = d.result || {};
+    _analysisResults[name] = { zone:name, lat, lon, data:d };
+    const dd = result.decision_data || {};
+    const ad = result.action_data   || {};
+    const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
+    const lvlClass   = {GREEN:'level-green',YELLOW:'level-yellow',ORANGE:'level-orange',RED:'level-red'}[alertLevel]||'level-info';
+    const msg = ad.alert_message || result.action || 'Analysis complete.';
+    if (el) el.innerHTML = `
+      <div class="advisory-item ${lvlClass}" style="margin-top:4px;">
+        <div class="advisory-top"><div class="advisory-title">${name} — ${alertLevel}</div><span class="advisory-level-chip chip-${alertLevel}">${alertLevel}</span></div>
+        <div class="advisory-body">${msg}</div>
+        ${buildPipelineHtml(result.agent_chain, result.checkpoint_status)}
+        <div class="advisory-meta">Latency: ${d.latency_ms||'—'}ms</div>
+      </div>`;
+  } catch(e) {
+    if (el) el.innerHTML = `<div style="font-size:13px;color:var(--red-600);">Analysis failed. Please retry.</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ZONE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+function switchZone(lat, lon, name) {
+  loadWeatherSidebar(lat, lon, name);
+  flyToZone(lat, lon, name);
+}
+
+function flyToZone(lat, lon, name) {
+  showTab('overview', document.querySelector('.org-tab'));
+  if (window.orgMapInstance) {
+    window.orgMapInstance.flyTo([lat, lon], 12);
+    const info = document.getElementById('mapInfo');
+    if (info) info.textContent = `Focused: ${name}`;
+  }
+}
+
+function openAddZoneModal()  { document.getElementById('addZoneModal').style.display = 'flex'; }
+function closeAddZoneModal() {
+  document.getElementById('addZoneModal').style.display = 'none';
+  document.getElementById('zoneModalError').style.display = 'none';
+  ['newZoneName','newZoneLat','newZoneLon'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('newZoneRadius').value = '15';
+  document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('selected'));
+}
+
+function selectCity(name, lat, lon, chip) {
+  document.getElementById('newZoneName').value = name;
+  document.getElementById('newZoneLat').value  = lat;
+  document.getElementById('newZoneLon').value  = lon;
+  document.querySelectorAll('.city-chip').forEach(c => c.classList.remove('selected'));
+  chip.classList.add('selected');
+}
+
+async function saveNewZone() {
+  const name   = document.getElementById('newZoneName').value.trim();
+  const lat    = parseFloat(document.getElementById('newZoneLat').value);
+  const lon    = parseFloat(document.getElementById('newZoneLon').value);
+  const type   = document.getElementById('newZoneType').value;
+  const radius = parseFloat(document.getElementById('newZoneRadius').value) || 15;
+  const errEl  = document.getElementById('zoneModalError');
+  const btn    = document.getElementById('saveZoneBtn');
+  errEl.style.display = 'none';
+  if (!name)            { errEl.textContent = 'Zone name is required.'; errEl.style.display = 'block'; return; }
+  if (isNaN(lat)||isNaN(lon)) { errEl.textContent = 'Enter valid coordinates.'; errEl.style.display = 'block'; return; }
+  btn.textContent = 'Adding…'; btn.disabled = true;
+  try {
+    const r = await orgFetch('/api/locations/', { method:'POST', body:JSON.stringify({ name, lat, lon, org_id:ORG_ID, location_type:type, radius_km:radius }) });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Failed to add zone.'; errEl.style.display = 'block'; return; }
+    const list = document.getElementById('zoneList');
+    const noEl = list?.querySelector('.empty-state');
+    if (noEl) noEl.remove();
+    const loc = d.location;
+    const row = document.createElement('div');
+    row.className = 'zone-row'; row.id = `zone-row-${loc.id}`;
+    row.innerHTML = `
+      <div class="zone-indicator"></div>
+      <div class="zone-info"><div class="zone-name">${name}</div><div class="zone-coords">${lat}, ${lon} · ${radius} km</div></div>
+      <div class="zone-actions">
+        <button class="zone-btn" onclick="flyToZone(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Map</button>
+        <button class="zone-btn" onclick="runZoneAnalysis(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Analyse</button>
+        <button class="zone-btn danger" onclick="removeZone(${loc.id},'${name.replace(/'/g,"\\'")}',this)">Remove</button>
+      </div>`;
+    if (list) list.appendChild(row);
+    const k = document.getElementById('kpiZonesVal');
+    if (k) k.textContent = parseInt(k.textContent||'0') + 1;
+    closeAddZoneModal();
+    showToast(`"${name}" added to operation zones`);
+  } catch(e) {
+    errEl.textContent = 'Network error. Please retry.'; errEl.style.display = 'block';
+  }
+  btn.textContent = 'Add Zone'; btn.disabled = false;
+}
+
+async function removeZone(id, name, btn) {
+  if (!confirm(`Remove "${name}" from operation zones?`)) return;
+  try {
+    const r = await orgFetch(`/api/locations/${id}/`, { method:'DELETE' });
+    if (r.ok || r.status === 204) {
+      const row = document.getElementById(`zone-row-${id}`);
+      if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>row.remove(),300); }
+      const k = document.getElementById('kpiZonesVal');
+      if (k) k.textContent = Math.max(0, parseInt(k.textContent||'1')-1);
+      delete _analysisResults[name];
+      showToast(`"${name}" removed`);
+    }
+  } catch(e) { showToast('Could not remove zone','error'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT CALLBACK
+// ═══════════════════════════════════════════════════════════════
+function onChatResult(result) {
+  if (!result) return;
+  const wrap  = document.getElementById('chatPipelineWrap');
+  const strip = document.getElementById('chatPipelineStrip');
+  if (wrap && result.agent_chain) {
+    wrap.style.display = 'block';
+    renderPipelineStrip('chatPipelineStrip', result.agent_chain, result.checkpoint_status);
+    const meta = document.getElementById('chatIntentMeta');
+    if (meta) meta.textContent = `Intent: ${result.intent_classification||'—'} · ${Math.round((result.intent_confidence||0)*100)}% · Graph: ${result.selected_graph||'—'}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function showTab(name, el) {
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  const tab = document.getElementById('tab-' + name);
+  if (tab) tab.style.display = 'block';
+  document.querySelectorAll('.org-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'weather') initWeatherTab();
+  if (name === 'zones')   { const m = document.getElementById('zonesMap'); if (m && !m._inited) { initOrgMap('zonesMap'); m._inited=true; } }
+  if (name === 'population' && !_activePopRegion) {
+    const first = Object.values(_analysisResults)[0];
+    if (first) populatePopMatrix(first.zone, first.lat, first.lon);
+  }
+  if (name === 'response' && !_activeRespRegion) {
+    const first = Object.values(_analysisResults)[0];
+    if (first) populateResponseActions(first.zone, first.lat, first.lon);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUICK PROMPT
+// ═══════════════════════════════════════════════════════════════
+function quickPrompt(text) {
+  showTab('advisor', document.querySelectorAll('.org-tab')[7]);
+  document.getElementById('orgChatInput').value = text;
+  setTimeout(() => sendOrgMsg('orgChatInput','orgChatMessages','Humanitarian Advisor', onChatResult), 80);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${type==='error'?'var(--red-700)':'var(--slate-900)'};color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:var(--shadow-lg);z-index:99999;animation:fadeIn .2s ease;`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3000);
+}
+</script>
+{% endblock %}

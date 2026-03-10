@@ -255,7 +255,17 @@ def dashboard_community(request, org_id):
     ctx['page_title'] = 'Community Climate Dashboard'
     return render(request, 'organizations/community/dashboard.html', ctx)
 
-
+@_jwt_login_required
+def dashboard_developer(request, org_id):
+    org = _require_membership(request, org_id)
+    ctx = _base_context(request, org)
+    ctx.update({
+        'page_title': 'Developer Console',
+        'api_keys':  [],   # placeholder until APIKey model exists
+        'webhooks':  [],   # placeholder until Webhook model exists
+        'api_endpoints': ['agent/run', 'weather', 'alerts', 'token', 'token/refresh'],
+    })
+    return render(request, 'organizations/developer/dashboard.html', ctx)
 
 
 @_jwt_login_required

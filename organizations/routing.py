@@ -60,6 +60,13 @@ ORG_DASHBOARD_REGISTRY = {
         'color': '#0369a1',
         'template_prefix': 'government',
     },
+    'enterprise_developer': {
+    'dashboard_name': 'org_dashboard_developer',
+    'label': 'Developer',
+    'icon': '⌨️',
+    'color': '#3fb950',
+    'template_prefix': 'developer',
+    },
 
     # ── Community ─────────────────────────────────────────────────
     'community': {
@@ -78,7 +85,7 @@ WIZARD_TO_REGISTRY_KEY = {
     'disaster_relief': 'ngo',
     'meteorological':  'institution',
     'aviation':        'enterprise',
-    'developer':       'enterprise',
+    'developer':       'enterprise_developer',
     'government':      'government',
 }
 

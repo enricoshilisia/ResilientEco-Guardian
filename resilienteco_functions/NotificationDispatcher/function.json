@@ -1,0 +1,1 @@
+'{"scriptFile":"__init__.py","bindings":[{"name":"msg","type":"serviceBusTrigger","direction":"in","queueName":"resilienteco-notifications","connection":"SERVICE_BUS_CONNECTION"}]}' | Set-Content "D:\MaCo\resilienteco-guardian\resilienteco_functions\NotificationDispatcher\function.json"
