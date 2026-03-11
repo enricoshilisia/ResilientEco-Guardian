@@ -239,7 +239,7 @@ Farmers, agribusinesses, and cooperatives face crop loss, irrigation failure, an
 
 > *"Heatwave risk at 71% across all zones. Harvest leafy vegetables before 09:00 to avoid heat stress damage. Shade netting recommended for seedling beds. Hold all new transplanting until temperatures drop below 32°C. Current UV index is 9 — worker field hours should be limited to morning and late afternoon shifts."*
 
-![Agricultural dashboard showing crop risk matrix and planting window panel](images/01_home_chat_pipeline.png)
+![Agricultural dashboard showing crop risk matrix with per-crop flood, drought and heat scores and recommended actions](images/01_agric_crop_risk_matrix.png)
 
 &nbsp;
 
@@ -284,11 +284,11 @@ Weather is the single largest cause of aviation delay and incident. Ground handl
 
 **Sample AI Advisor recommendations for an aviation org:**
 
-> *"Wind shear risk at Wilson Airport is ORANGE. Surface winds at 28 knots gusting to 41 knots from 210°. Ceiling at 1,800ft and dropping — instrument conditions expected by 14:00. All VFR departures should be brought forward to before 12:30 or held until tomorrow morning. IFR alternates: Eldoret (clear) and Kisumu (marginal VFR, 3,200ft ceiling)."*
+> *"Wind shear risk at Wilson Airport is ORANGE. Surface winds 28 knots gusting to 41 knots from 210°. Ceiling at 1,800ft and dropping — instrument conditions expected by 14:00. All VFR departures should be brought forward to before 12:30 or held until tomorrow morning. IFR alternates: Eldoret (clear) and Kisumu (marginal VFR, 3,200ft ceiling)."*
 
-> *"Convective activity developing over the Rift Valley corridor. Probability of embedded thunderstorm cells 67% between 15:00 and 19:00 UTC. Routes transiting Nakuru–Kisumu should plan deviations of 15–20nm south. Turbulence moderate, occasional severe, FL080–FL180. SIGMET advisory recommended for all operators on this route."*
+> *"Convective activity developing over the Rift Valley corridor. Probability of embedded thunderstorm cells 67% between 15:00–19:00 UTC. Routes transiting Nakuru–Kisumu should plan deviations of 15–20nm south. Turbulence moderate, occasional severe, FL080–FL180. SIGMET advisory recommended for all operators on this route."*
 
-> *"Fog advisory for Mombasa Moi International. Visibility forecast to drop below 600m between 04:30 and 07:00 local. CAT I minima only. Ground de-icing not required but runway rubber contamination from recent rainfall increases braking action to MEDIUM. First departure slot recommended no earlier than 07:15."*
+> *"Fog advisory for Mombasa Moi International. Visibility forecast to drop below 600m between 04:30–07:00 local. CAT I minima only. Runway braking action MEDIUM due to recent rainfall. First departure slot recommended no earlier than 07:15."*
 
 ![Aviation dashboard showing hourly wind, visibility and convective breakdown for monitored zones](images/02_alert_risk_scores.png)
 
