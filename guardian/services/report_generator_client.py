@@ -27,13 +27,70 @@ REPORT_FUNCTION_KEY = os.environ.get("REPORT_FUNCTION_KEY", "")
 
 
 # ═══════════════════════════════════════════════════════════════
+# ORG TYPE RESOLUTION
+# ═══════════════════════════════════════════════════════════════
+
+# Maps org_type (model field) → report domain
+# org_subtype (wizard value) takes priority when present.
+_ORG_TYPE_TO_REPORT_DOMAIN = {
+    # org_subtype values (stored in org.org_subtype)
+    "meteorological":  "meteorological",
+    "disaster_relief": "disaster_relief",
+    "agriculture":     "agricultural",
+    "aviation":        "aviation",
+    "developer":       "developer",
+    "government":      "government",
+    # org_type fallbacks (stored in org.org_type)
+    "institution":     "meteorological",
+    "ngo":             "disaster_relief",
+    "enterprise":      "agricultural",
+    "community":       "agricultural",
+}
+
+# Report types the ReportGenerator function actually supports.
+# Anything not in this set falls back to "full".
+_SUPPORTED_REPORT_TYPES = {"agricultural", "meteorological", "full"}
+
+
+def resolve_org_report_domain(org) -> str:
+    """
+    Return the report domain string for an org object.
+
+    Priority order:
+      1. org.org_subtype  (set by the registration wizard — most specific)
+      2. org.org_type     (model-level field — broader bucket)
+      3. "agricultural"   (safe default)
+
+    Examples
+    --------
+    org.org_subtype="meteorological"  → "meteorological"
+    org.org_subtype="disaster_relief" → "disaster_relief"
+    org.org_subtype=None, org.org_type="ngo"         → "disaster_relief"
+    org.org_subtype=None, org.org_type="institution" → "meteorological"
+    org.org_subtype=None, org.org_type="enterprise"  → "agricultural"
+    """
+    if org is None:
+        return "agricultural"
+
+    subtype = getattr(org, "org_subtype", None) or ""
+    if subtype and subtype in _ORG_TYPE_TO_REPORT_DOMAIN:
+        return _ORG_TYPE_TO_REPORT_DOMAIN[subtype]
+
+    org_type = getattr(org, "org_type", None) or ""
+    if org_type and org_type in _ORG_TYPE_TO_REPORT_DOMAIN:
+        return _ORG_TYPE_TO_REPORT_DOMAIN[org_type]
+
+    return "agricultural"
+
+
+# ═══════════════════════════════════════════════════════════════
 # MAIN CLIENT CALL
 # ═══════════════════════════════════════════════════════════════
 
 async def call_report_generator(
     locations: list,
     org_name: str,
-    org_type: str = "agriculture",
+    org_type: str = "agricultural",
     report_type: str = "agricultural",
     fmt: str = "both",
 ) -> dict:
@@ -90,15 +147,63 @@ def is_report_request(query: str) -> bool:
     return any(kw in q for kw in REPORT_KEYWORDS)
 
 
-def detect_report_type(query: str, org_type: str) -> str:
+def detect_report_type(query: str, org_domain: str) -> str:
+    """
+    Determine the report_type to send to the Azure Function.
+
+    Parameters
+    ----------
+    query      : user's chat message (lowercased internally)
+    org_domain : value from resolve_org_report_domain() — NOT org.org_type
+
+    Rules
+    -----
+    - Meteorological orgs always get "meteorological" regardless of query keywords.
+    - Agricultural / enterprise orgs get "agricultural" by default, upgraded to
+      "full" when the query explicitly mentions weather/flood/drought concepts.
+    - Disaster-relief, government, and aviation orgs get "full" (cross-domain).
+    - Developer orgs default to "full" (they're testing the pipeline).
+    - Any query that explicitly mentions met/synoptic terms overrides to "meteorological".
+    - Falls back to "full" if the resolved type is not in _SUPPORTED_REPORT_TYPES.
+    """
     q = query.lower()
-    if org_type == "meteorological":
+
+    # 1. Explicit met query overrides everything except pure agricultural orgs
+    met_keywords = [
+        "synoptic", "isobar", "radiosonde", "upper air", "tropopause",
+        "meteorological", "met report", "pressure system", "frontal",
+    ]
+    if any(kw in q for kw in met_keywords):
         return "meteorological"
-    if any(w in q for w in ["crop", "plant", "irrigat", "harvest", "maize", "bean", "farm", "agricultural"]):
-        return "agricultural"
-    if any(w in q for w in ["flood", "drought", "heatwave", "weather", "forecast", "precipitation", "rainfall"]):
+
+    # 2. Branch by org domain
+    if org_domain == "meteorological":
+        return "meteorological"
+
+    if org_domain in ("disaster_relief", "government", "aviation"):
         return "full"
-    return "agricultural" if org_type == "agriculture" else "meteorological"
+
+    if org_domain == "developer":
+        return "full"
+
+    # agriculture / enterprise / community / unknown
+    # Upgrade to "full" if the query is about weather events rather than crops
+    weather_keywords = [
+        "flood", "drought", "heatwave", "weather", "forecast",
+        "precipitation", "rainfall", "storm", "cyclone",
+    ]
+    if any(kw in q for kw in weather_keywords):
+        return "full"
+
+    crop_keywords = [
+        "crop", "plant", "irrigat", "harvest", "maize", "bean",
+        "farm", "agricultural", "soil", "fertiliz",
+    ]
+    if any(kw in q for kw in crop_keywords):
+        return "agricultural"
+
+    # Default for agricultural/enterprise domains
+    return "agricultural"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -377,8 +482,10 @@ def render_report_as_chat_html(result: dict, pdf_filename: str = None) -> str:
 
 
 def render_report_for_met_chat(result: dict) -> str:
-    """Same renderer but with meteorological styling."""
-    # Met uses blue primary, ag uses green — swap the gradient
+    """Same renderer but with meteorological styling (blue gradient)."""
     html = render_report_as_chat_html(result)
     html = html.replace("135deg,#16a34a", "135deg,#1e3a8a")
+    html = html.replace("135deg,#dc2626", "135deg,#1e3a8a")
+    html = html.replace("135deg,#ea580c", "135deg,#1e3a8a")
+    html = html.replace("135deg,#d97706", "135deg,#1e3a8a")
     return html

@@ -1,4 +1,6 @@
 """
+guardian/consumers.py
+
 ResilientEco Guardian - WebSocket Consumer
 Renders structured JSON agent output as clean visual cards.
 """
@@ -17,6 +19,7 @@ from guardian.services.report_generator_client import (
     detect_report_type,
     render_report_as_chat_html,
     render_report_for_met_chat,
+    resolve_org_report_domain,          # ← new import
 )
 
 logger = logging.getLogger(__name__)
@@ -502,8 +505,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             from guardian.models import SavedLocation
 
-            # Resolve organisation from scope (adjust if your consumer has org on self)
             org = getattr(self, 'org', None)
+
+            # ── Resolve org domain (subtype-aware) ────────────────────
+            # resolve_org_report_domain checks org.org_subtype first,
+            # then org.org_type, so "meteorological" / "disaster_relief" etc.
+            # are all handled correctly without any hardcoded string comparisons.
+            org_domain = resolve_org_report_domain(org)
+            org_name   = getattr(org, 'name', 'ResilientEco') if org else 'ResilientEco'
+            report_type = detect_report_type(message, org_domain)
 
             if org:
                 org_locations_qs = await sync_to_async(list)(
@@ -521,21 +531,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if not report_locations:
                 report_locations = [{"name": location_name, "lat": lat, "lon": lon}]
 
-            org_type    = getattr(org, "org_type", "agriculture") if org else "agriculture"
-            org_name    = getattr(org, "name", "ResilientEco") if org else "ResilientEco"
-            report_type = detect_report_type(message, org_type)
-
             result = await call_report_generator(
                 locations=report_locations,
                 org_name=org_name,
-                org_type=org_type,
+                org_type=org_domain,        # ← domain string, not raw org.org_type
                 report_type=report_type,
                 fmt="both",
             )
 
+            # Use met-styled renderer for meteorological orgs,
+            # standard renderer for everything else.
             html = (
                 render_report_for_met_chat(result)
-                if org_type == "meteorological"
+                if org_domain == "meteorological"
                 else render_report_as_chat_html(result)
             )
 

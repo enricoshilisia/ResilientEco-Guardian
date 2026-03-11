@@ -3,14 +3,6 @@
 {% block title %}{{ org.name }} · Agricultural Intelligence · ResilientEco{% endblock %}
 
 {% block org_extra_styles %}
-/* ══════════════════════════════════════════════════════════════
-   AGRICULTURAL INTELLIGENCE DASHBOARD
-   Aesthetic: Refined utilitarian — precision instruments for
-   professional agronomists and agri-org decision makers.
-   Font: DM Sans (body) + DM Mono (data)
-   Color: Deep forest-green system with amber signal palette
-   ══════════════════════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
@@ -23,23 +15,19 @@
   --green-200: #bbf7d0;
   --green-100: #dcfce7;
   --green-50:  #f0fdf4;
-
   --amber-600: #d97706;
   --amber-500: #f59e0b;
   --amber-200: #fde68a;
   --amber-100: #fef3c7;
   --amber-50:  #fffbeb;
-
   --red-700:  #b91c1c;
   --red-600:  #dc2626;
   --red-200:  #fecaca;
   --red-100:  #fee2e2;
   --red-50:   #fff1f2;
-
   --blue-600: #2563eb;
   --blue-100: #dbeafe;
   --blue-50:  #eff6ff;
-
   --slate-900: #0f172a;
   --slate-800: #1e293b;
   --slate-700: #334155;
@@ -50,20 +38,13 @@
   --slate-200: #e2e8f0;
   --slate-100: #f1f5f9;
   --slate-50:  #f8fafc;
-
-  --org-color:  var(--green-600);
-  --org-dark:   var(--green-900);
-  --org-light:  var(--green-100);
-
   --surface:    #ffffff;
   --border:     var(--slate-200);
   --text-primary:   var(--slate-900);
   --text-secondary: var(--slate-600);
   --text-muted:     var(--slate-400);
-
   --font-body: 'DM Sans', -apple-system, sans-serif;
   --font-mono: 'DM Mono', 'Courier New', monospace;
-
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -75,73 +56,26 @@
 * { font-family: var(--font-body); }
 code, .mono { font-family: var(--font-mono); }
 
-/* ── Analysis loading overlay ───────────────────────────────── */
-#analysisLoadingOverlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(15,23,42,.85);
-  backdrop-filter: blur(6px);
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 20px;
-  opacity: 1; transition: opacity .4s ease;
+/* ── Skeleton shimmer ───────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
 }
-#analysisLoadingOverlay.hidden { opacity: 0; pointer-events: none; }
-.loading-card {
-  background: white; border-radius: var(--radius-lg);
-  padding: 36px 48px; width: min(480px, 92vw);
-  box-shadow: var(--shadow-lg);
-  text-align: center;
+.skeleton {
+  background: linear-gradient(90deg, var(--slate-100) 25%, var(--slate-50) 50%, var(--slate-100) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: 6px;
 }
-.loading-title {
-  font-size: 17px; font-weight: 700; color: var(--slate-900);
-  margin-bottom: 6px;
-}
-.loading-sub {
-  font-size: 13px; color: var(--slate-500); margin-bottom: 24px;
-}
-.loading-steps {
-  display: flex; flex-direction: column; gap: 8px;
-  text-align: left; margin-bottom: 24px;
-}
-.loading-step {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13px; color: var(--slate-600); padding: 8px 12px;
-  border-radius: var(--radius-sm); background: var(--slate-50);
-  border: 1px solid var(--border); transition: all .3s ease;
-}
-.loading-step.active {
-  background: var(--green-50); border-color: var(--green-200);
-  color: var(--green-800);
-}
-.loading-step.done {
-  background: var(--green-100); border-color: var(--green-200);
-  color: var(--green-700);
-}
-.loading-step .step-icon {
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--slate-200); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700; color: var(--slate-500);
-}
-.loading-step.active .step-icon {
-  background: var(--green-600); color: white;
-  animation: pulse 1.2s ease infinite;
-}
-.loading-step.done .step-icon { background: var(--green-600); color: white; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-
-.loading-bar-wrap {
-  height: 4px; background: var(--slate-200); border-radius: 99px;
-  overflow: hidden;
-}
-.loading-bar {
-  height: 100%; background: var(--green-600);
-  border-radius: 99px; width: 0%;
-  transition: width 8s cubic-bezier(.1,0,.2,1);
-}
-.loading-location {
-  font-size: 12px; color: var(--slate-400); margin-top: 12px;
-  font-family: var(--font-mono);
-}
+.sk-text  { height: 13px; margin-bottom: 6px; }
+.sk-text.w40  { width: 40%; }
+.sk-text.w60  { width: 60%; }
+.sk-text.w80  { width: 80%; }
+.sk-text.w100 { width: 100%; }
+.sk-num   { height: 28px; width: 60px; margin-bottom: 4px; }
+.sk-bar   { height: 8px; width: 100%; margin: 6px 0; }
+.sk-block { height: 60px; width: 100%; }
+.sk-row   { height: 44px; width: 100%; margin-bottom: 8px; }
 
 /* ── Status header bar ──────────────────────────────────────── */
 .intel-header {
@@ -157,43 +91,24 @@ code, .mono { font-family: var(--font-mono); }
   animation: statusPulse 2s ease infinite;
 }
 @keyframes statusPulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,.2)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,.08)} }
-.intel-header-title {
-  font-size: 13px; font-weight: 600; color: white;
-  letter-spacing: .01em;
-}
-.intel-header-sub {
-  font-size: 11px; color: rgba(255,255,255,.45);
-  font-family: var(--font-mono);
-}
+.intel-header-title { font-size: 13px; font-weight: 600; color: white; letter-spacing: .01em; }
+.intel-header-sub   { font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--font-mono); }
 .intel-header-right { display: flex; align-items: center; gap: 8px; }
-.intel-badge {
-  padding: 3px 10px; border-radius: 99px;
-  font-size: 10px; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase;
-}
+.intel-badge { padding: 3px 10px; border-radius: 99px; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .badge-live    { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.3); }
 .badge-season  { background: rgba(245,158,11,.15); color: #fcd34d; border: 1px solid rgba(245,158,11,.3); }
-.badge-refresh { 
-  background: rgba(255,255,255,.08); color: rgba(255,255,255,.6);
-  border: 1px solid rgba(255,255,255,.12); cursor: pointer;
-  transition: all .15s;
-}
+.badge-refresh { background: rgba(255,255,255,.08); color: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.12); cursor: pointer; transition: all .15s; }
 .badge-refresh:hover { background: rgba(255,255,255,.15); color: white; }
 
 /* ── KPI row ─────────────────────────────────────────────────── */
-.kpi-row {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-  margin-bottom: 16px;
-}
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 @media (max-width: 900px) { .kpi-row { grid-template-columns: 1fr 1fr; } }
 .kpi-card {
   background: white; border: 1px solid var(--border);
   border-radius: var(--radius-md); padding: 16px 18px;
   box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
 }
-.kpi-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-}
+.kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .kpi-card.flood::before    { background: var(--blue-600); }
 .kpi-card.drought::before  { background: var(--amber-600); }
 .kpi-card.heat::before     { background: var(--red-600); }
@@ -201,143 +116,68 @@ code, .mono { font-family: var(--font-mono); }
 .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 8px; }
 .kpi-value { font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1; margin-bottom: 4px; font-family: var(--font-mono); }
 .kpi-meta  { font-size: 11px; color: var(--text-muted); }
-.kpi-trend { 
-  position: absolute; top: 16px; right: 16px;
-  font-size: 11px; font-weight: 600; padding: 3px 8px;
-  border-radius: 99px;
-}
-.trend-up   { background: var(--red-100); color: var(--red-700); }
-.trend-down { background: var(--green-100); color: var(--green-700); }
-.trend-flat { background: var(--slate-100); color: var(--slate-600); }
 
 /* ── Main two-column layout ──────────────────────────────────── */
-.intel-grid {
-  display: grid; grid-template-columns: 1fr 360px; gap: 16px;
-  align-items: start;
-}
+.intel-grid { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
 @media (max-width: 1200px) { .intel-grid { grid-template-columns: 1fr; } }
 
 /* ── Cards ───────────────────────────────────────────────────── */
-.panel {
-  background: white; border: 1px solid var(--border);
-  border-radius: var(--radius-md); overflow: hidden;
-  box-shadow: var(--shadow-sm); margin-bottom: 16px;
-}
-.panel-head {
-  padding: 14px 18px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.panel-head-title {
-  font-size: 13px; font-weight: 600; color: var(--text-primary);
-  display: flex; align-items: center; gap: 8px;
-}
-.panel-head-title .icon {
-  width: 18px; height: 18px; opacity: .7;
-}
-.panel-head-action {
-  font-size: 12px; color: var(--text-muted); cursor: pointer;
-  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
-  background: var(--slate-50); transition: all .15s;
-  font-weight: 500;
-}
+.panel { background: white; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 16px; }
+.panel-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.panel-head-title { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.panel-head-title .icon { width: 18px; height: 18px; opacity: .7; }
+.panel-head-action { font-size: 12px; color: var(--text-muted); cursor: pointer; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--slate-50); transition: all .15s; font-weight: 500; }
 .panel-head-action:hover { border-color: var(--slate-400); color: var(--text-secondary); }
 .panel-body { padding: 18px; }
 
 /* ── Alert level bar ─────────────────────────────────────────── */
-.alert-level-bar {
-  display: flex; align-items: stretch; gap: 0;
-  border-radius: var(--radius-md); overflow: hidden;
-  border: 1px solid var(--border); margin-bottom: 16px;
-}
-.alert-level-seg {
-  flex: 1; padding: 14px 12px; text-align: center;
-  cursor: default; position: relative; transition: filter .2s;
-}
+.alert-level-bar { display: flex; align-items: stretch; gap: 0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); margin-bottom: 16px; }
+.alert-level-seg { flex: 1; padding: 14px 12px; text-align: center; cursor: default; position: relative; transition: filter .2s; }
 .alert-level-seg:not(:last-child) { border-right: 1px solid var(--border); }
-.alert-level-seg.active-GREEN { background: var(--green-50); }
+.alert-level-seg.active-GREEN  { background: var(--green-50); }
 .alert-level-seg.active-YELLOW { background: var(--amber-50); }
 .alert-level-seg.active-ORANGE { background: #fff7ed; }
-.alert-level-seg.active-RED { background: var(--red-50); }
+.alert-level-seg.active-RED    { background: var(--red-50); }
 .alert-level-seg:not([class*="active"]) { background: var(--slate-50); filter: opacity(.5); }
-.alert-seg-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
-  margin-bottom: 4px;
-}
-.alert-seg-val {
-  font-size: 20px; font-weight: 700; font-family: var(--font-mono);
-}
+.alert-seg-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.alert-seg-val   { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
 .seg-GREEN  .alert-seg-label, .seg-GREEN  .alert-seg-val { color: var(--green-700); }
 .seg-YELLOW .alert-seg-label, .seg-YELLOW .alert-seg-val { color: var(--amber-600); }
 .seg-ORANGE .alert-seg-label, .seg-ORANGE .alert-seg-val { color: #ea580c; }
 .seg-RED    .alert-seg-label, .seg-RED    .alert-seg-val { color: var(--red-700); }
 
-/* ── Risk gauge row ──────────────────────────────────────────── */
-.risk-gauges {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
-  margin-bottom: 16px;
-}
-.risk-gauge {
-  border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 14px; background: var(--slate-50);
-}
-.gauge-label {
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--text-muted); margin-bottom: 10px;
-}
-.gauge-track {
-  height: 6px; background: var(--slate-200); border-radius: 99px;
-  overflow: hidden; margin-bottom: 8px;
-}
-.gauge-fill {
-  height: 100%; border-radius: 99px;
-  transition: width 1.2s cubic-bezier(.4,0,.2,1);
-}
+/* ── Risk gauges ──────────────────────────────────────────────── */
+.risk-gauges { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.risk-gauge { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; background: var(--slate-50); }
+.gauge-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 10px; }
+.gauge-track { height: 6px; background: var(--slate-200); border-radius: 99px; overflow: hidden; margin-bottom: 8px; }
+.gauge-fill  { height: 100%; border-radius: 99px; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
 .gauge-flood   .gauge-fill { background: var(--blue-600); }
 .gauge-drought .gauge-fill { background: var(--amber-600); }
 .gauge-heat    .gauge-fill { background: var(--red-600); }
-.gauge-num {
-  font-size: 22px; font-weight: 700; font-family: var(--font-mono);
-  color: var(--text-primary);
-}
+.gauge-num { font-size: 22px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
 .gauge-pct { font-size: 13px; color: var(--text-muted); margin-left: 1px; }
 
 /* ── Crop risk table ──────────────────────────────────────────── */
 .crop-tbl { width: 100%; border-collapse: collapse; }
-.crop-tbl th {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: var(--text-muted); padding: 10px 14px;
-  border-bottom: 2px solid var(--border); text-align: left;
-  background: var(--slate-50);
-}
-.crop-tbl td {
-  padding: 11px 14px; border-bottom: 1px solid var(--slate-100);
-  font-size: 13px; color: var(--text-secondary); vertical-align: middle;
-}
+.crop-tbl th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); padding: 10px 14px; border-bottom: 2px solid var(--border); text-align: left; background: var(--slate-50); }
+.crop-tbl td { padding: 11px 14px; border-bottom: 1px solid var(--slate-100); font-size: 13px; color: var(--text-secondary); vertical-align: middle; }
 .crop-tbl tr:last-child td { border-bottom: none; }
 .crop-tbl tr:hover td { background: var(--slate-50); }
-.crop-name { font-weight: 600; color: var(--text-primary); }
+.crop-name   { font-weight: 600; color: var(--text-primary); }
 .crop-region { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
-.risk-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600;
-  white-space: nowrap;
-}
+.risk-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .risk-chip.low      { background: var(--green-100); color: var(--green-800); }
 .risk-chip.moderate { background: var(--amber-100); color: #92400e; }
 .risk-chip.high     { background: var(--red-100); color: var(--red-700); }
 .risk-chip.critical { background: var(--red-700); color: white; }
 .risk-bar-cell { width: 80px; }
-.mini-bar {
-  height: 4px; background: var(--slate-200); border-radius: 99px; overflow: hidden;
-}
+.mini-bar      { height: 4px; background: var(--slate-200); border-radius: 99px; overflow: hidden; }
 .mini-bar-fill { height: 100%; border-radius: 99px; }
 
 /* ── Advisory cards ───────────────────────────────────────────── */
 .advisory-list { display: flex; flex-direction: column; gap: 10px; }
-.advisory-item {
-  border-radius: var(--radius-md); padding: 14px 16px;
-  border: 1px solid; position: relative; overflow: hidden;
-}
+.advisory-item { border-radius: var(--radius-md); padding: 14px 16px; border: 1px solid; position: relative; overflow: hidden; }
 .advisory-item.level-green  { background: var(--green-50); border-color: var(--green-200); }
 .advisory-item.level-yellow { background: var(--amber-50); border-color: var(--amber-200); }
 .advisory-item.level-orange { background: #fff7ed; border-color: #fed7aa; }
@@ -350,10 +190,7 @@ code, .mono { font-family: var(--font-mono); }
 .level-orange .advisory-title { color: #c2410c; }
 .level-red    .advisory-title { color: var(--red-700); }
 .level-info   .advisory-title { color: var(--blue-600); }
-.advisory-level-chip {
-  flex-shrink: 0; padding: 2px 8px; border-radius: 99px;
-  font-size: 10px; font-weight: 700; letter-spacing: .06em;
-}
+.advisory-level-chip { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
 .chip-GREEN  { background: var(--green-700); color: white; }
 .chip-YELLOW { background: var(--amber-500); color: white; }
 .chip-ORANGE { background: #ea580c; color: white; }
@@ -362,235 +199,119 @@ code, .mono { font-family: var(--font-mono); }
 .advisory-meta { font-size: 11px; color: var(--text-muted); margin-top: 8px; font-family: var(--font-mono); }
 
 /* ── Weather panel ───────────────────────────────────────────── */
-.wx-grid {
-  display: grid; grid-template-columns: repeat(3,1fr); gap: 8px;
-  margin-bottom: 14px;
-}
-.wx-tile {
-  background: var(--slate-50); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 12px; text-align: center;
-}
+.wx-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 14px; }
+.wx-tile { background: var(--slate-50); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
 .wx-val { font-size: 22px; font-weight: 700; color: var(--slate-800); font-family: var(--font-mono); }
 .wx-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-top: 3px; font-weight: 600; }
 
 /* ── Region selector ──────────────────────────────────────────── */
-.region-tabs {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
-}
-.region-tab {
-  padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 500;
-  border: 1px solid var(--border); background: white; color: var(--text-secondary);
-  cursor: pointer; transition: all .15s;
-}
-.region-tab:hover { border-color: var(--green-600); color: var(--green-700); }
-.region-tab.active {
-  background: var(--green-900); border-color: var(--green-900); color: white;
-}
+.region-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.region-tab { padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; transition: all .15s; }
+.region-tab:hover  { border-color: var(--green-600); color: var(--green-700); }
+.region-tab.active { background: var(--green-900); border-color: var(--green-900); color: white; }
 
 /* ── Pipeline trace strip ────────────────────────────────────── */
-.pipeline-strip {
-  display: flex; align-items: center; gap: 0; margin-top: 12px;
-  background: var(--slate-50); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); overflow: hidden;
-  font-family: var(--font-mono); font-size: 11px;
-}
-.pipe-step {
-  flex: 1; padding: 7px 8px; text-align: center;
-  color: var(--text-muted); border-right: 1px solid var(--border);
-  transition: all .3s ease; white-space: nowrap;
-}
+.pipeline-strip { display: flex; align-items: center; gap: 0; margin-top: 12px; background: var(--slate-50); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; font-family: var(--font-mono); font-size: 11px; }
+.pipe-step { flex: 1; padding: 7px 8px; text-align: center; color: var(--text-muted); border-right: 1px solid var(--border); transition: all .3s ease; white-space: nowrap; }
 .pipe-step:last-child { border-right: none; }
-.pipe-step.done     { background: var(--green-50); color: var(--green-700); font-weight: 600; }
-.pipe-step.active   { background: var(--amber-50); color: var(--amber-600); font-weight: 600; }
-.pipe-step.pending  { color: var(--slate-300); }
-.pipe-step.failed   { background: var(--red-50); color: var(--red-700); }
+.pipe-step.done    { background: var(--green-50);  color: var(--green-700);  font-weight: 600; }
+.pipe-step.active  { background: var(--amber-50);  color: var(--amber-600);  font-weight: 600; }
+.pipe-step.pending { color: var(--slate-300); }
+.pipe-step.failed  { background: var(--red-50);    color: var(--red-700); }
 .pipe-step .latency { font-size: 9px; display: block; margin-top: 1px; opacity: .7; }
 
 /* ── Checkpoint banner ───────────────────────────────────────── */
-.checkpoint-banner {
-  background: var(--amber-50); border: 1.5px solid var(--amber-200);
-  border-radius: var(--radius-md); padding: 14px 18px;
-  display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
-}
-.checkpoint-icon {
-  width: 36px; height: 36px; background: var(--amber-500); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
+.checkpoint-banner { background: var(--amber-50); border: 1.5px solid var(--amber-200); border-radius: var(--radius-md); padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.checkpoint-icon   { width: 36px; height: 36px; background: var(--amber-500); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .checkpoint-icon svg { width: 18px; height: 18px; color: white; }
-.checkpoint-text { flex: 1; }
-.checkpoint-title { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 2px; }
-.checkpoint-sub   { font-size: 12px; color: var(--amber-600); }
-.btn-approve {
-  padding: 8px 18px; background: var(--amber-500); color: white;
-  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
-  cursor: pointer; border: none; white-space: nowrap; transition: background .15s;
-}
+.checkpoint-text   { flex: 1; }
+.checkpoint-title  { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 2px; }
+.checkpoint-sub    { font-size: 12px; color: var(--amber-600); }
+.btn-approve { padding: 8px 18px; background: var(--amber-500); color: white; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; border: none; white-space: nowrap; transition: background .15s; }
 .btn-approve:hover { background: var(--amber-600); }
 
 /* ── Alert log ───────────────────────────────────────────────── */
 .alert-log { display: flex; flex-direction: column; gap: 0; }
-.alert-log-item {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  transition: background .15s;
-}
+.alert-log-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background .15s; }
 .alert-log-item:last-child { border-bottom: none; }
 .alert-log-item:hover { background: var(--slate-50); }
-.alert-dot {
-  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
-}
+.alert-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
 .dot-red    { background: var(--red-600); }
 .dot-orange { background: #ea580c; }
 .dot-yellow { background: var(--amber-500); }
 .dot-green  { background: var(--green-600); }
-.alert-log-body { flex: 1; }
+.alert-log-body  { flex: 1; }
 .alert-log-title { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
 .alert-log-meta  { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
-.alert-log-level {
-  flex-shrink: 0; padding: 2px 8px; border-radius: 99px;
-  font-size: 10px; font-weight: 700; letter-spacing: .05em;
-}
+.alert-log-level { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; letter-spacing: .05em; }
 
 /* ── Zone manager ────────────────────────────────────────────── */
 .zone-list { display: flex; flex-direction: column; gap: 0; }
-.zone-row {
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-  border-bottom: 1px solid var(--border); cursor: default;
-}
+.zone-row  { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: default; }
 .zone-row:last-child { border-bottom: none; }
 .zone-row:hover { background: var(--slate-50); }
-.zone-indicator {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--green-600); flex-shrink: 0;
-}
+.zone-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--green-600); flex-shrink: 0; }
 .zone-indicator.primary { background: var(--amber-500); }
-.zone-info { flex: 1; }
+.zone-info   { flex: 1; }
 .zone-name   { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 .zone-coords { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px; }
 .zone-actions { display: flex; gap: 6px; }
-.zone-btn {
-  padding: 4px 10px; border-radius: var(--radius-sm);
-  font-size: 11px; font-weight: 500; border: 1px solid var(--border);
-  background: white; color: var(--text-secondary); cursor: pointer;
-  transition: all .15s;
-}
+.zone-btn { padding: 4px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; transition: all .15s; }
 .zone-btn:hover { border-color: var(--green-600); color: var(--green-700); }
 .zone-btn.danger:hover { border-color: var(--red-600); color: var(--red-600); }
 
 /* ── Chat interface ──────────────────────────────────────────── */
-#orgChatMessages {
-  min-height: 280px; max-height: 460px; overflow-y: auto;
-  padding: 16px; background: var(--slate-50);
-  border-radius: var(--radius-sm); margin-bottom: 12px;
-  border: 1px solid var(--border);
-}
+#orgChatMessages { min-height: 280px; max-height: 460px; overflow-y: auto; padding: 16px; background: var(--slate-50); border-radius: var(--radius-sm); margin-bottom: 12px; border: 1px solid var(--border); }
 .chat-msg { margin-bottom: 14px; }
 .chat-msg.user { display: flex; justify-content: flex-end; }
-.chat-msg.user .chat-bubble {
-  background: var(--green-900); color: white; border-radius: 14px 14px 4px 14px;
-  padding: 10px 14px; max-width: 75%; font-size: 13px; line-height: 1.5;
-}
-.chat-msg.assistant .chat-bubble {
-  background: white; color: var(--text-primary); border-radius: 4px 14px 14px 14px;
-  padding: 12px 16px; max-width: 85%; font-size: 13px; line-height: 1.6;
-  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
-}
+.chat-msg.user .chat-bubble { background: var(--green-900); color: white; border-radius: 14px 14px 4px 14px; padding: 10px 14px; max-width: 75%; font-size: 13px; line-height: 1.5; }
+.chat-msg.assistant .chat-bubble { background: white; color: var(--text-primary); border-radius: 4px 14px 14px 14px; padding: 12px 16px; max-width: 85%; font-size: 13px; line-height: 1.6; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .chat-msg.typing .chat-bubble { padding: 14px 16px; }
 .typing-dots { display: flex; gap: 4px; }
-.typing-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--slate-400); animation: typingBounce .8s ease infinite;
-}
+.typing-dot  { width: 6px; height: 6px; border-radius: 50%; background: var(--slate-400); animation: typingBounce .8s ease infinite; }
 .typing-dot:nth-child(2) { animation-delay: .15s; }
 .typing-dot:nth-child(3) { animation-delay: .30s; }
 @keyframes typingBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
 .org-chat-input { display: flex; gap: 8px; }
-.org-chat-input input {
-  flex: 1; padding: 10px 14px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-primary);
-  background: white; transition: border-color .15s;
-}
+.org-chat-input input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; color: var(--text-primary); background: white; transition: border-color .15s; }
 .org-chat-input input:focus { outline: none; border-color: var(--green-600); box-shadow: 0 0 0 3px rgba(22,163,74,.1); }
-.btn-send {
-  padding: 10px 20px; background: var(--green-900); color: white;
-  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
-  cursor: pointer; border: none; transition: background .15s; white-space: nowrap;
-}
+.btn-send { padding: 10px 20px; background: var(--green-900); color: white; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: background .15s; white-space: nowrap; }
 .btn-send:hover { background: var(--green-800); }
 
 /* ── Explainability drawer ───────────────────────────────────── */
-.explain-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 0; border-bottom: 1px solid var(--slate-100);
-  font-size: 12px;
-}
+.explain-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--slate-100); font-size: 12px; }
 .explain-row:last-child { border-bottom: none; }
-.explain-key   { color: var(--text-muted); width: 130px; flex-shrink: 0; font-family: var(--font-mono); }
-.explain-val   { color: var(--text-secondary); flex: 1; }
+.explain-key { color: var(--text-muted); width: 130px; flex-shrink: 0; font-family: var(--font-mono); }
+.explain-val { color: var(--text-secondary); flex: 1; }
 .explain-val.highlight { color: var(--green-700); font-weight: 600; }
 
 /* ── Add zone modal ──────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 9999; backdrop-filter: blur(4px);
-  animation: fadeIn .15s ease;
-}
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px); animation: fadeIn .15s ease; }
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-.modal-box {
-  background: white; border-radius: var(--radius-lg); padding: 28px;
-  width: min(500px, 95vw); box-shadow: var(--shadow-lg);
-  animation: slideUp .2s ease;
-}
+.modal-box { background: white; border-radius: var(--radius-lg); padding: 28px; width: min(500px, 95vw); box-shadow: var(--shadow-lg); animation: slideUp .2s ease; }
 @keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
 .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
 .modal-sub   { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
 .form-label  { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 6px; }
-.form-input, .form-select {
-  width: 100%; padding: 9px 12px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); font-size: 13px; color: var(--text-primary);
-  box-sizing: border-box; margin-bottom: 14px; background: white;
-}
-.form-input:focus, .form-select:focus {
-  outline: none; border-color: var(--green-600);
-  box-shadow: 0 0 0 3px rgba(22,163,74,.1);
-}
+.form-input, .form-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; color: var(--text-primary); box-sizing: border-box; margin-bottom: 14px; background: white; }
+.form-input:focus, .form-select:focus { outline: none; border-color: var(--green-600); box-shadow: 0 0 0 3px rgba(22,163,74,.1); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-.btn-ghost {
-  padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px;
-  font-weight: 500; border: 1px solid var(--border); background: white;
-  color: var(--text-secondary); cursor: pointer; transition: all .15s;
-}
+.btn-ghost { padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; transition: all .15s; }
 .btn-ghost:hover { border-color: var(--slate-400); }
-.btn-primary {
-  padding: 9px 18px; background: var(--green-900); color: white;
-  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
-  cursor: pointer; border: none; transition: background .15s;
-}
+.btn-primary { padding: 9px 18px; background: var(--green-900); color: white; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: background .15s; }
 .btn-primary:hover { background: var(--green-800); }
 .city-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-.city-chip {
-  padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 500;
-  border: 1px solid var(--border); background: white; color: var(--text-secondary);
-  cursor: pointer; transition: all .15s;
-}
+.city-chip { padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; transition: all .15s; }
 .city-chip:hover { border-color: var(--green-600); color: var(--green-700); }
 .city-chip.selected { background: var(--green-900); border-color: var(--green-900); color: white; }
 .form-error { color: var(--red-600); font-size: 12px; margin-bottom: 10px; display: none; }
 
 /* ── Utility ─────────────────────────────────────────────────── */
-.section-divider { 
-  height: 1px; background: var(--border); margin: 20px 0;
-}
-.empty-state {
-  text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px;
-}
+.section-divider { height: 1px; background: var(--border); margin: 20px 0; }
+.empty-state { text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px; }
 .empty-state .empty-title { font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; font-size: 14px; }
-.inline-badge {
-  display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700;
-  vertical-align: middle; margin-left: 4px;
-}
+.inline-badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; vertical-align: middle; margin-left: 4px; }
 .badge-primary { background: var(--amber-100); color: #92400e; }
 .run-meta { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 6px; }
 {% endblock %}
@@ -605,20 +326,24 @@ code, .mono { font-family: var(--font-mono); }
 {% endblock %}
 
 {% block sidebar_extra %}
-<!-- Season status -->
 <div class="sidebar-card">
   <div class="sidebar-card-head">Season Status</div>
   <div class="sidebar-card-body" id="sidebarSeason">
-    <div style="font-size:12px;color:var(--slate-500);">Detecting…</div>
+    <div class="skeleton sk-text w80"></div>
+    <div class="skeleton sk-text w60" style="margin-top:4px;"></div>
   </div>
 </div>
 
-<!-- Live conditions -->
 <div class="sidebar-card">
   <div class="sidebar-card-head">Current Conditions</div>
   <div class="sidebar-card-body" id="sidebarWeather">
     {% if locations %}
-    <div style="color:var(--slate-400);font-size:12px;text-align:center;">Loading…</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div class="wx-tile" style="padding:8px;"><div class="skeleton sk-num" style="margin:0 auto 4px;"></div><div class="wx-lbl">Temp</div></div>
+      <div class="wx-tile" style="padding:8px;"><div class="skeleton sk-num" style="margin:0 auto 4px;"></div><div class="wx-lbl">Rain</div></div>
+      <div class="wx-tile" style="padding:8px;"><div class="skeleton sk-num" style="margin:0 auto 4px;"></div><div class="wx-lbl">Hum.</div></div>
+    </div>
+    <div class="skeleton sk-text w60" style="margin:0 auto;"></div>
     {% else %}
     <div class="empty-state" style="padding:12px;">Add monitoring zones to see conditions</div>
     {% endif %}
@@ -626,15 +351,20 @@ code, .mono { font-family: var(--font-mono); }
   {% if locations %}<div style="font-size:11px;color:var(--slate-400);padding:0 14px 10px;font-family:'DM Mono',monospace;">{{ locations.0.name }}</div>{% endif %}
 </div>
 
-<!-- Agent pipeline status -->
 <div class="sidebar-card">
   <div class="sidebar-card-head">Analysis Pipeline</div>
   <div class="sidebar-card-body" id="sidebarPipeline">
-    <div style="font-size:12px;color:var(--slate-500);">Initialising…</div>
+    <div class="skeleton sk-text w60"></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;">
+      <div class="skeleton" style="height:20px;width:52px;border-radius:99px;"></div>
+      <div class="skeleton" style="height:20px;width:48px;border-radius:99px;"></div>
+      <div class="skeleton" style="height:20px;width:56px;border-radius:99px;"></div>
+      <div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div>
+      <div class="skeleton" style="height:20px;width:64px;border-radius:99px;"></div>
+    </div>
   </div>
 </div>
 
-<!-- Zone quick-switch -->
 {% if locations %}
 <div class="sidebar-card">
   <div class="sidebar-card-head">Zones</div>
@@ -661,42 +391,6 @@ code, .mono { font-family: var(--font-mono); }
 {% endblock %}
 
 {% block org_main %}
-
-<!-- ══ LOADING OVERLAY (auto-dismissed after initial analysis) ══ -->
-<div id="analysisLoadingOverlay">
-  <div class="loading-card">
-    <div class="loading-title">Initialising Agricultural Intelligence</div>
-    <div class="loading-sub">Running full 5-agent analysis for {{ org.name }}</div>
-    <div class="loading-steps" id="loadingSteps">
-      <div class="loading-step" id="lstep-weather">
-        <div class="step-icon">1</div>
-        <span>Fetching weather &amp; climate data</span>
-      </div>
-      <div class="loading-step" id="lstep-monitor">
-        <div class="step-icon">2</div>
-        <span>Monitor Agent — scanning environmental signals</span>
-      </div>
-      <div class="loading-step" id="lstep-predict">
-        <div class="step-icon">3</div>
-        <span>Predict Agent — assessing flood, drought, heat risk</span>
-      </div>
-      <div class="loading-step" id="lstep-decision">
-        <div class="step-icon">4</div>
-        <span>Decision Agent — determining alert level</span>
-      </div>
-      <div class="loading-step" id="lstep-action">
-        <div class="step-icon">5</div>
-        <span>Action &amp; Governance Agents — generating advisories</span>
-      </div>
-    </div>
-    <div class="loading-bar-wrap">
-      <div class="loading-bar" id="loadingBar"></div>
-    </div>
-    <div class="loading-location" id="loadingLocation">
-      {% if locations %}{{ locations.0.name }}{% else %}—{% endif %}
-    </div>
-  </div>
-</div>
 
 <!-- ══ STATUS HEADER ══════════════════════════════════════════ -->
 <div class="intel-header" id="intelHeader">
@@ -741,7 +435,7 @@ code, .mono { font-family: var(--font-mono); }
 <!-- ══ TAB: OVERVIEW ══════════════════════════════════════════ -->
 <div id="tab-overview">
 
-  <!-- Checkpoint banner -->
+  <!-- Checkpoint banner (hidden until needed) -->
   <div id="checkpointBanner" class="checkpoint-banner" style="display:none;">
     <div class="checkpoint-icon">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
@@ -767,56 +461,60 @@ code, .mono { font-family: var(--font-mono); }
           <div class="run-meta" id="alertRunMeta"></div>
         </div>
         <div class="panel-body">
-          <div class="alert-level-bar" id="alertLevelBar">
-            <div class="alert-level-seg seg-GREEN" id="seg-GREEN">
-              <div class="alert-seg-label">Green</div>
-              <div class="alert-seg-val">—</div>
-            </div>
-            <div class="alert-level-seg seg-YELLOW" id="seg-YELLOW">
-              <div class="alert-seg-label">Yellow</div>
-              <div class="alert-seg-val">—</div>
-            </div>
-            <div class="alert-level-seg seg-ORANGE" id="seg-ORANGE">
-              <div class="alert-seg-label">Orange</div>
-              <div class="alert-seg-val">—</div>
-            </div>
-            <div class="alert-level-seg seg-RED" id="seg-RED">
-              <div class="alert-seg-label">Red</div>
-              <div class="alert-seg-val">—</div>
+
+          <!-- Alert bar: skeleton until data loads -->
+          <div id="alertLevelBarWrap">
+            <div class="alert-level-bar" id="alertLevelBar">
+              <div class="alert-level-seg seg-GREEN" id="seg-GREEN">
+                <div class="alert-seg-label">Green</div>
+                <div class="alert-seg-val"><div class="skeleton sk-num" style="margin:0 auto;width:32px;height:22px;"></div></div>
+              </div>
+              <div class="alert-level-seg seg-YELLOW" id="seg-YELLOW">
+                <div class="alert-seg-label">Yellow</div>
+                <div class="alert-seg-val"><div class="skeleton sk-num" style="margin:0 auto;width:32px;height:22px;"></div></div>
+              </div>
+              <div class="alert-level-seg seg-ORANGE" id="seg-ORANGE">
+                <div class="alert-seg-label">Orange</div>
+                <div class="alert-seg-val"><div class="skeleton sk-num" style="margin:0 auto;width:32px;height:22px;"></div></div>
+              </div>
+              <div class="alert-level-seg seg-RED" id="seg-RED">
+                <div class="alert-seg-label">Red</div>
+                <div class="alert-seg-val"><div class="skeleton sk-num" style="margin:0 auto;width:32px;height:22px;"></div></div>
+              </div>
             </div>
           </div>
 
-          <!-- Risk gauges -->
-          <div class="risk-gauges">
+          <!-- Risk gauges: skeleton -->
+          <div class="risk-gauges" id="riskGaugesWrap">
             <div class="risk-gauge gauge-flood">
               <div class="gauge-label">Flood Risk</div>
-              <div class="gauge-track"><div class="gauge-fill" id="gauge-flood" style="width:0%"></div></div>
-              <div><span class="gauge-num" id="gaugeFloodNum">—</span><span class="gauge-pct">%</span></div>
+              <div class="gauge-track"><div class="gauge-fill skeleton" id="gauge-flood" style="width:100%;background:none;"></div></div>
+              <div><span class="gauge-num" id="gaugeFloodNum"><div class="skeleton sk-num" style="width:40px;height:22px;"></div></span><span class="gauge-pct"></span></div>
             </div>
             <div class="risk-gauge gauge-drought">
               <div class="gauge-label">Drought Risk</div>
-              <div class="gauge-track"><div class="gauge-fill" id="gauge-drought" style="width:0%"></div></div>
-              <div><span class="gauge-num" id="gaugeDroughtNum">—</span><span class="gauge-pct">%</span></div>
+              <div class="gauge-track"><div class="gauge-fill skeleton" id="gauge-drought" style="width:100%;background:none;"></div></div>
+              <div><span class="gauge-num" id="gaugeDroughtNum"><div class="skeleton sk-num" style="width:40px;height:22px;"></div></span><span class="gauge-pct"></span></div>
             </div>
             <div class="risk-gauge gauge-heat">
               <div class="gauge-label">Heatwave Risk</div>
-              <div class="gauge-track"><div class="gauge-fill" id="gauge-heat" style="width:0%"></div></div>
-              <div><span class="gauge-num" id="gaugeHeatNum">—</span><span class="gauge-pct">%</span></div>
+              <div class="gauge-track"><div class="gauge-fill skeleton" id="gauge-heat" style="width:100%;background:none;"></div></div>
+              <div><span class="gauge-num" id="gaugeHeatNum"><div class="skeleton sk-num" style="width:40px;height:22px;"></div></span><span class="gauge-pct"></span></div>
             </div>
           </div>
 
-          <!-- Pipeline trace -->
+          <!-- Pipeline strip: skeleton -->
           <div class="pipeline-strip" id="pipelineStrip">
-            <div class="pipe-step pending" id="pipe-monitor">Monitor</div>
-            <div class="pipe-step pending" id="pipe-predict">Predict</div>
-            <div class="pipe-step pending" id="pipe-decision">Decision</div>
-            <div class="pipe-step pending" id="pipe-action">Action</div>
-            <div class="pipe-step pending" id="pipe-governance">Governance</div>
+            <div class="pipe-step pending">Monitor</div>
+            <div class="pipe-step pending">Predict</div>
+            <div class="pipe-step pending">Decision</div>
+            <div class="pipe-step pending">Action</div>
+            <div class="pipe-step pending">Governance</div>
           </div>
         </div>
       </div>
 
-      <!-- Active advisories -->
+      <!-- Active advisories with skeleton placeholders -->
       <div class="panel">
         <div class="panel-head">
           <div class="panel-head-title">
@@ -826,12 +524,23 @@ code, .mono { font-family: var(--font-mono); }
           <span class="run-meta" id="advisoryMeta"></span>
         </div>
         <div class="panel-body" id="advisoryList">
+          <!-- Skeleton advisory cards -->
           <div class="advisory-list">
-            <div class="advisory-item level-info">
-              <div class="advisory-top">
-                <div class="advisory-title">Analysis Running</div>
+            <div class="advisory-item level-info" style="background:var(--slate-50);border-color:var(--slate-200);">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <div class="skeleton sk-text w60"></div>
+                <div class="skeleton" style="height:18px;width:44px;border-radius:99px;"></div>
               </div>
-              <div class="advisory-body">Multi-agent pipeline is analysing all {{ locations|length }} monitoring zone{{ locations|length|pluralize }}. Advisories will appear here momentarily.</div>
+              <div class="skeleton sk-text w100"></div>
+              <div class="skeleton sk-text w80"></div>
+            </div>
+            <div class="advisory-item level-info" style="background:var(--slate-50);border-color:var(--slate-200);">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <div class="skeleton sk-text w40"></div>
+                <div class="skeleton" style="height:18px;width:44px;border-radius:99px;"></div>
+              </div>
+              <div class="skeleton sk-text w100"></div>
+              <div class="skeleton sk-text w60"></div>
             </div>
           </div>
         </div>
@@ -854,7 +563,7 @@ code, .mono { font-family: var(--font-mono); }
 
     </div>
 
-    <!-- Right column: weather + explainability -->
+    <!-- Right column -->
     <div>
 
       <!-- Current weather -->
@@ -867,23 +576,23 @@ code, .mono { font-family: var(--font-mono); }
         </div>
         <div class="panel-body" id="currentWeatherPanel">
           <div class="wx-grid">
-            <div class="wx-tile"><div class="wx-val" id="wx-temp">—</div><div class="wx-lbl">Temp °C</div></div>
-            <div class="wx-tile"><div class="wx-val" id="wx-rain">—</div><div class="wx-lbl">Rain 24h mm</div></div>
-            <div class="wx-tile"><div class="wx-val" id="wx-hum">—</div><div class="wx-lbl">Humidity %</div></div>
+            <div class="wx-tile"><div class="wx-val" id="wx-temp"><div class="skeleton sk-num" style="width:48px;margin:0 auto;"></div></div><div class="wx-lbl">Temp °C</div></div>
+            <div class="wx-tile"><div class="wx-val" id="wx-rain"><div class="skeleton sk-num" style="width:48px;margin:0 auto;"></div></div><div class="wx-lbl">Rain 24h mm</div></div>
+            <div class="wx-tile"><div class="wx-val" id="wx-hum"><div class="skeleton sk-num" style="width:48px;margin:0 auto;"></div></div><div class="wx-lbl">Humidity %</div></div>
           </div>
-          <div style="font-size:12px;color:var(--slate-500);text-align:center;" id="wx-cond">Loading conditions…</div>
+          <div class="skeleton sk-text w60" style="margin:0 auto;" id="wx-cond"></div>
           <div class="section-divider"></div>
           <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Forecast</div>
           <div style="display:flex;gap:8px;">
             <div style="flex:1;padding:10px;background:var(--slate-50);border-radius:6px;border:1px solid var(--border);text-align:center;">
               <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:4px;">Today</div>
-              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;" id="wx-today-rain">—<small style="font-size:11px;font-weight:400;">mm</small></div>
-              <div style="font-size:10px;color:var(--text-muted);" id="wx-today-prob">—% chance</div>
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;" id="wx-today-rain"><div class="skeleton sk-num" style="width:44px;margin:0 auto;height:20px;"></div></div>
+              <div style="font-size:10px;color:var(--text-muted);" id="wx-today-prob"><div class="skeleton sk-text w60" style="margin:4px auto 0;"></div></div>
             </div>
             <div style="flex:1;padding:10px;background:var(--slate-50);border-radius:6px;border:1px solid var(--border);text-align:center;">
               <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:4px;">Tomorrow</div>
-              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;" id="wx-tmrw-rain">—<small style="font-size:11px;font-weight:400;">mm</small></div>
-              <div style="font-size:10px;color:var(--text-muted);" id="wx-tmrw-prob">—% chance</div>
+              <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;" id="wx-tmrw-rain"><div class="skeleton sk-num" style="width:44px;margin:0 auto;height:20px;"></div></div>
+              <div style="font-size:10px;color:var(--text-muted);" id="wx-tmrw-prob"><div class="skeleton sk-text w60" style="margin:4px auto 0;"></div></div>
             </div>
           </div>
         </div>
@@ -898,7 +607,13 @@ code, .mono { font-family: var(--font-mono); }
           </div>
         </div>
         <div class="panel-body" id="explainPanel">
-          <div class="empty-state" style="padding:16px 0;"><div class="empty-title" style="font-size:13px;">Analysis pending…</div></div>
+          <!-- Skeleton rows -->
+          {% for i in "1234567" %}
+          <div class="explain-row">
+            <div class="explain-key"><div class="skeleton sk-text" style="width:80px;"></div></div>
+            <div class="explain-val"><div class="skeleton sk-text" style="width:{{ forloop.counter|add:"4" }}0%;max-width:100%;"></div></div>
+          </div>
+          {% endfor %}
         </div>
       </div>
 
@@ -909,7 +624,6 @@ code, .mono { font-family: var(--font-mono); }
 
 <!-- ══ TAB: CROP RISK MATRIX ═══════════════════════════════════ -->
 <div id="tab-crop-risk" style="display:none;">
-
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">
       <div class="panel-head-title">
@@ -933,29 +647,33 @@ code, .mono { font-family: var(--font-mono); }
         <thead>
           <tr>
             <th style="width:180px;">Crop / Region</th>
-            <th>Flood Risk</th>
-            <th style="width:70px;"></th>
-            <th>Drought Risk</th>
-            <th style="width:70px;"></th>
-            <th>Heat Risk</th>
-            <th style="width:70px;"></th>
+            <th>Flood Risk</th><th style="width:70px;"></th>
+            <th>Drought Risk</th><th style="width:70px;"></th>
+            <th>Heat Risk</th><th style="width:70px;"></th>
             <th>Overall</th>
             <th>Recommended Action</th>
           </tr>
         </thead>
         <tbody id="cropTableBody">
+          {% for i in "12345678" %}
           <tr>
-            <td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">
-              Crop risk matrix is loading from agent analysis…
-            </td>
+            <td><div class="skeleton sk-text w80"></div><div class="skeleton sk-text w60" style="margin-top:4px;"></div></td>
+            <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+            <td><div class="skeleton sk-bar"></div></td>
+            <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+            <td><div class="skeleton sk-bar"></div></td>
+            <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+            <td><div class="skeleton sk-bar"></div></td>
+            <td><div class="skeleton" style="height:20px;width:52px;border-radius:99px;"></div></td>
+            <td><div class="skeleton sk-text w100"></div></td>
           </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
     <div class="pipeline-strip" id="cropPipelineStrip" style="margin:12px 16px;"></div>
   </div>
 
-  <!-- Irrigation guidance -->
   <div class="panel">
     <div class="panel-head">
       <div class="panel-head-title">
@@ -964,10 +682,12 @@ code, .mono { font-family: var(--font-mono); }
       </div>
     </div>
     <div class="panel-body" id="irrigationPanel">
-      <div class="empty-state"><div class="empty-title">Select a region above to view irrigation guidance</div></div>
+      <div class="skeleton sk-text w80" style="margin-bottom:8px;"></div>
+      <div class="skeleton sk-block" style="margin-bottom:12px;border-radius:8px;"></div>
+      <div class="skeleton sk-text w60" style="margin-bottom:8px;"></div>
+      {% for i in "123" %}<div class="skeleton sk-row" style="border-radius:6px;"></div>{% endfor %}
     </div>
   </div>
-
 </div>
 
 <!-- ══ TAB: WEATHER ════════════════════════════════════════════ -->
@@ -981,11 +701,11 @@ code, .mono { font-family: var(--font-mono); }
       </div>
       <div class="panel-body" id="wxZone-{{ forloop.counter }}">
         <div class="wx-grid">
-          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-temp">—</div><div class="wx-lbl">Temp °C</div></div>
-          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-rain">—</div><div class="wx-lbl">Rain mm</div></div>
-          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-hum">—</div><div class="wx-lbl">Humidity %</div></div>
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-temp"><div class="skeleton sk-num" style="width:40px;margin:0 auto;"></div></div><div class="wx-lbl">Temp °C</div></div>
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-rain"><div class="skeleton sk-num" style="width:40px;margin:0 auto;"></div></div><div class="wx-lbl">Rain mm</div></div>
+          <div class="wx-tile"><div class="wx-val" id="wxz{{ forloop.counter }}-hum"><div class="skeleton sk-num" style="width:40px;margin:0 auto;"></div></div><div class="wx-lbl">Humidity %</div></div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="wxz{{ forloop.counter }}-cond">Loading…</div>
+        <div class="skeleton sk-text w60" id="wxz{{ forloop.counter }}-cond"></div>
       </div>
     </div>
     {% empty %}
@@ -999,6 +719,7 @@ code, .mono { font-family: var(--font-mono); }
 <!-- ══ TAB: ALERT LOG ═════════════════════════════════════════ -->
 <div id="tab-alerts" style="display:none;">
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+
     <div class="panel">
       <div class="panel-head">
         <div class="panel-head-title">Flood Alerts</div>
@@ -1014,7 +735,17 @@ code, .mono { font-family: var(--font-mono); }
           </div>
         </div>
         {% empty %}
-        <div class="empty-state">No flood alerts recorded</div>
+        <!-- Skeleton rows while live data may not be synced -->
+        {% for i in "123" %}
+        <div class="alert-log-item">
+          <div class="alert-dot" style="background:var(--slate-200);"></div>
+          <div class="alert-log-body">
+            <div class="skeleton sk-text w80"></div>
+            <div class="skeleton sk-text w60" style="margin-top:4px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);text-align:center;border-top:1px solid var(--border);">No flood alerts recorded</div>
         {% endfor %}
       </div>
     </div>
@@ -1034,7 +765,16 @@ code, .mono { font-family: var(--font-mono); }
           </div>
         </div>
         {% empty %}
-        <div class="empty-state">No drought alerts recorded</div>
+        {% for i in "123" %}
+        <div class="alert-log-item">
+          <div class="alert-dot" style="background:var(--slate-200);"></div>
+          <div class="alert-log-body">
+            <div class="skeleton sk-text w80"></div>
+            <div class="skeleton sk-text w60" style="margin-top:4px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);text-align:center;border-top:1px solid var(--border);">No drought alerts recorded</div>
         {% endfor %}
       </div>
     </div>
@@ -1054,10 +794,20 @@ code, .mono { font-family: var(--font-mono); }
           </div>
         </div>
         {% empty %}
-        <div class="empty-state">No heatwave alerts recorded</div>
+        {% for i in "123" %}
+        <div class="alert-log-item">
+          <div class="alert-dot" style="background:var(--slate-200);"></div>
+          <div class="alert-log-body">
+            <div class="skeleton sk-text w80"></div>
+            <div class="skeleton sk-text w60" style="margin-top:4px;"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);text-align:center;border-top:1px solid var(--border);">No heatwave alerts recorded</div>
         {% endfor %}
       </div>
     </div>
+
   </div>
 
   {% if can_manage %}
@@ -1066,9 +816,7 @@ code, .mono { font-family: var(--font-mono); }
     <div class="panel-body">
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         {% for loc in locations|slice:":6" %}
-        <button class="btn-ghost" onclick="runZoneAnalysis({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">
-          Analyse {{ loc.name }}
-        </button>
+        <button class="btn-ghost" onclick="runZoneAnalysis({{ loc.latitude }},{{ loc.longitude }},'{{ loc.name|escapejs }}')">Analyse {{ loc.name }}</button>
         {% endfor %}
       </div>
       <div id="zoneRunResult" style="margin-top:14px;"></div>
@@ -1082,9 +830,7 @@ code, .mono { font-family: var(--font-mono); }
   <div class="panel">
     <div class="panel-head">
       <div class="panel-head-title">Monitoring Zones</div>
-      {% if can_manage %}
-      <button class="btn-primary" onclick="openAddZoneModal()">Add Zone</button>
-      {% endif %}
+      {% if can_manage %}<button class="btn-primary" onclick="openAddZoneModal()">Add Zone</button>{% endif %}
     </div>
     <div class="zone-list" id="zoneList">
       {% if locations %}
@@ -1172,7 +918,6 @@ code, .mono { font-family: var(--font-mono); }
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">Add Monitoring Zone</div>
     <div class="modal-sub">Add a farm, field, or agricultural region to monitor.</div>
-
     <label class="form-label">Quick-select a location</label>
     <div class="city-chips" id="cityChips">
       <div class="city-chip" onclick="selectCity('Nairobi',-1.2921,36.8219,this)">Nairobi</div>
@@ -1185,23 +930,13 @@ code, .mono { font-family: var(--font-mono); }
       <div class="city-chip" onclick="selectCity('Nyeri',-0.4167,36.95,this)">Nyeri</div>
       <div class="city-chip" onclick="selectCity('Kitale',1.0157,35.0062,this)">Kitale</div>
     </div>
-
     <div style="text-align:center;font-size:11px;color:var(--text-muted);margin:-4px 0 14px;">— or enter custom coordinates —</div>
-
     <label class="form-label">Zone / Farm Name *</label>
     <input type="text" id="newZoneName" class="form-input" placeholder="e.g. Rift Valley Farm, Upper Kisumu Delta" />
-
     <div class="form-row">
-      <div>
-        <label class="form-label">Latitude *</label>
-        <input type="number" id="newZoneLat" class="form-input" placeholder="-1.2921" step="0.0001" />
-      </div>
-      <div>
-        <label class="form-label">Longitude *</label>
-        <input type="number" id="newZoneLon" class="form-input" placeholder="36.8219" step="0.0001" />
-      </div>
+      <div><label class="form-label">Latitude *</label><input type="number" id="newZoneLat" class="form-input" placeholder="-1.2921" step="0.0001" /></div>
+      <div><label class="form-label">Longitude *</label><input type="number" id="newZoneLon" class="form-input" placeholder="36.8219" step="0.0001" /></div>
     </div>
-
     <div class="form-row">
       <div>
         <label class="form-label">Zone Type</label>
@@ -1213,12 +948,8 @@ code, .mono { font-family: var(--font-mono); }
           <option value="other">Other</option>
         </select>
       </div>
-      <div>
-        <label class="form-label">Radius (km)</label>
-        <input type="number" id="newZoneRadius" class="form-input" value="10" min="1" max="100" />
-      </div>
+      <div><label class="form-label">Radius (km)</label><input type="number" id="newZoneRadius" class="form-input" value="10" min="1" max="100" /></div>
     </div>
-
     <div class="form-error" id="zoneModalError"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeAddZoneModal()">Cancel</button>
@@ -1234,12 +965,19 @@ code, .mono { font-family: var(--font-mono); }
 // ════════════════════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════════════════════
-let _analysisResults = {};         // keyed by location name
-let _activeCropRegion = null;      // currently selected region tab
-let _checkpointState  = null;      // last checkpoint payload
+let _analysisResults = {};
+let _activeCropRegion = null;
+let _checkpointState  = null;
+
+// Helper: replace skeleton content with real value
+function _clearSkeleton(el) {
+  if (!el) return;
+  const skels = el.querySelectorAll('.skeleton');
+  skels.forEach(s => s.remove());
+}
 
 // ════════════════════════════════════════════════════════════════
-// INIT — auto-run on DOMContentLoaded
+// INIT
 // ════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   initOrgMap('orgMap');
@@ -1248,150 +986,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
   {% if locations %}
   loadWeatherSidebar({{ locations.0.latitude }}, {{ locations.0.longitude }}, '{{ locations.0.name|escapejs }}');
-  // Auto-run analysis immediately
   runInitialAnalysis();
-  {% else %}
-  dismissLoadingOverlay();
   {% endif %}
 });
 
 // ════════════════════════════════════════════════════════════════
-// LOADING OVERLAY HELPERS
-// ════════════════════════════════════════════════════════════════
-function setLoadingStep(stepId, state) {
-  const el = document.getElementById('lstep-' + stepId);
-  if (!el) return;
-  el.classList.remove('active','done');
-  el.classList.add(state);
-  el.querySelector('.step-icon').textContent = state === 'done' ? '✓' : (
-    {'weather':'1','monitor':'2','predict':'3','decision':'4','action':'5'}[stepId] || '?'
-  );
-}
-
-function setLoadingProgress(pct) {
-  const bar = document.getElementById('loadingBar');
-  if (bar) bar.style.width = pct + '%';
-}
-
-function dismissLoadingOverlay() {
-  const o = document.getElementById('analysisLoadingOverlay');
-  if (o) { o.classList.add('hidden'); setTimeout(() => o.style.display='none', 400); }
-}
-
-// ════════════════════════════════════════════════════════════════
-// INITIAL ANALYSIS (fires on login)
+// INITIAL ANALYSIS — no popup, runs silently, skeletons dismiss
 // ════════════════════════════════════════════════════════════════
 async function runInitialAnalysis() {
-  const overlay = document.getElementById('analysisLoadingOverlay');
-  if (overlay) overlay.style.display = 'flex';
+  const zones = [{% for loc in locations %}{ lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}];
+  if (!zones.length) return;
 
-  // Advance progress bar
-  setLoadingProgress(10);
+  document.getElementById('lastAnalysisTime').textContent = 'Running analysis…';
 
-  // zones from template
-  const zones = ORG_LOCATIONS && ORG_LOCATIONS.length > 0
-    ? ORG_LOCATIONS
-    : [{% for loc in locations %}{ lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}];
-
-  if (!zones.length) { dismissLoadingOverlay(); return; }
-
-  // Update overlay location
-  const locEl = document.getElementById('loadingLocation');
-  if (locEl) locEl.textContent = zones.map(z => z.name).join(', ');
-
-  setLoadingStep('weather', 'active');
-
-  // Fetch weather for primary zone
+  // Fetch weather first (fast)
   try {
     const wxR = await orgFetch(`/api/weather/?lat=${zones[0].lat}&lon=${zones[0].lon}&name=${encodeURIComponent(zones[0].name)}`);
     const wxD = await wxR.json();
     updateWeatherUI(wxD);
-    setLoadingStep('weather', 'done');
-    setLoadingProgress(20);
-  } catch(e) {
-    setLoadingStep('weather', 'done');
-  }
+  } catch(e) {}
 
   // Run agents for all zones in parallel
-  setLoadingStep('monitor', 'active');
-  setLoadingProgress(35);
-
   const agentPromises = zones.map(zone =>
     orgFetch('/api/agent/run/', {
       method: 'POST',
       body: JSON.stringify({
         query: `Comprehensive agricultural climate risk assessment for ${zone.name}. Assess flood, drought, and heatwave risk (0-100 each). Provide specific actionable advisories for farmers. Include crop-level risk breakdown and irrigation guidance.`,
-        lat: zone.lat, lon: zone.lon,
-        location_name: zone.name,
-        org_id: ORG_ID,
+        lat: zone.lat, lon: zone.lon, location_name: zone.name, org_id: ORG_ID,
       })
     }).then(r => r.json()).then(d => ({ zone: zone.name, lat: zone.lat, lon: zone.lon, data: d }))
     .catch(e => ({ zone: zone.name, lat: zone.lat, lon: zone.lon, data: null, error: e.message }))
   );
 
-  // Stagger loading steps to reflect pipeline progress
-  const steps = ['monitor','predict','decision','action'];
-  let stepIdx = 0;
-  const stepTimer = setInterval(() => {
-    if (stepIdx > 0) setLoadingStep(steps[stepIdx-1], 'done');
-    if (stepIdx < steps.length) { setLoadingStep(steps[stepIdx], 'active'); stepIdx++; }
-    setLoadingProgress(35 + stepIdx * 14);
-  }, 1800);
-
   const results = await Promise.allSettled(agentPromises);
-  clearInterval(stepTimer);
 
-  steps.forEach(s => setLoadingStep(s, 'done'));
-  setLoadingStep('action', 'done');
-  setLoadingProgress(100);
-
-  // Process results
   results.forEach(r => {
     if (r.status === 'fulfilled' && r.value.data?.result) {
       _analysisResults[r.value.zone] = r.value;
     }
   });
 
-  // Update all UI sections
   updateOverviewFromResults();
   populateCropRiskFromResults(zones[0].name, zones[0].lat, zones[0].lon);
-
-  // Dismiss overlay after brief pause
-  setTimeout(dismissLoadingOverlay, 600);
 }
 
 // ════════════════════════════════════════════════════════════════
-// FULL REFRESH (manual)
+// FULL REFRESH
 // ════════════════════════════════════════════════════════════════
 async function triggerFullRefresh() {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.textContent = 'Refreshing…';
   _analysisResults = {};
-
-  const overlay = document.getElementById('analysisLoadingOverlay');
-  if (overlay) {
-    // Reset steps
-    ['weather','monitor','predict','decision','action'].forEach(s => {
-      setLoadingStep(s, '');
-      const el = document.getElementById('lstep-' + s);
-      if (el) { el.classList.remove('active','done'); }
-    });
-    overlay.classList.remove('hidden');
-    overlay.style.display = 'flex';
-  }
-
   await runInitialAnalysis();
   if (btn) btn.textContent = 'Refresh Analysis';
 }
 
 // ════════════════════════════════════════════════════════════════
-// UPDATE OVERVIEW UI from _analysisResults
+// UPDATE OVERVIEW UI
 // ════════════════════════════════════════════════════════════════
 function updateOverviewFromResults() {
   const allResults = Object.values(_analysisResults);
   if (!allResults.length) return;
 
-  // Aggregate metrics across zones
   let maxFlood = 0, maxDrought = 0, maxHeat = 0;
   let alertLevelCounts = { GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
   let primaryAlert = 'GREEN';
@@ -1400,88 +1056,81 @@ function updateOverviewFromResults() {
 
   allResults.forEach(r => {
     const result = r.data?.result || {};
-    const pd = result.predict_data || {};
+    const pd = result.predict_data  || {};
     const dd = result.decision_data || {};
-
     maxFlood   = Math.max(maxFlood,   pd.flood_risk    || dd.flood_risk    || 0);
     maxDrought = Math.max(maxDrought, pd.drought_risk  || dd.drought_risk  || 0);
     maxHeat    = Math.max(maxHeat,    pd.heatwave_risk || dd.heatwave_risk || 0);
-
     const al = (dd.alert_level || 'GREEN').toUpperCase();
     alertLevelCounts[al] = (alertLevelCounts[al] || 0) + 1;
-
-    if (!chainData && result.agent_chain) chainData = result;
+    if (!chainData   && result.agent_chain)   chainData   = result;
     if (!explainData && result.explainability) explainData = result;
   });
 
-  // Determine primary alert
-  if (alertLevelCounts.RED)    primaryAlert = 'RED';
+  if (alertLevelCounts.RED)         primaryAlert = 'RED';
   else if (alertLevelCounts.ORANGE) primaryAlert = 'ORANGE';
   else if (alertLevelCounts.YELLOW) primaryAlert = 'YELLOW';
-  else primaryAlert = 'GREEN';
+  else                              primaryAlert = 'GREEN';
 
-  // Update risk gauges
+  // Risk gauges — clear skeletons, animate real values
   animateGauge('flood',   maxFlood);
   animateGauge('drought', maxDrought);
   animateGauge('heat',    maxHeat);
 
-  // Update alert level bar
+  // Alert level bar
   ['GREEN','YELLOW','ORANGE','RED'].forEach(level => {
     const seg = document.getElementById('seg-' + level);
     if (!seg) return;
     seg.className = `alert-level-seg seg-${level}`;
     if (level === primaryAlert) seg.classList.add('active-' + level);
-    seg.querySelector('.alert-seg-val').textContent = alertLevelCounts[level] || '0';
+    const valEl = seg.querySelector('.alert-seg-val');
+    if (valEl) valEl.innerHTML = alertLevelCounts[level] || '0';
   });
 
-  // Update pipeline strip
+  // Pipeline strip
   if (chainData?.agent_chain) renderPipelineStrip('pipelineStrip', chainData.agent_chain, chainData.checkpoint_status);
 
-  // Update KPI live badges
-  document.getElementById('kpiFloodLive').textContent   = maxFlood + '% risk';
+  // KPI live badges
+  document.getElementById('kpiFloodLive').textContent   = maxFlood   + '% risk';
   document.getElementById('kpiDroughtLive').textContent = maxDrought + '% risk';
-  document.getElementById('kpiHeatLive').textContent    = maxHeat + '% risk';
+  document.getElementById('kpiHeatLive').textContent    = maxHeat    + '% risk';
 
-  // Update checkpoint banner
-  const cpData = allResults.find(r => r.data?.result?.checkpoint_status?.requires_approval);
+  // Checkpoint banner
+  const cpData   = allResults.find(r => r.data?.result?.checkpoint_status?.requires_approval);
   const cpBanner = document.getElementById('checkpointBanner');
   if (cpData && cpBanner) {
     _checkpointState = cpData;
     cpBanner.style.display = 'flex';
     const detail = document.getElementById('checkpointDetail');
     if (detail) detail.textContent = cpData.data.result.checkpoint_status.pending_action || 'Approval required before issuing critical alert.';
-    const sbCP = document.getElementById('sidebarCheckpoint');
-    if (sbCP) sbCP.style.display = 'block';
   } else if (cpBanner) {
     cpBanner.style.display = 'none';
   }
 
-  // Update advisories
   buildAdvisoryList(allResults);
-
-  // Update explainability panel
   if (explainData) updateExplainPanel(explainData);
+  updateSidebarPipeline(chainData);
 
-  // Update timestamp
   const timeEl = document.getElementById('lastAnalysisTime');
   if (timeEl) timeEl.textContent = 'Last analysis: ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
-
-  // Update pipeline sidebar
-  updateSidebarPipeline(chainData);
 }
 
 function animateGauge(type, value) {
   const fill = document.getElementById('gauge-' + type);
   const num  = document.getElementById('gauge-' + type + 'Num');
-  if (fill) fill.style.width = Math.min(100, value) + '%';
-  if (num)  num.textContent  = value;
+  if (fill) {
+    fill.classList.remove('skeleton');
+    fill.style.width      = Math.min(100, value) + '%';
+    fill.style.background = '';  // restore CSS class color
+  }
+  if (num) { num.innerHTML = value; }
 }
 
 function renderPipelineStrip(containerId, chain, checkpoint) {
   const el = document.getElementById(containerId);
   if (!el || !chain) return;
-  const steps = ['monitor','predict','decision','action','governance'];
-  const done  = new Set((chain || []).map(s => s.agent));
+  const steps  = ['monitor','predict','decision','action','governance'];
+  const done   = new Set((chain || []).map(s => s.agent));
   const paused = checkpoint?.paused_at_step;
   el.innerHTML = steps.map(s => {
     const step = (chain || []).find(c => c.agent === s);
@@ -1494,15 +1143,13 @@ function renderPipelineStrip(containerId, chain, checkpoint) {
 function buildAdvisoryList(allResults) {
   const container = document.getElementById('advisoryList');
   if (!container) return;
-
   const items = [];
 
   allResults.forEach(r => {
-    const result = r.data?.result || {};
-    const dd = result.decision_data || {};
-    const ad = result.action_data   || {};
-    const gd = result.governance_data || {};
-
+    const result     = r.data?.result || {};
+    const dd         = result.decision_data   || {};
+    const ad         = result.action_data     || {};
+    const gd         = result.governance_data || {};
     const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
     const lvlClass   = { GREEN:'level-green', YELLOW:'level-yellow', ORANGE:'level-orange', RED:'level-red' }[alertLevel] || 'level-info';
     const message    = ad.alert_message || gd.final_recommendation || result.action || '';
@@ -1512,8 +1159,6 @@ function buildAdvisoryList(allResults) {
     } else if (message) {
       items.push({ lvlClass, title:`${r.zone} — ${alertLevel} Alert`, chip: alertLevel, message, meta: r.zone });
     }
-
-    // Add governance recommendation as second item if present
     if (gd.final_recommendation && gd.final_recommendation !== message) {
       items.push({ lvlClass:'level-info', title:`${r.zone} — Governance Advisory`, chip: null, message: gd.final_recommendation, meta: `SDG: ${(gd.sdg_alignment || []).join(', ')}` });
     }
@@ -1541,13 +1186,13 @@ function updateExplainPanel(result) {
   const ex = result.explainability || {};
   const dd = result.decision_data  || {};
   const rows = [
-    { k: 'Alert Level',   v: dd.alert_level || '—',            h: true },
-    { k: 'Policy Rule',   v: dd.policy_rule_id || ex.policy_rule_id || '—' },
-    { k: 'Selected Graph',v: result.selected_graph || '—' },
-    { k: 'Intent',        v: `${result.intent_classification || '—'} (${Math.round((result.intent_confidence||0)*100)}% ${result.intent_source ? 'via '+result.intent_source : ''})` },
-    { k: 'Why Alert',     v: ex.why_alert_level || dd.why_alert_level || '—' },
-    { k: 'Priority',      v: dd.priority || '—' },
-    { k: 'Response Time', v: dd.response_timeline_hours != null ? dd.response_timeline_hours + ' hours' : '—' },
+    { k: 'Alert Level',    v: dd.alert_level || '—',            h: true },
+    { k: 'Policy Rule',    v: dd.policy_rule_id || ex.policy_rule_id || '—' },
+    { k: 'Selected Graph', v: result.selected_graph || '—' },
+    { k: 'Intent',         v: `${result.intent_classification || '—'} (${Math.round((result.intent_confidence||0)*100)}% ${result.intent_source ? 'via '+result.intent_source : ''})` },
+    { k: 'Why Alert',      v: ex.why_alert_level || dd.why_alert_level || '—' },
+    { k: 'Priority',       v: dd.priority || '—' },
+    { k: 'Response Time',  v: dd.response_timeline_hours != null ? dd.response_timeline_hours + ' hours' : '—' },
   ];
   panel.innerHTML = rows.map(r => `
     <div class="explain-row">
@@ -1618,31 +1263,21 @@ function populateCropRiskFromResults(zoneName, lat, lon) {
   _activeCropRegion = { name: zoneName, lat, lon };
   const noteEl = document.getElementById('cropRegionNote');
   if (noteEl) noteEl.textContent = `Region: ${zoneName} · ${lat?.toFixed(3)}, ${lon?.toFixed(3)}`;
-
   const r = _analysisResults[zoneName];
   if (r?.data?.result) {
     renderCropTable(r.data.result, zoneName);
     renderIrrigation(r.data.result);
-    // Show pipeline strip
     if (r.data.result.agent_chain) renderPipelineStrip('cropPipelineStrip', r.data.result.agent_chain, r.data.result.checkpoint_status);
-  } else {
-    renderCropTableLoading();
   }
-}
-
-function renderCropTableLoading() {
-  const tbody = document.getElementById('cropTableBody');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text-muted);">Loading analysis for this region…</td></tr>`;
+  // else skeletons remain until data arrives
 }
 
 function renderCropTable(result, zoneName) {
   const tbody = document.getElementById('cropTableBody');
   if (!tbody) return;
-
   const dd = result.decision_data  || {};
   const pd = result.predict_data   || {};
-  const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
-
+  const alertLevel  = (dd.alert_level || 'GREEN').toUpperCase();
   const floodBase   = pd.flood_risk    || dd.flood_risk    || (alertLevel==='RED'?85 : alertLevel==='ORANGE'?65 : alertLevel==='YELLOW'?40 : 10);
   const droughtBase = pd.drought_risk  || dd.drought_risk  || 15;
   const heatBase    = pd.heatwave_risk || dd.heatwave_risk || (alertLevel==='ORANGE'?55 : 15);
@@ -1652,18 +1287,11 @@ function renderCropTable(result, zoneName) {
     const d  = Math.min(100, Math.round(droughtBase * crop.sensitivity.drought));
     const h  = Math.min(100, Math.round(heatBase    * crop.sensitivity.heat));
     const ov = Math.max(f, d, h);
-
     return `<tr>
-      <td>
-        <div class="crop-name">${crop.name}</div>
-        <div class="crop-region">${zoneName}</div>
-      </td>
-      <td>${riskChip(f)}</td>
-      <td class="risk-bar-cell">${miniBar(f, '#2563eb')}</td>
-      <td>${riskChip(d)}</td>
-      <td class="risk-bar-cell">${miniBar(d, '#d97706')}</td>
-      <td>${riskChip(h)}</td>
-      <td class="risk-bar-cell">${miniBar(h, '#dc2626')}</td>
+      <td><div class="crop-name">${crop.name}</div><div class="crop-region">${zoneName}</div></td>
+      <td>${riskChip(f)}</td><td class="risk-bar-cell">${miniBar(f,'#2563eb')}</td>
+      <td>${riskChip(d)}</td><td class="risk-bar-cell">${miniBar(d,'#d97706')}</td>
+      <td>${riskChip(h)}</td><td class="risk-bar-cell">${miniBar(h,'#dc2626')}</td>
       <td>${riskChip(ov)}</td>
       <td style="font-size:12px;color:var(--text-secondary);max-width:200px;">${CROP_ACTIONS[i]}</td>
     </tr>`;
@@ -1686,15 +1314,13 @@ function renderIrrigation(result) {
   if (!panel) return;
   const pd = result.predict_data  || {};
   const dd = result.decision_data || {};
-  const f  = pd.flood_risk || dd.flood_risk || 0;
-  const d  = pd.drought_risk || dd.drought_risk || 0;
+  const f  = pd.flood_risk    || dd.flood_risk    || 0;
+  const d  = pd.drought_risk  || dd.drought_risk  || 0;
   const h  = pd.heatwave_risk || dd.heatwave_risk || 0;
-
   let guidance = IRRIGATION_GUIDANCE.normal;
-  if (f >= 60)      guidance = IRRIGATION_GUIDANCE.high_flood;
+  if      (f >= 60) guidance = IRRIGATION_GUIDANCE.high_flood;
   else if (d >= 60) guidance = IRRIGATION_GUIDANCE.high_drought;
   else if (h >= 60) guidance = IRRIGATION_GUIDANCE.high_heat;
-
   const steps = dd.recommended_actions || [];
   panel.innerHTML = `
     <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:10px;">Primary Recommendation</div>
@@ -1710,16 +1336,23 @@ function renderIrrigation(result) {
 async function refreshCropRisk() {
   if (!_activeCropRegion) return;
   const { name, lat, lon } = _activeCropRegion;
+  // Show skeleton again while refreshing
   const tbody = document.getElementById('cropTableBody');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Re-running agent analysis for ${name}…</td></tr>`;
-
+  if (tbody) tbody.innerHTML = `{% for i in "12345678" %}<tr>
+    <td><div class="skeleton sk-text w80"></div></td>
+    <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+    <td><div class="skeleton sk-bar"></div></td>
+    <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+    <td><div class="skeleton sk-bar"></div></td>
+    <td><div class="skeleton" style="height:20px;width:44px;border-radius:99px;"></div></td>
+    <td><div class="skeleton sk-bar"></div></td>
+    <td><div class="skeleton" style="height:20px;width:52px;border-radius:99px;"></div></td>
+    <td><div class="skeleton sk-text w100"></div></td>
+  </tr>{% endfor %}`;
   try {
     const r = await orgFetch('/api/agent/run/', {
       method: 'POST',
-      body: JSON.stringify({
-        query: `Detailed agricultural crop risk for ${name}. Assess flood, drought, and heatwave risk per crop type. Include irrigation guidance.`,
-        lat, lon, location_name: name, org_id: ORG_ID
-      })
+      body: JSON.stringify({ query: `Detailed agricultural crop risk for ${name}. Assess flood, drought, and heatwave risk per crop type. Include irrigation guidance.`, lat, lon, location_name: name, org_id: ORG_ID })
     });
     const d = await r.json();
     if (d.result) {
@@ -1737,81 +1370,88 @@ async function refreshCropRisk() {
 // WEATHER UI
 // ════════════════════════════════════════════════════════════════
 function updateWeatherUI(d) {
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('wx-temp', d.temperature != null ? d.temperature+'°' : '—');
-  set('wx-rain', d.rain_24h != null ? d.rain_24h : (d.total_rain_24h != null ? d.total_rain_24h : '—'));
-  set('wx-hum',  d.humidity   != null ? d.humidity+'%' : '—');
+  const set = (id, v, raw) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    _clearSkeleton(el);
+    el.textContent = v;
+  };
+  set('wx-temp', d.temperature != null ? d.temperature + '°' : '—');
+  set('wx-rain', d.rain_24h    != null ? d.rain_24h          : (d.total_rain_24h != null ? d.total_rain_24h : '—'));
+  set('wx-hum',  d.humidity    != null ? d.humidity + '%'    : '—');
 
   const condEl = document.getElementById('wx-cond');
-  if (condEl) condEl.textContent = (d.is_raining ? 'Currently raining' : 'Dry conditions') + ' · ' + (d.source || '');
+  if (condEl) {
+    _clearSkeleton(condEl);
+    condEl.textContent = (d.is_raining ? 'Currently raining' : 'Dry conditions') + ' · ' + (d.source || '');
+  }
 
-  // Forecast
-  const today = d.today_forecast || {};
+  const todayREl = document.getElementById('wx-today-rain');
+  const todayPEl = document.getElementById('wx-today-prob');
+  const tmrwREl  = document.getElementById('wx-tmrw-rain');
+  const tmrwPEl  = document.getElementById('wx-tmrw-prob');
+  const today = d.today_forecast    || {};
   const tmrw  = d.tomorrow_forecast || {};
-  set('wx-today-rain', today.daily_total_mm != null ? today.daily_total_mm + 'mm' : '—mm');
-  set('wx-today-prob', (today.precip_prob != null ? today.precip_prob : '—') + '% chance');
-  set('wx-tmrw-rain',  tmrw.daily_total_mm  != null ? tmrw.daily_total_mm  + 'mm' : '—mm');
-  set('wx-tmrw-prob',  (tmrw.precip_prob   != null ? tmrw.precip_prob  : '—') + '% chance');
+  if (todayREl) { _clearSkeleton(todayREl); todayREl.innerHTML = (today.daily_total_mm != null ? today.daily_total_mm : '—') + '<small style="font-size:11px;font-weight:400;">mm</small>'; }
+  if (todayPEl) { _clearSkeleton(todayPEl); todayPEl.textContent = (today.precip_prob != null ? today.precip_prob : '—') + '% chance'; }
+  if (tmrwREl)  { _clearSkeleton(tmrwREl);  tmrwREl.innerHTML  = (tmrw.daily_total_mm  != null ? tmrw.daily_total_mm  : '—') + '<small style="font-size:11px;font-weight:400;">mm</small>'; }
+  if (tmrwPEl)  { _clearSkeleton(tmrwPEl);  tmrwPEl.textContent = (tmrw.precip_prob != null ? tmrw.precip_prob : '—') + '% chance'; }
 }
 
 async function loadWeatherSidebar(lat, lon, name) {
-  const el = document.getElementById('sidebarWeather');
-  if (!el) return;
   try {
     const r = await orgFetch(`/api/weather/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
     const d = await r.json();
-    el.innerHTML = `
-      <div class="wx-grid" style="grid-template-columns:1fr 1fr 1fr;">
+    const el = document.getElementById('sidebarWeather');
+    if (el) el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
         <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.temperature != null ? d.temperature+'°' : '—'}</div><div class="wx-lbl">Temp</div></div>
         <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.rain_24h != null ? d.rain_24h : '—'}mm</div><div class="wx-lbl">Rain 24h</div></div>
         <div class="wx-tile" style="padding:8px;"><div class="wx-val" style="font-size:16px;">${d.humidity != null ? d.humidity+'%' : '—'}</div><div class="wx-lbl">Hum.</div></div>
       </div>
-      <div style="font-size:11px;color:var(--slate-500);text-align:center;margin-top:6px;">${d.is_raining ? 'Currently raining' : 'Dry'} · ${d.source || ''}</div>`;
+      <div style="font-size:11px;color:var(--slate-500);text-align:center;">${d.is_raining ? 'Currently raining' : 'Dry'} · ${d.source || ''}</div>`;
     updateWeatherUI(d);
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--slate-400);font-size:12px;text-align:center;">Conditions unavailable</div>';
-  }
+  } catch(e) {}
 }
 
 let _weatherTabLoaded = false;
 async function initWeatherTab() {
   if (_weatherTabLoaded) return;
   _weatherTabLoaded = true;
-  const zones = [
-    {% for loc in locations|slice:":4" %}
-    { lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}', idx: {{ forloop.counter }} },
-    {% endfor %}
-  ];
+  const zones = [{% for loc in locations|slice:":4" %}{ lat: {{ loc.latitude }}, lon: {{ loc.longitude }}, name: '{{ loc.name|escapejs }}', idx: {{ forloop.counter }} },{% endfor %}];
   for (const z of zones) {
     try {
       const r = await orgFetch(`/api/weather/?lat=${z.lat}&lon=${z.lon}&name=${encodeURIComponent(z.name)}`);
       const d = await r.json();
-      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        _clearSkeleton(el);
+        el.textContent = v;
+      };
       set(`wxz${z.idx}-temp`, d.temperature != null ? d.temperature+'°' : '—');
-      set(`wxz${z.idx}-rain`, d.rain_24h != null ? d.rain_24h+'mm' : '—');
-      set(`wxz${z.idx}-hum`,  d.humidity  != null ? d.humidity+'%' : '—');
+      set(`wxz${z.idx}-rain`, d.rain_24h    != null ? d.rain_24h+'mm'   : '—');
+      set(`wxz${z.idx}-hum`,  d.humidity    != null ? d.humidity+'%'    : '—');
       const c = document.getElementById(`wxz${z.idx}-cond`);
-      if (c) c.textContent = (d.is_raining ? 'Currently raining' : 'No current rain') + ' · ' + (d.source || '');
+      if (c) { _clearSkeleton(c); c.textContent = (d.is_raining ? 'Currently raining' : 'No current rain') + ' · ' + (d.source || ''); }
     } catch(e) {}
   }
 }
 
 // ════════════════════════════════════════════════════════════════
-// SEASON DETECTION
+// SEASON
 // ════════════════════════════════════════════════════════════════
 function initSeason() {
   const m = new Date().getMonth() + 1;
-  let name, desc, cls;
-  if      (m >= 3 && m <= 5)   { name = 'Long Rains (MAM)';  cls = 'long-rains';  desc = 'High precipitation period. Monitor waterlogging and flood risk.'; }
-  else if (m >= 10 && m <= 12) { name = 'Short Rains (OND)'; cls = 'short-rains'; desc = 'Second planting season. Favourable for beans and vegetables.'; }
-  else                          { name = 'Dry Season';        cls = 'dry';         desc = 'Low rainfall. Irrigation critical. Drought risk elevated.'; }
+  let name, desc;
+  if      (m >= 3 && m <= 5)   { name = 'Long Rains (MAM)';  desc = 'High precipitation period. Monitor waterlogging and flood risk.'; }
+  else if (m >= 10 && m <= 12) { name = 'Short Rains (OND)'; desc = 'Second planting season. Favourable for beans and vegetables.'; }
+  else                          { name = 'Dry Season';        desc = 'Low rainfall. Irrigation critical. Drought risk elevated.'; }
 
   const badge = document.getElementById('seasonBadge');
   if (badge) badge.textContent = name;
   const sidebar = document.getElementById('sidebarSeason');
-  if (sidebar) sidebar.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:var(--slate-800);margin-bottom:4px;">${name}</div>
-    <div style="font-size:12px;color:var(--slate-500);">${desc}</div>`;
+  if (sidebar) sidebar.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--slate-800);margin-bottom:4px;">${name}</div><div style="font-size:12px;color:var(--slate-500);">${desc}</div>`;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1820,8 +1460,7 @@ function initSeason() {
 function approveCheckpoint() {
   const banner = document.getElementById('checkpointBanner');
   if (banner) banner.style.display = 'none';
-  showToast('Checkpoint approved — re-running analysis with authorisation');
-  // In production: pass session_id + checkpoint_approved:true to API
+  showToast('Checkpoint approved — re-running analysis');
   triggerFullRefresh();
 }
 
@@ -1831,34 +1470,23 @@ function approveCheckpoint() {
 async function runZoneAnalysis(lat, lon, name) {
   const el = document.getElementById('zoneRunResult');
   if (el) el.innerHTML = `<div style="font-size:13px;color:var(--text-muted);">Analysing ${name}…</div>`;
-
   try {
     const r = await orgFetch('/api/agent/run/', {
       method: 'POST',
-      body: JSON.stringify({
-        query: `Full agricultural climate risk assessment for ${name}.`,
-        lat, lon, org_id: ORG_ID, location_name: name,
-      })
+      body: JSON.stringify({ query: `Full agricultural climate risk assessment for ${name}.`, lat, lon, org_id: ORG_ID, location_name: name })
     });
     const d = await r.json();
-    const result = d.result || {};
+    const result     = d.result || {};
     _analysisResults[name] = { zone: name, lat, lon, data: d };
-
-    const dd = result.decision_data || {};
-    const ad = result.action_data   || {};
+    const dd         = result.decision_data || {};
+    const ad         = result.action_data   || {};
     const alertLevel = (dd.alert_level || 'GREEN').toUpperCase();
     const lvlClass   = { GREEN:'level-green', YELLOW:'level-yellow', ORANGE:'level-orange', RED:'level-red' }[alertLevel] || 'level-info';
-    const msg = ad.alert_message || result.action || 'Analysis complete.';
-    const chainHtml = result.agent_chain ? `<div style="margin-top:10px;">${buildPipelineHtml(result.agent_chain, result.checkpoint_status)}</div>` : '';
-
+    const msg        = ad.alert_message || result.action || 'Analysis complete.';
     if (el) el.innerHTML = `
       <div class="advisory-item ${lvlClass}" style="margin-top:4px;">
-        <div class="advisory-top">
-          <div class="advisory-title">${name} — ${alertLevel}</div>
-          <span class="advisory-level-chip chip-${alertLevel}">${alertLevel}</span>
-        </div>
+        <div class="advisory-top"><div class="advisory-title">${name} — ${alertLevel}</div><span class="advisory-level-chip chip-${alertLevel}">${alertLevel}</span></div>
         <div class="advisory-body">${msg}</div>
-        ${chainHtml}
         <div class="advisory-meta">Latency: ${d.latency_ms || '—'}ms</div>
       </div>`;
   } catch(e) {
@@ -1866,35 +1494,18 @@ async function runZoneAnalysis(lat, lon, name) {
   }
 }
 
-function buildPipelineHtml(chain, checkpoint) {
-  const steps = ['monitor','predict','decision','action','governance'];
-  const done  = new Set((chain || []).map(s => s.agent));
-  const paused = checkpoint?.paused_at_step;
-  return `<div class="pipeline-strip">${steps.map(s => {
-    const step = (chain || []).find(c => c.agent === s);
-    const cls  = paused===s ? 'active' : done.has(s) ? 'done' : 'pending';
-    const lat  = step ? `<span class="latency">${step.latency_ms}ms</span>` : '';
-    return `<div class="pipe-step ${cls}">${s.charAt(0).toUpperCase()+s.slice(1)}${lat}</div>`;
-  }).join('')}</div>`;
-}
-
 // ════════════════════════════════════════════════════════════════
 // CHAT CALLBACK
 // ════════════════════════════════════════════════════════════════
 function onChatResult(result) {
   if (!result) return;
-
-  // Pipeline strip
-  const wrap = document.getElementById('chatPipelineWrap');
-  const strip = document.getElementById('chatPipelineStrip');
+  const wrap  = document.getElementById('chatPipelineWrap');
   if (wrap && result.agent_chain) {
     wrap.style.display = 'block';
     renderPipelineStrip('chatPipelineStrip', result.agent_chain, result.checkpoint_status);
     const meta = document.getElementById('chatIntentMeta');
     if (meta) meta.textContent = `Intent: ${result.intent_classification || '—'} · ${Math.round((result.intent_confidence||0)*100)}% confidence · Graph: ${result.selected_graph || '—'}`;
   }
-
-  // Meta card
   const metaCard = document.getElementById('chatMetaCard');
   const metaBody = document.getElementById('chatMetaBody');
   if (metaCard && metaBody && result.task_ledger?.length) {
@@ -1915,10 +1526,7 @@ function switchZone(lat, lon, name) {
   loadWeatherSidebar(lat, lon, name);
   flyToZone(lat, lon, name);
   const r = _analysisResults[name];
-  if (r?.data?.result) {
-    renderCropTable(r.data.result, name);
-    renderIrrigation(r.data.result);
-  }
+  if (r?.data?.result) { renderCropTable(r.data.result, name); renderIrrigation(r.data.result); }
 }
 
 function flyToZone(lat, lon, name) {
@@ -1930,7 +1538,7 @@ function flyToZone(lat, lon, name) {
   }
 }
 
-function openAddZoneModal() { document.getElementById('addZoneModal').style.display = 'flex'; }
+function openAddZoneModal()  { document.getElementById('addZoneModal').style.display = 'flex'; }
 function closeAddZoneModal() {
   document.getElementById('addZoneModal').style.display = 'none';
   document.getElementById('zoneModalError').style.display = 'none';
@@ -1955,45 +1563,27 @@ async function saveNewZone() {
   const radius = parseFloat(document.getElementById('newZoneRadius').value) || 10;
   const errEl  = document.getElementById('zoneModalError');
   const btn    = document.getElementById('saveZoneBtn');
-
   errEl.style.display = 'none';
-  if (!name) { errEl.textContent = 'Zone name is required.'; errEl.style.display = 'block'; return; }
-  if (isNaN(lat) || isNaN(lon)) { errEl.textContent = 'Enter valid latitude and longitude.'; errEl.style.display = 'block'; return; }
-
+  if (!name)            { errEl.textContent = 'Zone name is required.'; errEl.style.display = 'block'; return; }
+  if (isNaN(lat)||isNaN(lon)) { errEl.textContent = 'Enter valid latitude and longitude.'; errEl.style.display = 'block'; return; }
   btn.textContent = 'Adding…'; btn.disabled = true;
   try {
-    const r = await orgFetch('/api/locations/', {
-      method: 'POST',
-      body: JSON.stringify({ name, lat, lon, org_id: ORG_ID, location_type: type, radius_km: radius })
-    });
+    const r = await orgFetch('/api/locations/', { method: 'POST', body: JSON.stringify({ name, lat, lon, org_id: ORG_ID, location_type: type, radius_km: radius }) });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Failed to add zone.'; errEl.style.display = 'block'; return; }
-
     const list = document.getElementById('zoneList');
     const noEl = list.querySelector('.empty-state');
     if (noEl) noEl.remove();
     const loc = d.location;
     const row = document.createElement('div');
     row.className = 'zone-row'; row.id = `zone-row-${loc.id}`;
-    row.innerHTML = `
-      <div class="zone-indicator"></div>
-      <div class="zone-info">
-        <div class="zone-name">${name}</div>
-        <div class="zone-coords">${lat}, ${lon} · ${radius} km radius</div>
-      </div>
-      <div class="zone-actions">
-        <button class="zone-btn" onclick="flyToZone(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Map</button>
-        <button class="zone-btn" onclick="runZoneAnalysis(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Analyse</button>
-        <button class="zone-btn danger" onclick="removeZone(${loc.id},'${name.replace(/'/g,"\\'")}',this)">Remove</button>
-      </div>`;
+    row.innerHTML = `<div class="zone-indicator"></div><div class="zone-info"><div class="zone-name">${name}</div><div class="zone-coords">${lat}, ${lon} · ${radius} km radius</div></div><div class="zone-actions"><button class="zone-btn" onclick="flyToZone(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Map</button><button class="zone-btn" onclick="runZoneAnalysis(${lat},${lon},'${name.replace(/'/g,"\\'")}')">Analyse</button><button class="zone-btn danger" onclick="removeZone(${loc.id},'${name.replace(/'/g,"\\'")}',this)">Remove</button></div>`;
     list.appendChild(row);
     const k = document.getElementById('kpiZones');
     if (k) k.textContent = parseInt(k.textContent || '0') + 1;
     closeAddZoneModal();
     showToast(`"${name}" added to monitoring zones`);
-  } catch(e) {
-    errEl.textContent = 'Network error. Please retry.'; errEl.style.display = 'block';
-  }
+  } catch(e) { errEl.textContent = 'Network error. Please retry.'; errEl.style.display = 'block'; }
   btn.textContent = 'Add Zone'; btn.disabled = false;
 }
 
@@ -2021,10 +1611,9 @@ function showTab(name, el) {
   if (tab) tab.style.display = 'block';
   document.querySelectorAll('.org-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
-  if (name === 'weather') initWeatherTab();
-  if (name === 'zones')   { const m = document.getElementById('zonesMap'); if (m && !m._inited) { initOrgMap('zonesMap'); m._inited=true; } }
+  if (name === 'weather')  initWeatherTab();
+  if (name === 'zones')    { const m = document.getElementById('zonesMap'); if (m && !m._inited) { initOrgMap('zonesMap'); m._inited=true; } }
   if (name === 'crop-risk') {
-    // Populate region tabs based on loaded results
     if (!_activeCropRegion && Object.keys(_analysisResults).length) {
       const first = Object.values(_analysisResults)[0];
       if (first) populateCropRiskFromResults(first.zone, first.lat, first.lon);
