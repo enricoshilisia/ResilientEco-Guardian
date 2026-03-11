@@ -14,20 +14,28 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+"""
+URL configuration for resilienteco project.
+"""
+
 from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import path, include
+from django.views.decorators.csrf import csrf_exempt
+
+
+# ── Health check — returns 200 with no redirects ───────────────
+def health_check(request):
+    return HttpResponse("OK", status=200)
+
 
 urlpatterns = [
+    # Health — both with and without trailing slash to avoid 301
+    path('health', health_check, name='health'),
+    path('health/', health_check, name='health-slash'),
+
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
     path('', include('organizations.urls')),
     path('', include('guardian.urls')),
-]
-
-def health_check(request):
-    return HttpResponse("OK", status=200)
-
-urlpatterns += [
-    path('health/', health_check),
 ]

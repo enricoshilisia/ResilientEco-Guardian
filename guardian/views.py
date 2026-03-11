@@ -502,17 +502,32 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    """
+    POST /api/auth/logout/
+    Blacklists the refresh token.
+    - If called with a valid JWT: logs the user out and blacklists token.
+    - If called without auth (token already expired/missing): still returns 200
+      so the frontend can clear its local state cleanly.
+    """
+    permission_classes = [permissions.AllowAny]  # Don't block expired/missing tokens
 
     def post(self, request):
-        try:
-            token = RefreshToken(request.data.get('refresh'))
-            token.blacklist()
-            _log_activity(request.user, 'logout', 'User logged out', request)
-            return Response({"detail": "Logged out."})
-        except Exception:
-            return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+        refresh_token = request.data.get('refresh')
 
+        # If a refresh token was supplied, try to blacklist it
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                # Token already expired or invalid — that's fine, just continue
+                pass
+
+        # Log activity if we can identify the user
+        if request.user and request.user.is_authenticated:
+            _log_activity(request.user, 'logout', 'User logged out', request)
+
+        return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
 
 # ─────────────────────────────────────────────
 # ORGANIZATION REGISTRATION WIZARD

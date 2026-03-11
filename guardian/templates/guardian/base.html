@@ -221,7 +221,7 @@
 
         <div class="nav-right">
 
-            <!-- AUTHENTICATED STATE (shown by JS when token exists) -->
+            <!-- AUTHENTICATED STATE -->
             <div id="nav-authed" style="display:none; align-items:center; gap:8px;">
                 <div class="nav-org-badge" id="nav-org-badge" style="display:none;">
                     <div class="dot"></div>
@@ -240,12 +240,12 @@
                         <a class="dropdown-item" href="/invitations/">✉️ Invitations</a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="/settings/">⚙️ Settings</a>
-                        <a class="dropdown-item danger" href="#" onclick="logoutUser()">↩ Sign Out</a>
+                        <a class="dropdown-item danger" href="#" onclick="logoutUser(); return false;">↩ Sign Out</a>
                     </div>
                 </div>
             </div>
 
-            <!-- GUEST STATE (shown by JS when no token) -->
+            <!-- GUEST STATE -->
             <div id="nav-guest" style="display:none; align-items:center; gap:8px;">
                 <a href="/login/" class="btn btn-ghost btn-sm {% block nav_login %}{% endblock %}">Sign In</a>
                 <a href="/register/" class="btn btn-primary btn-sm {% block nav_register %}{% endblock %}">Get Started</a>
@@ -367,33 +367,28 @@ function clearTokens() {
     localStorage.removeItem('rg_access');
     localStorage.removeItem('rg_refresh');
     localStorage.removeItem('rg_user');
-    // Clear rg_access cookie
     document.cookie = 'rg_access=; path=/; max-age=0; SameSite=Lax';
 }
 
-function getCsrf() {
-    return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
-}
-
+// ── Logout — JWT only, no allauth session call ────────────────────
+// The /accounts/logout/ call was causing CSRF origin errors because
+// it's a session-based Django view that checks the request origin.
+// Since this app is JWT-based, we only need to blacklist the refresh
+// token via our own API endpoint and then clear local storage.
 async function logoutUser() {
     const { refresh } = getTokens();
-    const csrf = getCsrf();
 
-    // 1. Blacklist JWT token
     try {
         await fetch('/api/auth/logout/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ refresh }),
+            headers: { 'Content-Type': 'application/json' },
+            // No Authorization header needed — LogoutView is AllowAny
+            body: JSON.stringify({ refresh: refresh || '' }),
         });
-    } catch (_) {}
+    } catch (_) {
+        // Network error — still clear local state and redirect
+    }
 
-    // 2. Clear Django session (in case allauth or admin set one)
-    try {
-        await fetch('/accounts/logout/', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
-    } catch (_) {}
-
-    // 3. Clear all local state
     clearTokens();
     window.location.href = '/login/';
 }
@@ -405,7 +400,7 @@ async function authFetch(url, options = {}) {
     return fetch(url, { ...options, headers });
 }
 
-// ── Nav auth state — driven by localStorage, not Django session ───
+// ── Nav auth state ────────────────────────────────────────────────
 (function initNav() {
     const access = localStorage.getItem('rg_access');
     const authedEl = document.getElementById('nav-authed');
@@ -416,22 +411,19 @@ async function authFetch(url, options = {}) {
         return;
     }
 
-    // Decode JWT payload (no verification needed for display)
+    // Decode JWT payload to check expiry (no verification needed for display)
     try {
         const payload = JSON.parse(atob(access.split('.')[1]));
         const now = Math.floor(Date.now() / 1000);
         if (payload.exp && payload.exp < now) {
-            // Token expired — show guest, clear storage
             clearTokens();
             guestEl.style.display = 'flex';
             return;
         }
     } catch (_) {}
 
-    // Show authed nav
     authedEl.style.display = 'flex';
 
-    // Populate from cached user info in localStorage
     const userStr = localStorage.getItem('rg_user');
     if (userStr) {
         try {
@@ -439,14 +431,12 @@ async function authFetch(url, options = {}) {
             document.getElementById('nav-full-name').textContent = u.full_name || u.username || '—';
             document.getElementById('nav-email').textContent = u.email || '—';
 
-            // Initials
             const parts = (u.full_name || u.username || '').trim().split(' ');
             const initials = parts.length >= 2
                 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase()
                 : (parts[0] || '?').substring(0, 2).toUpperCase();
             document.getElementById('nav-avatar-initials').textContent = initials;
 
-            // Org badge
             if (u.org_name) {
                 document.getElementById('nav-org-name').textContent = u.org_name.length > 20
                     ? u.org_name.substring(0, 18) + '…'
