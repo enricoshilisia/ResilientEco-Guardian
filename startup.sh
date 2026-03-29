@@ -16,11 +16,12 @@ echo "Creating default organizations, users, and locations..."
 python - <<END
 import os
 import django
+from django.utils.text import slugify
+from django.utils import timezone
 django.setup()
 
 from django.contrib.auth.models import User
 from guardian.models import Organization, OrganizationMembership, SavedLocation
-from django.utils import timezone
 
 # ────────────── Organizations & Users ──────────────
 orgs_users = [
@@ -47,9 +48,12 @@ orgs_users = [
 locations = ["Nairobi", "Nakuru", "Kisumu", "Nyeri"]
 
 for entry in orgs_users:
-    org, created = Organization.objects.get_or_create(
-        name=entry["org_name"],
-        defaults={"org_type": entry["org_type"]}
+    org_slug = slugify(entry["org_name"])
+    
+    # Use update_or_create to avoid UNIQUE constraint errors
+    org, created = Organization.objects.update_or_create(
+        slug=org_slug,
+        defaults={"name": entry["org_name"], "org_type": entry["org_type"]}
     )
     
     user, created_user = User.objects.get_or_create(
