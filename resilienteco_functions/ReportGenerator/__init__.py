@@ -1,4 +1,7 @@
 """
+
+resilienteco_functions/ReportGenerator/__init__.py
+
 ReportGenerator Azure Function
 -------------------------------
 Generates detailed climate risk reports (JSON + PDF) for ResilientEco Guardian.
