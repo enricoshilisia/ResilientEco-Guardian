@@ -5,6 +5,7 @@ set -e
 echo "Current directory: $(pwd)"
 echo "PORT is: ${PORT}"
 
+# Set Django settings module
 export DJANGO_SETTINGS_MODULE=resilienteco.settings
 
 echo "Running Django commands..."
@@ -18,6 +19,7 @@ import os
 import django
 from django.utils.text import slugify
 from django.utils import timezone
+
 django.setup()
 
 from django.contrib.auth.models import User
@@ -49,32 +51,37 @@ locations = ["Nairobi", "Nakuru", "Kisumu", "Nyeri"]
 
 for entry in orgs_users:
     org_slug = slugify(entry["org_name"])
-    
-    # Use update_or_create to avoid UNIQUE constraint errors
-    org, created = Organization.objects.update_or_create(
+
+    # Create or update organization safely
+    org, org_created = Organization.objects.update_or_create(
         slug=org_slug,
         defaults={"name": entry["org_name"], "org_type": entry["org_type"]}
     )
-    
-    user, created_user = User.objects.get_or_create(
+
+    # Create or get user
+    user, user_created = User.objects.get_or_create(
         username=entry["username"],
         defaults={"email": f"{entry['username']}@example.com"}
     )
-    
-    if created_user:
+
+    if user_created:
         user.set_password(entry["password"])
         user.save()
-    
-    # Create membership if not exists
-    OrganizationMembership.objects.get_or_create(
+
+    # Create membership (avoid duplicates)
+    OrganizationMembership.objects.update_or_create(
         user=user,
         organization=org,
-        defaults={"role": "admin", "joined_at": timezone.now(), "is_active": True}
+        defaults={
+            "role": "admin",
+            "joined_at": timezone.now(),
+            "is_active": True
+        }
     )
-    
-    # Create locations for the organization
+
+    # Create locations for the organization safely
     for loc_name in locations:
-        SavedLocation.objects.get_or_create(
+        SavedLocation.objects.update_or_create(
             organization=org,
             name=loc_name,
             defaults={
